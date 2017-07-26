@@ -9,45 +9,48 @@ Unset Printing Implicit Defensive.
 
 (* Implementation of PoS protocol as a STS *)
 Definition nid := nat.
-Definition peers := seq nid.
+Definition peers_t := seq nid.
 
 Inductive Message :=
   | NullMsg
-  | Addr of nid & peers
+  | Addr of nid & peers_t
   | Connect of nid.
 
-Definition Transmission := (nid * Message)%type.
-Definition NullTransmission : Transmission := pair 0 NullMsg.
+Record Transmission := mkT {to: nid; msg: Message}.
+Definition NullTransmission := mkT 0 NullMsg.
 
 Definition ToSend := seq Transmission.
 Definition emitZero : ToSend := [:: NullTransmission].
 Definition emitOne (trans : Transmission) : ToSend := [:: trans].
 Definition emitMany (trsms : ToSend) := trsms.
 
-Definition emitOneToOne (to : nid) (msg : Message) : ToSend := [:: pair to msg].
+Definition emitOneToOne (to : nid) (msg : Message) : ToSend := [:: mkT to msg].
 Definition emitManyToOne (to : nid) (msgs : seq Message) : ToSend :=
-  [seq (pair to msg) | msg <- msgs].
+  [seq (mkT to msg) | msg <- msgs].
 
 
 Section Node. (* Node behaviour *)
 
-Inductive State :=
-  | Await of nid & peers.
+Record State :=
+  Node {
+    id : nid;
+    peers : peers_t;
+  }.
 
-Definition Init (n : nid) : State := Await n [:: n].
-
+Definition Init (n : nid) : State := Node n [:: n].
+  
 Definition StepFun := State -> Message -> (State * ToSend).
 
 Definition step : StepFun :=
   fun (st: State) (msg: Message) =>
     match st with
-    | Await n prs =>
+    | Node n prs =>
       match msg with
-      | Connect peer => pair (Await n (undup (peer :: prs))) emitZero
+      | Connect peer => pair (Node n (undup (peer :: prs))) emitZero
       | Addr _ knownPeers =>
         let: newP := [seq x <- knownPeers | x \notin prs] in
-        let: connects := [seq pair p (Connect n) | p <- newP] in
-          pair (Await n (prs ++ newP)) (emitMany(connects))
+        let: connects := [seq mkT p (Connect n) | p <- newP] in
+          pair (Node n (undup (prs ++ newP))) (emitMany(connects))
       | _ => pair st emitZero
       end
     end.
@@ -55,4 +58,25 @@ Definition step : StepFun :=
 Compute step (Init 0) (Addr 1 [:: 0; 1; 2; 4]).
 Compute step (fst (step (Init 0) (Connect 1))) (Addr 1 [:: 0; 1; 2; 4]).
 
+Lemma id_constant :
+  forall (s1 : State) (m : Message), let: s2 := (step s1 m).1 in
+    id s1 = id s2.
+Proof.
+case=> n1 p1 []; by [].
+Qed.
+
+Lemma peers_nodups :
+  forall (s1 : State) (m : Message), let: s2 := (step s1 m).1 in
+    uniq (peers s1) -> uniq (peers s2).
+Proof.
+case=> n1 p1 [].
+- by [].
+- case=> [known | n2 known]; move=> UniqP1; by apply undup_uniq.
+- simpl. move=> n2 UniqP1. case B: (n2 \in p1).
+  + by apply undup_uniq.
+  + rewrite cons_uniq undup_id.
+    * rewrite B. by [].
+    * by [].
+Qed.  
+    
 End Node.
