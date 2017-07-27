@@ -38,10 +38,10 @@ Record State :=
   }.
 
 Definition Init (n : nid) : State := Node n [:: n].
+Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
   
-Definition StepFun := State -> Message -> (State * ToSend).
 
-Definition step : StepFun :=
+Definition upd : State -> Message -> (State * ToSend) :=
   fun (st: State) (msg: Message) =>
     match st with
     | Node n prs =>
@@ -55,18 +55,15 @@ Definition step : StepFun :=
       end
     end.
 
-Compute step (Init 0) (Addr 1 [:: 0; 1; 2; 4]).
-Compute step (fst (step (Init 0) (Connect 1))) (Addr 1 [:: 0; 1; 2; 4]).
-
-Lemma id_constant :
-  forall (s1 : State) (m : Message), let: s2 := (step s1 m).1 in
+Lemma upd_id_constant :
+  forall (s1 : State) (m : Message), let: s2 := (upd s1 m).1 in
     id s1 = id s2.
 Proof.
 case=> n1 p1 []; by [].
 Qed.
 
-Lemma peers_nodups :
-  forall (s1 : State) (m : Message), let: s2 := (step s1 m).1 in
+Lemma upd_peers_uniq :
+  forall (s1 : State) (m : Message), let: s2 := (upd s1 m).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
 case=> n1 p1 [].
@@ -78,5 +75,30 @@ case=> n1 p1 [].
     * rewrite B. by [].
     * by [].
 Qed.  
-    
+
+
+Inductive step (s1 s2 : State) : Prop :=
+| Idle of s1 = s2
+| RcvMsg (m : Message) of (s2 = (upd s1 m).1).
+
+Lemma id_constant :
+  forall (s1 s2 : State),
+    step s1 s2 -> id s1 = id s2.
+Proof.
+move=> s1 s2.
+case.
+- move=> eq. rewrite eq. by [].
+  - move=> m Us. rewrite Us. apply upd_id_constant.
+Qed.
+
+Lemma peers_uniq :
+  forall (s1 s2 : State),
+    uniq (peers s1) -> step s1 s2 -> uniq (peers s2).
+Proof.
+move=> s1 s2 UniqP1.
+case.
+  - move=> eq. rewrite -eq. by [].
+  - move=> m Us. rewrite Us. apply upd_peers_uniq. by [].
+Qed.
+
 End Node.
