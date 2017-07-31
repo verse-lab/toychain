@@ -40,11 +40,10 @@ case B: (n == n'); first by case/eqP:B=><-; constructor 1.
 by constructor 2; case=>E; subst n'; rewrite eqxx in B.
 Qed.
 
-Canonical Packet_eqMixin := EqMixin eqpktP.
-Canonical Packet_eqType := EqType Packet Packet_eqMixin.
+Canonical Packet_eqMixin := Eval hnf in EqMixin eqpktP.
+Canonical Packet_eqType := Eval hnf in EqType Packet Packet_eqMixin.
 
 End PacketEqType.
-
 
 Definition PacketSoup := seq Packet.
 
@@ -56,8 +55,6 @@ Record World :=
     inFlightMsgs : PacketSoup;
   }.
 
-Print Equality.sort.
-
 Inductive reliable_step (w w' : World) : Prop :=
 | step_msg (p : Packet) (st' : State) (ms : ToSend) of
       p \in (inFlightMsgs w) &
@@ -65,9 +62,8 @@ Inductive reliable_step (w w' : World) : Prop :=
       | Some(st) => updS st (msg p) = (st', ms)
       | _ => false
       end &
-
       reliable_step w
         (mkW
            (upd (dst p) st' (localState w))
-           (ms ++ rem p (inFlightMsgs w))
+           (ms ++ seq.rem p (inFlightMsgs w))
         ).
