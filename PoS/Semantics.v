@@ -53,17 +53,14 @@ Record World :=
   mkW {
     localState : StateMap;
     inFlightMsgs : PacketSoup;
-  }.
+    }.
+
+Check dst.
 
 Inductive reliable_step (w w' : World) : Prop :=
-| step_msg (p : Packet) (st' : State) (ms : ToSend) of
+| step_msg (p : Packet) (st st' : State) (ms : ToSend) of
       p \in (inFlightMsgs w) &
-      match (find (dst p) (localState w)) with
-      | Some(st) => updS st (msg p) = (st', ms)
-      | _ => false
-      end &
-      reliable_step w
-        (mkW
-           (upd (dst p) st' (localState w))
-           (ms ++ seq.rem p (inFlightMsgs w))
-        ).
+      find (dst p) (localState w) = Some st &
+      updS st (msg p) = (st', ms) &      
+      w' = mkW (upd (dst p) st' (localState w))
+               (ms ++ seq.rem p (inFlightMsgs w)).
