@@ -12,7 +12,7 @@ Unset Printing Implicit Defensive.
 (* Network semantics *)
 Section PacketEqType.
 
-Fixpoint eqpkt a b :=
+Definition eqpkt a b :=
   ((src a) == (src b)) && ((dst a) == (dst b)) &&
   match (msg a), (msg b) with
   | NullMsg, NullMsg => true
@@ -25,7 +25,20 @@ Fixpoint eqpkt a b :=
 
 Lemma eqpktP : Equality.axiom eqpkt.
 Proof.
-Admitted.
+case=>sa da ma [sb] db mb; rewrite/eqpkt/=.
+case P1: (sa == sb)=>/=; last by constructor 2; case=>/eqP; rewrite P1.
+case P2: (da == db)=>/=; last by constructor 2; case=> _ /eqP; rewrite P2.
+move/eqP: P1=>P1; move/eqP: P2=>P2; subst sb db.
+case: ma=>[|n p|n].
+- case: mb=>//[|n' p'|n']; do? [by constructor 2]; by constructor 1.  
+- case: mb=>//[|n' p'|n']; do? [by constructor 2].
+  case B: ((n == n') && (p == p')).
+  - by case/andP: B=>/eqP<-/eqP<-; constructor 1.
+  by case/Bool.andb_false_elim: B=>B; constructor 2; case; move/eqP: B.
+case: mb=>//[|n' p'|n']; do? [by constructor 2].
+case B: (n == n'); first by case/eqP:B=><-; constructor 1.
+by constructor 2; case=>E; subst n'; rewrite eqxx in B.
+Qed.
 
 Canonical Packet_eqMixin := EqMixin eqpktP.
 Canonical Packet_eqType := EqType Packet Packet_eqMixin.
