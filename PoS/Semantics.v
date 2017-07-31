@@ -59,7 +59,7 @@ Check dst.
 
 Inductive reliable_step (w w' : World) : Prop :=
 | step_msg (p : Packet) (st st' : State) (ms : ToSend) of
-      p \in (inFlightMsgs w) &
+      p \in inFlightMsgs w &
       find (dst p) (localState w) = Some st &
       updS st (msg p) = (st', ms) &      
       w' = mkW (upd (dst p) st' (localState w))
