@@ -10,7 +10,10 @@ Unset Printing Implicit Defensive.
 (* A fomalization of a blockchain structure *)
 Definition Hash := nat.
 Definition VProof := nat.
+
 Definition Transaction := nat.
+Parameter hashT : Transaction -> Hash.
+Definition eq_tx t t' := hashT t == hashT t'.
 
 Record Block :=
   mkB {
@@ -36,8 +39,16 @@ Definition BlockTree := seq Block.
 Parameter btExtend : BlockTree -> Block -> BlockTree.
 Parameter btChain : BlockTree -> Blockchain.
 
+Definition TxPool := seq Transaction.
+
+Parameter txValid : Transaction -> Blockchain -> bool.
+Parameter tpExtend : TxPool -> Transaction -> TxPool.
+
 (* Axioms *)
 Axiom hashB_inj : forall (b b': Block), hashB b == hashB b' -> b = b'.
+Axiom hashT_inj : forall (t t': Transaction), hashT t == hashT t' -> t = t'.
+Axiom hashBT_noCollisions :
+  forall (b : Block) (t : Transaction), hashB b != hashT t.
 
 Module BlockEq.
 Lemma eq_blockP : Equality.axiom eq_block.
@@ -51,6 +62,19 @@ Canonical Block_eqMixin := Eval hnf in EqMixin eq_blockP.
 Canonical Block_eqType := Eval hnf in EqType Block Block_eqMixin.
 End BlockEq.
 Export BlockEq.
+
+Module TxEq.
+Lemma eq_txP : Equality.axiom eq_tx.
+Proof.
+move=> t t'. rewrite/eq_tx. apply: (iffP idP).
+  - by apply: hashT_inj.
+  - move=> eq. by rewrite eq.
+Qed.
+
+Canonical Tx_eqMixin := Eval hnf in EqMixin eq_txP.
+Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
+End TxEq.
+Export TxEq.
 
 Axiom blockValid_imp_VAF :
   forall (b : Block) (bc : Blockchain),
