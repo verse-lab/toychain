@@ -23,6 +23,11 @@ Inductive Message :=
   | InvMsg of nid & seq Hash
   | GetDataMsg of nid & Hash.
 
+Inductive InternalTransition :=
+  | AddrT
+  | InvT
+  | MintT.
+
 Module MsgEq.
 Definition eq_msg a b :=
  match a, b with
@@ -106,9 +111,8 @@ Definition emitZero : ToSend := [:: NullPacket].
 Definition emitOne (packet : Packet) : ToSend := [:: packet].
 Definition emitMany (packets : ToSend) := packets.
 
-Definition emitOneToOne (from to : nid) (msg : Message) := [:: mkP from to msg].
-Definition emitManyToOne (from to : nid) (msgs : seq Message) :=
-  [seq (mkP from to msg) | msg <- msgs].
+Definition emitBroadcast (from : nid) (dst : seq nid) (msg : Message) :=
+  [seq (mkP from to msg) | to <- dst].
 
 
 Section Node. (* Node behaviour *)
@@ -119,26 +123,32 @@ Record State :=
     peers : peers_t;
     blockTree : BlockTree;
     txPool : TxPool;
+
+    (* Flag - shows whether broadcast is needed *)
+    addr : bool;
+    inv : bool;
   }.
 
-Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::].
+Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::] true true.
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
   
-Definition updS : State -> Message -> (State * ToSend) :=
+Definition procMsg : State -> Message -> (State * ToSend) :=
   fun (st: State) (msg: Message) =>
     match st with
-    | Node n prs bt pool =>
+    | Node n prs bt pool a i =>
       match msg with
-      | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool) emitZero
+      | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool a i) emitZero
 
       | AddrMsg _ knownPeers =>
         let: newP := [seq x <- knownPeers | x \notin prs] in
         let: connects := [seq mkP n p (ConnectMsg n) | p <- newP] in
-        pair (Node n (undup (prs ++ newP)) bt pool) (emitMany(connects))
+        pair (Node n (undup (prs ++ newP)) bt pool true i) (emitMany(connects))
 
-      | BlockMsg b => pair (Node n prs (btExtend bt b) pool) emitZero
+      | BlockMsg b =>
+        let: unusedTxs := [seq t <- pool | t \notin (txs b)] in
+        pair (Node n prs (btExtend bt b) unusedTxs a true) emitZero
 
-      | TxMsg tx => pair (Node n prs bt (tpExtend pool tx)) emitZero
+      | TxMsg tx => pair (Node n prs bt (tpExtend pool tx) a true) emitZero
 
       | InvMsg p peerHashes =>
         let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
@@ -150,10 +160,12 @@ Definition updS : State -> Message -> (State * ToSend) :=
         let: matchingBlocks := [seq b <- bt | (hashB b) == h] in
         let: matchingTxs := [seq t <- pool | (hashT t) == h] in
         match ohead matchingBlocks with
-        | Some(b) => pair st (emitOne(mkP n p (BlockMsg b)))
+        | Some(b) =>
+          pair (Node n prs bt pool a true) (emitOne(mkP n p (BlockMsg b)))
         | _ =>
           match ohead matchingTxs with
-          | Some (tx) => pair st (emitOne(mkP n p (TxMsg tx)))
+          | Some (tx) =>
+            pair (Node n prs bt pool a true) (emitOne(mkP n p (TxMsg tx)))
           | _ => pair st emitZero
           end
         end
@@ -162,17 +174,40 @@ Definition updS : State -> Message -> (State * ToSend) :=
       end
     end.
 
-Lemma upd_id_constant : forall (s1 : State) (m : Message), 
-    id s1 = id (updS s1 m).1.
+Definition procInt : State -> InternalTransition -> (State * ToSend) :=
+  fun (st : State) (tr : InternalTransition) =>
+    match st with
+    | Node n prs bt pool a i =>
+      match tr with
+      | AddrT =>
+        pair (Node n prs bt pool false i) (emitBroadcast n prs (AddrMsg n prs))
+
+      | InvT =>
+        let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
+        pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
+
+      | _ => pair st emitZero
+      end
+    end.
+
+(* Proofs *)
+Lemma procMsg_id_constant : forall (s1 : State) (m : Message),
+    id s1 = id (procMsg s1 m).1.
 Proof.
-by case=> n1 p1 b1 t1 []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
+by case=> n1 p1 b1 t1 a i []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
 Qed.
 
-Lemma upd_peers_uniq :
-  forall (s1 : State) (m : Message), let: s2 := (updS s1 m).1 in
+Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition),
+    id s1 = id (procInt s1 t).1.
+Proof.
+by case=> n1 p1 b1 t1 a i []=>//.
+Qed.
+
+Lemma procMsg_peers_uniq :
+  forall (s1 : State) (m : Message), let: s2 := (procMsg s1 m).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
-case=> n1 p1 b1 t1 []; do? by [].
+case=> n1 p1 b1 t1 a i []; do? by [].
 - case=> [known | n2 known]; move=> UniqP1; by apply undup_uniq.
 - simpl. move=> n2 UniqP1. case B: (n2 \in p1).
   + by apply undup_uniq.
@@ -183,10 +218,17 @@ move=> p h. simpl. case exB: (ohead _). by [].
 case exT: (ohead _); by [].
 Qed.  
 
+Lemma procInt_peers_uniq :
+  forall (s1 : State) (t : InternalTransition), let: s2 := (procInt s1 t).1 in
+    uniq (peers s1) -> uniq (peers s2).
+Proof.
+by case=> n1 p1 b1 t1 a i []=>//.
+Qed.
 
 Inductive step (s1 s2 : State) : Prop :=
 | Idle of s1 = s2
-| RcvMsg (m : Message) of (s2 = (updS s1 m).1).
+| RcvMsg (m : Message) of (s2 = (procMsg s1 m).1)
+| IntT (t : InternalTransition) of (s2 = (procInt s1 t).1).
 
 Lemma id_constant :
   forall (s1 s2 : State),
@@ -195,7 +237,8 @@ Proof.
 move=> s1 s2.
 case.
 - move=> eq. rewrite eq. by [].
-- move=> m Us. rewrite Us. apply upd_id_constant.
+- move=> m Us. rewrite Us. apply procMsg_id_constant.
+- move=> t Us. rewrite Us. apply procInt_id_constant.
 Qed.
 
 Lemma peers_uniq :
@@ -205,6 +248,7 @@ Proof.
 move=> s1 s2 UniqP1.
 case.
 - move=> eq. rewrite -eq. by [].
-- move=> m Us. rewrite Us. apply upd_peers_uniq. by [].
+- move=> m Us. rewrite Us. apply procMsg_peers_uniq. by [].
+- move=> t Us. rewrite Us. apply procInt_peers_uniq. by [].
 Qed.
 End Node.
