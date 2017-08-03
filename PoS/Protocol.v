@@ -162,9 +162,8 @@ Definition updS : State -> Message -> (State * ToSend) :=
       end
     end.
 
-Lemma upd_id_constant :
-  forall (s1 : State) (m : Message), let: s2 := (updS s1 m).1 in
-    id s1 = id s2.
+Lemma upd_id_constant : forall (s1 : State) (m : Message), 
+    id s1 = id (updS s1 m).1.
 Proof.
 by case=> n1 p1 b1 t1 []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
 Qed.
