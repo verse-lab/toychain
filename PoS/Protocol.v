@@ -40,7 +40,12 @@ Definition eq_msg a b :=
   | InvMsg _ _, _ => false
   | GetDataMsg pA hA, GetDataMsg pB hB => (pA == pB) && (hA == hB)
   | GetDataMsg _ _, _ => false
-  end.
+ end.
+
+Ltac simple_tactic mb n n' B :=
+  (case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2];
+   case B: (n == n'); [by case/eqP:B=><-; constructor 1|constructor 2];
+   case=>E; subst n'; rewrite eqxx in B).
 
 (* A lot of duplication in this proof; what can be done about it? *)
 Lemma eq_msgP : Equality.axiom eq_msg.
@@ -52,15 +57,12 @@ case: ma=>[|n p|n|b|t|p h|p h].
   case B: ((n == n') && (p == p')).
   - by case/andP: B=>/eqP<-/eqP<-; constructor 1.
   by case/Bool.andb_false_elim: B=>B; constructor 2; case; move/eqP: B.
-- case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2].
-  case B: (n == n'); first by case/eqP:B=><-; constructor 1.
-  by constructor 2; case=>E; subst n'; rewrite eqxx in B.
-- case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2].
-  case B: (b == b'); first by case/eqP:B=><-; constructor 1.
-  by constructor 2; case=>E; subst b'; rewrite eqxx in B.
-- case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2].
-  case B: (t == t'); first by case/eqP:B=><-; constructor 1.
-  by constructor 2; case=>E; subst t'; rewrite eqxx in B.
+
+(* TODO: unify this! *)
+- by simple_tactic mb n n' B. 
+- by simple_tactic mb b b' B.
+- by simple_tactic mb t t' B.
+
 - case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2].
   case B: ((p == p') && (h == h')).
   - by case/andP: B=>/eqP<-/eqP<-; constructor 1.
@@ -164,9 +166,7 @@ Lemma upd_id_constant :
   forall (s1 : State) (m : Message), let: s2 := (updS s1 m).1 in
     id s1 = id s2.
 Proof.
-case=> n1 p1 b1 t1 []; do? by [].
-move=> p h. simpl. case exB: (ohead _). by [].
-case exT: (ohead _); by [].
+by case=> n1 p1 b1 t1 []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
 Qed.
 
 Lemma upd_peers_uniq :
