@@ -45,6 +45,7 @@ Parameter txValid : Transaction -> Blockchain -> bool.
 Parameter tpExtend : TxPool -> Transaction -> TxPool.
 
 (* Axioms *)
+(* Is it realistic? *)
 Axiom hashB_inj : forall (b b': Block), hashB b == hashB b' -> b = b'.
 Axiom hashT_inj : forall (t t': Transaction), hashT t == hashT t' -> t = t'.
 Axiom hashBT_noCollisions :
@@ -83,23 +84,25 @@ Axiom blockValid_imp_VAF :
 (* TODO: justify the need for this *)
 Axiom no_proof_reuse :
   forall (b b' : Block) (bc : Blockchain),
-    b <> b' -> (blockValid b bc) -> (blockValid b' bc) ->
-    (proof b) <> (proof b').
+    b != b' -> blockValid b bc -> blockValid b' bc ->
+    proof b != proof b'.
 
 Axiom CFR_strictly_increases :
   forall (bc : Blockchain) (b : Block),
-    blockValid b bc -> (bc ++ [:: b]) > bc.
+    blockValid b bc -> bc ++ [:: b] > bc.
 
 Axiom btExtend_preserve :
-  forall (bt : BlockTree) (ob b : Block), let: bt' := btExtend bt b in
+  forall (bt : BlockTree) (ob b : Block),
+    let: bt' := btExtend bt b in
     ob \in bt -> ob \in bt'.
 
 Axiom btExtend_withDup_noEffect :
-  forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
+  forall (bt : BlockTree) (b : Block),
+    let: bt' := btExtend bt b in
     b \in bt -> bt = bt'.
 
 (* TODO: explain *)
 Axiom btExtend_withNew_sameOrBetter :
   forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
     b \notin bt ->
-      (b \in (btChain bt') <-> (btChain bt') > (btChain bt)).
+      b \in btChain bt' = (btChain bt' > btChain bt).
