@@ -8,12 +8,13 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* A fomalization of a blockchain structure *)
-Definition Hash := nat.
-Definition VProof := nat.
-Definition Address := nat.
-Definition Stake := nat.
 
-Definition Transaction := nat.
+Definition Address := nat.
+
+Parameter Stake : eqType.
+Parameter Hash : eqType.
+Parameter VProof : eqType.
+Parameter Transaction : eqType.
 Parameter hashT : Transaction -> Hash.
 Definition eq_tx t t' := hashT t == hashT t'.
 

@@ -135,78 +135,74 @@ Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
 (* Please, explain what happens at each transition *)
 Definition procMsg : State -> Message -> (State * ToSend) :=
   fun (st: State) (msg: Message) =>
-    match st with
-    | Node n prs bt pool a i =>
-      match msg with
-      | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool a i) emitZero
-
-      | AddrMsg _ knownPeers =>
-        let: newP := [seq x <- knownPeers | x \notin prs] in
-        let: connects := [seq mkP n p (ConnectMsg n) | p <- newP] in
-        pair (Node n (undup (prs ++ newP)) bt pool true i) (emitMany(connects))
-
-      | BlockMsg b =>
-        let: newBt := (btExtend bt b) in
-        let: updatedTxs := [seq t <- pool | txValid t (btChain newBt)] in
-        pair (Node n prs newBt updatedTxs a true) emitZero
-
-      | TxMsg tx => pair (Node n prs bt (tpExtend pool bt tx) a true) emitZero
-
-      | InvMsg p peerHashes =>
-        let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
-        let: newH := [seq h <- peerHashes | h \notin ownHashes] in
-        let: gets := [seq mkP n p (GetDataMsg n h) | h <- newH] in
-        pair st (emitMany(gets))
-
-      | GetDataMsg p h =>
-        let: matchingBlocks := [seq b <- bt | (hashB b) == h] in
-        let: matchingTxs := [seq t <- pool | (hashT t) == h] in
-        match ohead matchingBlocks with
-        | Some(b) =>
-          pair (Node n prs bt pool a true) (emitOne(mkP n p (BlockMsg b)))
-        | _ =>
-          match ohead matchingTxs with
-          | Some (tx) =>
-            pair (Node n prs bt pool a true) (emitOne(mkP n p (TxMsg tx)))
-          | _ => pair st emitZero
-          end
-        end
-
-      | _ => pair st emitZero
-      end
-    end.
-
-(* Please, explain this *)
-Definition procInt : State -> InternalTransition -> (State * ToSend) :=
-  fun (st : State) (tr : InternalTransition) =>
-    match st with
-    | Node n prs bt pool a i =>
-      match tr, a, i with
-      | AddrT, true, _ =>
-        pair (Node n prs bt pool false i) (emitBroadcast n prs (AddrMsg n prs))
-
-      | InvT, _ , true =>
-        let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
-        pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
-
-      (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
-      | MintT, _, _ =>
-        let: bc := (btChain bt) in
-        let: attempt := genProof(stake n bc) in
-        match attempt with
-        | Some(pf) =>
-            if VAF pf bc then
-              let: allowedTxs := [seq t <- pool | txValid t bc] in
-              let: block := mkB (hashB (last GenesisBlock bc)) allowedTxs pf in
-              pair st (emitBroadcast n prs (BlockMsg block))
-            else
-              pair st emitZero
-
+    let: (Node n prs bt pool a i) := st in
+    match msg with
+    | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool a i) emitZero
+                              
+    | AddrMsg _ knownPeers =>
+      let: newP := [seq x <- knownPeers | x \notin prs] in
+      let: connects := [seq mkP n p (ConnectMsg n) | p <- newP] in
+      pair (Node n (undup (prs ++ newP)) bt pool true i) (emitMany(connects))
+           
+    | BlockMsg b =>
+      let: newBt := (btExtend bt b) in
+      let: updatedTxs := [seq t <- pool | txValid t (btChain newBt)] in
+      pair (Node n prs newBt updatedTxs a true) emitZero
+           
+    | TxMsg tx => pair (Node n prs bt (tpExtend pool bt tx) a true) emitZero
+                       
+    | InvMsg p peerHashes =>
+      let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
+      let: newH := [seq h <- peerHashes | h \notin ownHashes] in
+      let: gets := [seq mkP n p (GetDataMsg n h) | h <- newH] in
+      pair st (emitMany(gets))
+           
+    | GetDataMsg p h =>
+      let: matchingBlocks := [seq b <- bt | (hashB b) == h] in
+      let: matchingTxs := [seq t <- pool | (hashT t) == h] in
+      match ohead matchingBlocks with
+      | Some(b) =>
+        pair (Node n prs bt pool a true) (emitOne(mkP n p (BlockMsg b)))
+      | _ =>
+        match ohead matchingTxs with
+        | Some (tx) =>
+          pair (Node n prs bt pool a true) (emitOne(mkP n p (TxMsg tx)))
         | _ => pair st emitZero
         end
-
-      | _, _, _ => pair st emitZero
       end
+        
+    | _ => pair st emitZero
+    end.
+
+(* TODO: Please, explain these transitions! *)
+Definition procInt : State -> InternalTransition -> (State * ToSend) :=
+  fun (st : State) (tr : InternalTransition) =>
+    let: (Node n prs bt pool a i) := st in
+    match tr, a, i with
+    | AddrT, true, _ =>
+      pair (Node n prs bt pool false i) (emitBroadcast n prs (AddrMsg n prs))
+           
+    | InvT, _ , true =>
+      let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
+      pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
+           
+    (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
+    | MintT, _, _ =>
+      let: bc := (btChain bt) in
+      let: attempt := genProof(stake n bc) in
+      match attempt with
+      | Some(pf) =>
+        if VAF pf bc then
+          let: allowedTxs := [seq t <- pool | txValid t bc] in
+          let: block := mkB (hashB (last GenesisBlock bc)) allowedTxs pf in
+          pair st (emitBroadcast n prs (BlockMsg block))
+        else
+          pair st emitZero
+               
+      | _ => pair st emitZero
+      end
+        
+    | _, _, _ => pair st emitZero
     end.
 
 (* Proofs *)
