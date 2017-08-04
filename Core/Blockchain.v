@@ -34,6 +34,7 @@ Parameter blockValid : Block -> Blockchain -> bool.
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (CFR_gt A B).
 
+(* Also keeps orphan blocks *)
 Definition BlockTree := seq Block.
 
 Parameter btExtend : BlockTree -> Block -> BlockTree.
@@ -41,8 +42,9 @@ Parameter btChain : BlockTree -> Blockchain.
 
 Definition TxPool := seq Transaction.
 
+(* Transaction is valid and consistent with the given chain. *)
 Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> Transaction -> TxPool.
+Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 
 (* Axioms *)
 Axiom hashB_inj : forall (b b': Block), hashB b == hashB b' -> b = b'.
@@ -103,3 +105,11 @@ Axiom btExtend_withNew_sameOrBetter :
   forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
     b \notin bt ->
       (b \in (btChain bt') <-> (btChain bt') > (btChain bt)).
+
+Axiom tpExtend_validAndConsistent :
+  forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
+    tx \in (tpExtend pool bt tx) -> (txValid tx (btChain bt)).
+
+Axiom tpExtend_withDup_noEffect :
+  forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
+    tx \in pool -> (tpExtend pool bt tx) = pool.

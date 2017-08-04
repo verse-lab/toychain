@@ -145,10 +145,11 @@ Definition procMsg : State -> Message -> (State * ToSend) :=
         pair (Node n (undup (prs ++ newP)) bt pool true i) (emitMany(connects))
 
       | BlockMsg b =>
-        let: unusedTxs := [seq t <- pool | t \notin (txs b)] in
-        pair (Node n prs (btExtend bt b) unusedTxs a true) emitZero
+        let: newBt := (btExtend bt b) in
+        let: updatedTxs := [seq t <- pool | txValid t (btChain newBt)] in
+        pair (Node n prs newBt updatedTxs a true) emitZero
 
-      | TxMsg tx => pair (Node n prs bt (tpExtend pool tx) a true) emitZero
+      | TxMsg tx => pair (Node n prs bt (tpExtend pool bt tx) a true) emitZero
 
       | InvMsg p peerHashes =>
         let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
@@ -178,15 +179,15 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
   fun (st : State) (tr : InternalTransition) =>
     match st with
     | Node n prs bt pool a i =>
-      match tr with
-      | AddrT =>
+      match tr, a, i with
+      | AddrT, true, _ =>
         pair (Node n prs bt pool false i) (emitBroadcast n prs (AddrMsg n prs))
 
-      | InvT =>
+      | InvT, _ , true =>
         let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
         pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
 
-      | _ => pair st emitZero
+      | _, _, _ => pair st emitZero
       end
     end.
 
@@ -200,7 +201,7 @@ Qed.
 Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition),
     id s1 = id (procInt s1 t).1.
 Proof.
-by case=> n1 p1 b1 t1 a i []=>//.
+by case=> n1 p1 b1 t1 a i []; case adv: a; case adv': i.
 Qed.
 
 Lemma procMsg_peers_uniq :
@@ -222,7 +223,7 @@ Lemma procInt_peers_uniq :
   forall (s1 : State) (t : InternalTransition), let: s2 := (procInt s1 t).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
-by case=> n1 p1 b1 t1 a i []=>//.
+by case=> n1 p1 b1 t1 a i []; case adv: a; case adv': i.
 Qed.
 
 Inductive step (s1 s2 : State) : Prop :=

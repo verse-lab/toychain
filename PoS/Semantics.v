@@ -26,6 +26,12 @@ Inductive reliable_step (w w' : World) : Prop :=
 | Deliver (p : Packet) (st st' : State) (ms : ToSend) of
       p \in inFlightMsgs w &
       find (dst p) (localState w) = Some st &
-      updS st (msg p) = (st', ms) &      
+      procMsg st (msg p) = (st', ms) &
       w' = mkW (upd (dst p) st' (localState w))
-               (ms ++ seq.rem p (inFlightMsgs w)).
+               (ms ++ seq.rem p (inFlightMsgs w))
+
+| Intern (proc : nid) (t : InternalTransition) (st st' : State) (ms : ToSend) of
+      find proc (localState w) = Some st &
+      procInt st t = (st', ms) &
+      w' = mkW (upd proc st' (localState w))
+               (ms ++ (inFlightMsgs w)).
