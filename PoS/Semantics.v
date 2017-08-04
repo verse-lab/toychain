@@ -19,7 +19,7 @@ Record World :=
     localState : StateMap;
     inFlightMsgs : PacketSoup;
     consumedMsgs : PacketSoup;
-    }.
+  }.
 
 (* [Ilya] You might want not to remove the in-flight message, but *)
 (* rather move them into a separate part of the world ("thrash-pile"). *)
@@ -33,17 +33,17 @@ component. *)
 Inductive system_step (w w' : World) : Prop :=
 | Idle of w = w'
 
-| Deliver (p : Packet) (st st' : State) (ms : ToSend) of
+| Deliver (p : Packet) (st : State) of
       p \in inFlightMsgs w &
       find (dst p) (localState w) = Some st &
-      procMsg st (msg p) = (st', ms) &
+      let: (st', ms) := procMsg st (msg p) in
       w' = mkW (upd (dst p) st' (localState w))
                (ms ++ seq.rem p (inFlightMsgs w))
                (rcons (consumedMsgs w) p)
 
-| Intern (proc : nid) (t : InternalTransition) (st st' : State) (ms : ToSend) of
+| Intern (proc : nid) (t : InternalTransition) (st : State) of
       find proc (localState w) = Some st &
-      procInt st t = (st', ms) &
+      let: (st', ms) := procInt st t in
       w' = mkW (upd proc st' (localState w))
                (ms ++ (inFlightMsgs w))
                (consumedMsgs w).
