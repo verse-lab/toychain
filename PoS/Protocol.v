@@ -131,7 +131,8 @@ Record State :=
 
 Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::] true true.
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
-  
+
+(* Please, explain what happens at each transition *)
 Definition procMsg : State -> Message -> (State * ToSend) :=
   fun (st: State) (msg: Message) =>
     match st with
@@ -175,6 +176,7 @@ Definition procMsg : State -> Message -> (State * ToSend) :=
       end
     end.
 
+(* Please, explain this *)
 Definition procInt : State -> InternalTransition -> (State * ToSend) :=
   fun (st : State) (tr : InternalTransition) =>
     match st with
