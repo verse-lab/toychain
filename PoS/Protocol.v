@@ -187,6 +187,22 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
         let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
         pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
 
+      (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
+      | MintT, _, _ =>
+        let: bc := (btChain bt) in
+        let: attempt := genProof(stake n bc) in
+        match attempt with
+        | Some(pf) =>
+            if VAF pf bc then
+              let: allowedTxs := [seq t <- pool | txValid t bc] in
+              let: block := mkB (hashB (last GenesisBlock bc)) allowedTxs pf in
+              pair st (emitBroadcast n prs (BlockMsg block))
+            else
+              pair st emitZero
+
+        | _ => pair st emitZero
+        end
+
       | _, _, _ => pair st emitZero
       end
     end.
@@ -201,7 +217,8 @@ Qed.
 Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition),
     id s1 = id (procInt s1 t).1.
 Proof.
-by case=> n1 p1 b1 t1 a i []; case adv: a; case adv': i.
+case=> n1 p1 b1 t1 a i []=>//. case adv: a=>//. case adv': i=>//.
+simpl. case hP: (genProof _)=>//. case vP: (VAF _)=>//.
 Qed.
 
 Lemma procMsg_peers_uniq :
@@ -223,7 +240,8 @@ Lemma procInt_peers_uniq :
   forall (s1 : State) (t : InternalTransition), let: s2 := (procInt s1 t).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
-by case=> n1 p1 b1 t1 a i []; case adv: a; case adv': i.
+case=> n1 p1 b1 t1 a i []=>//. case adv: a=>//. case adv': i=>//.
+simpl. case hP: (genProof _)=>//. case vP: (VAF _)=>//.
 Qed.
 
 Inductive step (s1 s2 : State) : Prop :=

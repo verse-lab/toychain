@@ -10,6 +10,8 @@ Unset Printing Implicit Defensive.
 (* A fomalization of a blockchain structure *)
 Definition Hash := nat.
 Definition VProof := nat.
+Definition Address := nat.
+Definition Stake := nat.
 
 Definition Transaction := nat.
 Parameter hashT : Transaction -> Hash.
@@ -29,6 +31,10 @@ Definition Blockchain := seq Block.
 
 (* We might want to introduce a notion of time *)
 Parameter VAF : VProof -> Blockchain -> bool.
+
+Parameter stake : Address -> Blockchain -> Stake.
+Parameter genProof : Stake -> option VProof.
+
 Parameter blockValid : Block -> Blockchain -> bool.
 
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
