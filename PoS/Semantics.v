@@ -19,31 +19,39 @@ Record World :=
   mkW {
     localState : StateMap;
     inFlightMsgs : PacketSoup;
-    trace : seq Event;
-    }.
+    consumedMsgs : PacketSoup;
+  }.
 
 Parameter initState : StateMap.
 Definition initWorld := mkW initState [::] [::].
 
-Inductive reliable_step (w w' : World) : Prop :=
+(* Don't you worry about uniqueness of the messages? *)
+Inductive system_step (w w' : World) : Prop :=
 | Idle of w = w'
 
-| Deliver (p : Packet) (st st' : State) (ms : ToSend) (evs : seq Event) of
+| Deliver (p : Packet) (st : State) of
       p \in inFlightMsgs w &
-      p != NullPacket &
       find (dst p) (localState w) = Some st &
-      procMsg st (msg p) = (st', ms, evs) &
+      let: (st', ms) := procMsg st (msg p) in
       w' = mkW (upd (dst p) st' (localState w))
                (ms ++ seq.rem p (inFlightMsgs w))
-               (trace w ++ evs)
+               (rcons (consumedMsgs w) p)
 
-| Intern (proc : nid) (t : InternalTransition) (st st' : State) (ms : ToSend) of
+| Intern (proc : nid) (t : InternalTransition) (st : State) of
       find proc (localState w) = Some st &
-      procInt st t = (st', ms) &
+      let: (st', ms) := procInt st t in
       w' = mkW (upd proc st' (localState w))
                (ms ++ (inFlightMsgs w))
-               [::].
+               (consumedMsgs w).
 
-Definition reliable_step_star := clos_refl_trans_n1 _ reliable_step.
+Definition system_step_star := clos_refl_trans_n1 _ system_step.
 
-Definition reachable (w w' : World) := reliable_step_star w w'.
+Definition reachable (w w' : World) := system_step_star w w'.
+               
+(* TODO: define a relation that "reconstructs" an "ideal" blockchain *)
+(* from a given world, and prove its properties (e.g., functionality, *)
+(* meaning that one world corresponds to one blobkchain *)
+(* precisely). This might require to state additional "coherence" *)
+(* properties of the world, such as block-trees of the majority of
+involved peers are not _too different_. *)
+
