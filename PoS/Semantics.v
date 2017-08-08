@@ -9,11 +9,15 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* Number of nodes *)
+Parameter N : nat.
 
 (* Network semantics *)
 Definition PacketSoup := seq Packet.
 
 Definition StateMap := union_map [ordType of nid] State.
+Definition initState : StateMap :=
+foldr (PCM.join) (0 \\-> Init 0) (map (fun i => i \\-> Init i) (iota 1 N)).
 
 Record World :=
   mkW {
@@ -22,7 +26,6 @@ Record World :=
     consumedMsgs : PacketSoup;
   }.
 
-Parameter initState : StateMap.
 Definition initWorld := mkW initState [::] [::].
 
 (* Don't you worry about uniqueness of the messages? *)
@@ -47,7 +50,7 @@ Inductive system_step (w w' : World) : Prop :=
 Definition system_step_star := clos_refl_trans_n1 _ system_step.
 
 Definition reachable (w w' : World) := system_step_star w w'.
-               
+
 (* TODO: define a relation that "reconstructs" an "ideal" blockchain *)
 (* from a given world, and prove its properties (e.g., functionality, *)
 (* meaning that one world corresponds to one blobkchain *)
@@ -55,3 +58,19 @@ Definition reachable (w w' : World) := system_step_star w w'.
 (* properties of the world, such as block-trees of the majority of
 involved peers are not _too different_. *)
 
+Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
+  forall (st : State),
+    find n (localState w) = Some st -> cond st.
+
+Definition Coh (w : World) :=
+  forall (n : nid),
+    (* IDs match *)
+    holds n w (fun st => id st == n).
+
+Lemma Coh_init : Coh initWorld.
+Proof.
+rewrite /Coh /holds. move=> n st.
+move=> fW. specialize (find_some fW)=> dW.
+rewrite /initWorld /initState /localState in dW.
+Search "um_findPt_inv".
+Admitted.

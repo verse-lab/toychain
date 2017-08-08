@@ -9,6 +9,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* Invariants of the execution regarding the blockchain *)
+
+
+(* Properties *)
 Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
   forall (st : State),
     find n (localState w) = Some st -> cond st.
@@ -16,11 +19,11 @@ Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.
 
-Definition chain_sync_agreement (w w' : World) :
+Definition chain_sync_agreement (w w' : World) :=
   forall (n n' : nid) (bc bc' : Blockchain),
     holds n w (has_chain bc) ->
     reachable w w' ->
     holds n' w' (has_chain bc') ->
     size bc' == size bc ->
     bc == bc'.
-Admitted.
+

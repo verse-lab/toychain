@@ -29,10 +29,6 @@ Inductive InternalTransition :=
   | TxT of Transaction
   | MintT.
 
-Inductive Event :=
-  | Tx of nid & Transaction
-  | Block of nid & Block.
-
 Module MsgEq.
 Definition eq_msg a b :=
  match a, b with
