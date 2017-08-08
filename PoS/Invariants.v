@@ -10,7 +10,7 @@ Unset Printing Implicit Defensive.
 
 (* Invariants of the execution regarding the blockchain *)
 Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
-  exists (st : State),
+  forall (st : State),
     find n (localState w) = Some st -> cond st.
 
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
