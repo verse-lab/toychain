@@ -23,13 +23,23 @@ Record World :=
   }.
 
 (* Network semantics *)
+Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
+  forall (st : State),
+    find n (localState w) = Some st -> cond st.
+
+Definition Coh (w : World) :=
+   (* No duplicating nodes *)
+   valid (localState w) /\
+  forall (n : nid),
+    (* IDs match *)
+    holds n w (fun st => id st == n).
 
 (* Don't you worry about uniqueness of the messages? *)
 Inductive system_step (w w' : World) : Prop :=
-| Idle of w = w'
+| Idle of Coh w /\ w = w'
 
 | Deliver (p : Packet) (st : State) of
-      p \in inFlightMsgs w &
+      Coh w & p \in inFlightMsgs w &
       find (dst p) (localState w) = Some st &
       let: (st', ms) := procMsg st (msg p) in
       w' = mkW (upd (dst p) st' (localState w))
@@ -37,7 +47,7 @@ Inductive system_step (w w' : World) : Prop :=
                (rcons (consumedMsgs w) p)
 
 | Intern (proc : nid) (t : InternalTransition) (st : State) of
-      find proc (localState w) = Some st &
+      Coh w & find proc (localState w) = Some st &
       let: (st', ms) := procInt st t in
       w' = mkW (upd proc st' (localState w))
                (ms ++ (inFlightMsgs w))
@@ -58,21 +68,13 @@ Variable N : nat.
 
 Definition initWorld := mkW (initState N) [::] [::].
 
-Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
-  forall (st : State),
-    find n (localState w) = Some st -> cond st.
-
-Definition Coh (w : World) :=
-  forall (n : nid),
-    (* IDs match *)
-    holds n w (fun st => id st == n).
-
 Lemma Coh_init : Coh initWorld.
 Proof.
-move=>n st.
-rewrite /initWorld/initState/localState/=.
+rewrite /initWorld/initState/localState/=; split.
+- by apply: valid_initState.
+
 (* Since the state is constructed inductively, use induction on N *)
-elim: N=>//=[|n' Hi].
+move=>n st; elim: N=>//=[|n' Hi].
   (* Using facts about union-maps. *)
 - Search _ (find) (Some).
   move/find_some.
@@ -94,6 +96,29 @@ case: ifP=>//; rewrite um_domPt inE=>/eqP<-.
 by rewrite um_findPt; case=><-.  
 Qed.  
 
+(* Stepping does not remove or add nodes *)
+Lemma step_nodes w w' :
+  let: st  := localState w  in
+  let: st' := localState w' in
+  system_step w w' ->
+  dom st =i dom st'.
+Proof.
+case: w w'=>st f c [st'] f' c'; case=>/=; first by case=>C; case=>->/=.
+- move=>p st1 C pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{st'}Z1 Z2.
+  subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+  by move/find_some: F->; case: C.
+move=>p t st1 C F; case: (procInt st1 t)=>st2 ms[]->{st'}Z1 Z2.
+subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+by move/find_some: F->; case: C.
+Qed.  
+
+(* 
+TODO: Show that the step preserves coherence Coh, i.e., 
+   Coh w -> step w w' -> Coh w
+
+Also, consider including more properties into coherence.
+*)  
+  
 
 End Semantics.
 
