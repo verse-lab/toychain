@@ -26,7 +26,12 @@ Inductive Message :=
 Inductive InternalTransition :=
   | AddrT
   | InvT
+  | TxT of Transaction
   | MintT.
+
+Inductive Event :=
+  | Tx of nid & Transaction
+  | Block of nid & Block.
 
 Module MsgEq.
 Definition eq_msg a b :=
@@ -132,46 +137,46 @@ Record State :=
 Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::] true true.
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
   
-Definition procMsg : State -> Message -> (State * ToSend) :=
+Definition procMsg : State -> Message -> (State * ToSend * (seq Event)) :=
   fun (st: State) (msg: Message) =>
     match st with
     | Node n prs bt pool a i =>
       match msg with
-      | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool a i) emitZero
+      | ConnectMsg peer => ((Node n (undup (peer :: prs)) bt pool a i), emitZero, [::])
 
       | AddrMsg _ knownPeers =>
         let: newP := [seq x <- knownPeers | x \notin prs] in
         let: connects := [seq mkP n p (ConnectMsg n) | p <- newP] in
-        pair (Node n (undup (prs ++ newP)) bt pool true i) (emitMany(connects))
+        ((Node n (undup (prs ++ newP)) bt pool true i), (emitMany(connects)), [::])
 
       | BlockMsg b =>
         let: newBt := (btExtend bt b) in
         let: updatedTxs := [seq t <- pool | txValid t (btChain newBt)] in
-        pair (Node n prs newBt updatedTxs a true) emitZero
+        ((Node n prs newBt updatedTxs a true), emitZero, [:: Block n b])
 
-      | TxMsg tx => pair (Node n prs bt (tpExtend pool bt tx) a true) emitZero
+      | TxMsg tx => ((Node n prs bt (tpExtend pool bt tx) a true), emitZero, [:: Tx n tx])
 
       | InvMsg p peerHashes =>
         let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
         let: newH := [seq h <- peerHashes | h \notin ownHashes] in
         let: gets := [seq mkP n p (GetDataMsg n h) | h <- newH] in
-        pair st (emitMany(gets))
+        (st, (emitMany(gets)), [::])
 
       | GetDataMsg p h =>
         let: matchingBlocks := [seq b <- bt | (hashB b) == h] in
         let: matchingTxs := [seq t <- pool | (hashT t) == h] in
         match ohead matchingBlocks with
         | Some(b) =>
-          pair (Node n prs bt pool a true) (emitOne(mkP n p (BlockMsg b)))
+          ((Node n prs bt pool a true), (emitOne(mkP n p (BlockMsg b))), [::])
         | _ =>
           match ohead matchingTxs with
           | Some (tx) =>
-            pair (Node n prs bt pool a true) (emitOne(mkP n p (TxMsg tx)))
-          | _ => pair st emitZero
+            ((Node n prs bt pool a true), (emitOne(mkP n p (TxMsg tx))), [::])
+          | _ => (st, emitZero, [::])
           end
         end
 
-      | _ => pair st emitZero
+      | _ => (st, emitZero, [::])
       end
     end.
 
@@ -187,6 +192,9 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
         let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
         pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
 
+      | TxT tx, _, _ =>
+        pair st (emitBroadcast n prs (TxMsg tx))
+
       (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
       | MintT, _, _ =>
         let: bc := (btChain bt) in
@@ -195,7 +203,8 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
         | Some(pf) =>
             if VAF pf bc then
               let: allowedTxs := [seq t <- pool | txValid t bc] in
-              let: block := mkB (hashB (last GenesisBlock bc)) allowedTxs pf in
+              let: prevBlock := (last GenesisBlock bc) in
+              let: block := mkB (height prevBlock + 1) (hashB prevBlock) allowedTxs pf in
               pair st (emitBroadcast n prs (BlockMsg block))
             else
               pair st emitZero
@@ -209,7 +218,7 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
 
 (* Proofs *)
 Lemma procMsg_id_constant : forall (s1 : State) (m : Message),
-    id s1 = id (procMsg s1 m).1.
+    id s1 = id (procMsg s1 m).1.1.
 Proof.
 by case=> n1 p1 b1 t1 a i []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
 Qed.
@@ -222,7 +231,7 @@ simpl. case hP: (genProof _)=>//. case vP: (VAF _)=>//.
 Qed.
 
 Lemma procMsg_peers_uniq :
-  forall (s1 : State) (m : Message), let: s2 := (procMsg s1 m).1 in
+  forall (s1 : State) (m : Message), let: s2 := (procMsg s1 m).1.1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
 case=> n1 p1 b1 t1 a i []; do? by [].
@@ -246,7 +255,7 @@ Qed.
 
 Inductive step (s1 s2 : State) : Prop :=
 | Idle of s1 = s2
-| RcvMsg (m : Message) of (s2 = (procMsg s1 m).1)
+| RcvMsg (m : Message) of (s2 = (procMsg s1 m).1.1)
 | IntT (t : InternalTransition) of (s2 = (procInt s1 t).1).
 
 Lemma id_constant :

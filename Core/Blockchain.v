@@ -19,6 +19,7 @@ Definition eq_tx t t' := hashT t == hashT t'.
 
 Record Block :=
   mkB {
+    height : nat;
     prevBlockHash : Hash;
     txs : seq Transaction;
     proof : VProof;
@@ -94,6 +95,10 @@ Axiom no_proof_reuse :
   forall (b b' : Block) (bc : Blockchain),
     b != b' -> blockValid b bc -> blockValid b' bc ->
     proof b != proof b'.
+
+Axiom VAF_inj :
+  forall (v : VProof) (bc1 bc2 : Blockchain),
+    VAF v bc1 -> VAF v bc2 -> bc1 == bc2.
 
 Axiom CFR_strictly_increases :
   forall (bc : Blockchain) (b : Block),
