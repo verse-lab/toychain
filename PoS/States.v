@@ -14,9 +14,6 @@ Section States.
 (* Number of nodes *)
 Variable N : nat.
 
-(* Network semantics *)
-Definition PacketSoup := seq Packet.
-
 Definition StateMap := union_map [ordType of nid] State.
 
 Fixpoint initState' n : StateMap :=

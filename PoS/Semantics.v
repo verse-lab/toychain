@@ -13,7 +13,7 @@ Unset Printing Implicit Defensive.
 Section Semantics.
 
 (* Number of nodes *)
-Variable N : nat.
+Definition PacketSoup := seq Packet.
 
 Record World :=
   mkW {
@@ -54,6 +54,8 @@ Definition reachable (w w' : World) := system_step_star w w'.
 (* properties of the world, such as block-trees of the majority of
 involved peers are not _too different_. *)
 
+Variable N : nat.
+
 Definition initWorld := mkW (initState N) [::] [::].
 
 Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
@@ -88,8 +90,7 @@ rewrite findUnL; last first.
 - case: validUn; rewrite ?um_validPt ?valid_initState//.
   move=>k; rewrite um_domPt !inE=>/eqP Z; subst k.
   by rewrite dom_initState mem_iota addnC addn1 ltnn andbC. 
-case: ifP=>//D.
-rewrite um_domPt inE in D; move/eqP:D=>D; subst n.
+case: ifP=>//; rewrite um_domPt inE=>/eqP<-. 
 by rewrite um_findPt; case=><-.  
 Qed.  
 
