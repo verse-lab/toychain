@@ -112,9 +112,7 @@ Proof.
 move=> n st st'.
 case.
 (* Idle *)
-- elim. move=> cW wEq sF s'F. rewrite -wEq in s'F.
-  rewrite s'F in sF. case: sF.
-  move=> stEq. rewrite stEq. by constructor 1.
+- by move=>[] cW<-->[]->; constructor 1.
 (* Deliver *)
 - move=> p old_st cW pIF osF.
   case P: (procMsg old_st (msg p)). case: w'. move=> sm' f' c'. case.
