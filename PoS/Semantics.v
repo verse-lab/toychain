@@ -75,19 +75,9 @@ rewrite /initWorld/initState/localState/=; split.
 
 (* Since the state is constructed inductively, use induction on N *)
 move=>n st; elim: N=>//=[|n' Hi].
-  (* Using facts about union-maps. *)
-- Search _ (find) (Some).
-  move/find_some.
-  (* Domain of an empty map should be empty, right? *)
-  Search _ (dom _) (Unit).
-  rewrite dom0.
-  (* Fiddling with \in predicate *)
-  rewrite inE.
-  done.
+  by move/find_some; rewrite dom0 inE.
 
 (* The main induction transition. *)
-(* Can we doe somthingabout find of a union? *)
-Search _ (find) (_ \+ _).
 rewrite findUnL; last first.
 - case: validUn; rewrite ?um_validPt ?valid_initState//.
   move=>k; rewrite um_domPt !inE=>/eqP Z; subst k.
@@ -98,27 +88,101 @@ Qed.
 
 (* Stepping does not remove or add nodes *)
 Lemma step_nodes w w' :
-  let: st  := localState w  in
-  let: st' := localState w' in
+  let: sm  := localState w  in
+  let: sm' := localState w' in
   system_step w w' ->
-  dom st =i dom st'.
+  dom sm =i dom sm'.
 Proof.
-case: w w'=>st f c [st'] f' c'; case=>/=; first by case=>C; case=>->/=.
-- move=>p st1 C pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{st'}Z1 Z2.
+case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
+- move=>p st1 C pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{sm'}Z1 Z2.
   subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
   by move/find_some: F->; case: C.
-move=>p t st1 C F; case: (procInt st1 t)=>st2 ms[]->{st'}Z1 Z2.
+move=>p t st1 C F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
 subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
 by move/find_some: F->; case: C.
 Qed.  
 
-(* 
-TODO: Show that the step preserves coherence Coh, i.e., 
-   Coh w -> step w w' -> Coh w
+Lemma system_step_local_step w w' :
+  forall (n : nid) (st st' : State),
+    system_step w w' ->
+    find n (localState w) = Some st ->
+    find n (localState w') = Some st' ->
+    local_step st st'.
+Proof.
+move=> n st st'.
+case.
+(* Idle *)
+- elim. move=> cW wEq sF s'F. rewrite -wEq in s'F.
+  rewrite s'F in sF. case: sF.
+  move=> stEq. rewrite stEq. by constructor 1.
+(* Deliver *)
+- move=> p old_st cW pIF osF.
+  case P: (procMsg old_st (msg p)). case: w'. move=> sm' f' c'. case.
+  move=> A B C. subst sm' f' c'. move=> sF. rewrite /localState findU=>/=.
+  case B: (n == dst p); last first.
+    (* n != dst p -- node n is Idle => st st' *)
+    + move=> F. rewrite F in sF. case: sF=>stEq. rewrite stEq. by constructor 1.
+    (* When n == dst p, notice that st = old_st
+     * and st and st' are related by procMsg *)
+    + move/eqP in B. rewrite -B in osF. rewrite sF in osF. case: osF.
+      move=> stEq. rewrite -stEq in P. clear stEq old_st.
+      case: ifP; last first.
+        by move=> _ con; contradict con.
+        move=> _ sEq. case: sEq=>stEq. rewrite stEq in P.
+        by constructor 2 with (msg p); rewrite P.
+(* Intern *)
+- move=> proc t old_st cW osF.
+  case P: (procInt old_st t). case: w'. move=> sm' f' c'. case.
+  move=> A B C. subst sm' f' c'. move=> sF. rewrite /localState findU=>/=.
+  case B: (n == proc); last first.
+    (* n != proc -- node n is Idle => st st' *)
+    + move=> F. rewrite F in sF. case: sF=>stEq. rewrite stEq. by constructor 1.
+    (* n == proc => update; akin to Deliver *)
+    + move/eqP in B. rewrite -B in osF. rewrite sF in osF. case: osF.
+      move=> stEq. rewrite -stEq in P. clear stEq old_st.
+      case: ifP; last first.
+        by move=> _ con; contradict con.
+        move=> _ sEq. case: sEq=> stEq. rewrite stEq in P.
+        by constructor 3 with t; rewrite P.
+Qed.
 
-Also, consider including more properties into coherence.
-*)  
-  
-
+Lemma Coh_step w w' :
+  system_step w w' -> Coh w'.
+Proof.
+case: w w'=>sm f c [sm'] f' c'. case=>/=.
+(* Idle *)
+- by elim=>Cw hEq; rewrite hEq in Cw; apply Cw.
+(* Deliver *)
+- move=> p st Cw iF sF. case P: (procMsg st (msg p)).
+  case. move=> A B C. subst sm' f' c'. split.
+  + rewrite /localState validU=>/=. apply Cw.
+  + rewrite /holds/localState. move=> n stN. rewrite findU=>/=.
+    case B: (n == dst p); last first.
+    by move=> F; apply Cw; rewrite /localState; apply F.
+    case: ifP; last first.
+      by move=> _ con; contradict con.
+      move=> vsm sEq. case: sEq=>stEq. rewrite stEq in P. clear stEq.
+      move/eqP in B. rewrite -B in sF.
+      (* Coh w => id st = n *)
+      move: Cw. elim. move=> _. rewrite /holds/localState. move=> idN.
+      apply idN in sF. move/eqP in sF. rewrite -sF.
+      rewrite eq_sym. apply /eqP. apply id_constant.
+      by constructor 2 with (msg p); rewrite P.
+(* Intern *)
+- move=> proc t st Cw sF. case P: (procInt st t).
+  case. move=> A B C. subst sm' f' c'. split.
+  + rewrite /localState validU=>/=. apply Cw.
+  + rewrite /holds/localState. move=>n stN. rewrite findU=>/=.
+    case B: (n == proc); last first.
+    by move=> F; apply Cw; rewrite /localState; apply F.
+    case: ifP; last first.
+      by move=> _ con; contradict con.
+      move=> vsm sEq. case: sEq=>stEq. rewrite stEq in P. clear stEq.
+      move/eqP in B.
+      (* Coh w => id st = n *)
+      move: Cw. elim. move=> _. rewrite /holds/localState. move=> idN.
+      apply idN in sF. move/eqP in sF. rewrite -B in sF.
+      rewrite -sF. rewrite eq_sym. apply /eqP. apply id_constant.
+      by constructor 3 with t; rewrite P.
+Qed.
 End Semantics.
-

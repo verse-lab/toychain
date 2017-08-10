@@ -250,14 +250,14 @@ case=> n1 p1 b1 t1 a i []=>//. case adv: a=>//. case adv': i=>//.
 simpl. case hP: (genProof _)=>//. case vP: (VAF _)=>//.
 Qed.
 
-Inductive step (s1 s2 : State) : Prop :=
+Inductive local_step (s1 s2 : State) : Prop :=
 | Idle of s1 = s2
 | RcvMsg (m : Message) of (s2 = (procMsg s1 m).1)
 | IntT (t : InternalTransition) of (s2 = (procInt s1 t).1).
 
 Lemma id_constant :
   forall (s1 s2 : State),
-    step s1 s2 -> id s1 = id s2.
+    local_step s1 s2 -> id s1 = id s2.
 Proof.
 move=> s1 s2.
 case.
@@ -268,7 +268,7 @@ Qed.
 
 Lemma peers_uniq :
   forall (s1 s2 : State),
-    uniq (peers s1) -> step s1 s2 -> uniq (peers s2).
+    uniq (peers s1) -> local_step s1 s2 -> uniq (peers s2).
 Proof.
 move=> s1 s2 UniqP1.
 case.
