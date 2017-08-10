@@ -27,3 +27,10 @@ Definition chain_sync_agreement (w w' : World) :=
     size bc' == size bc ->
     bc == bc'.
 
+(*
+TODO: 
+
+1. Simple property: local BC only grows with stepping;
+2. More complicated: the "rollback" is no more than a contstant;
+
+*)

@@ -149,7 +149,7 @@ Lemma Coh_step w w' :
 Proof.
 case: w w'=>sm f c [sm'] f' c'. case=>/=.
 (* Idle *)
-- by elim=>Cw hEq; rewrite hEq in Cw; apply Cw.
+- by case=>Cw []<-<-<-.
 (* Deliver *)
 - move=> p st Cw iF sF. case P: (procMsg st (msg p)).
   case. move=> A B C. subst sm' f' c'. split.
