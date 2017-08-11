@@ -100,7 +100,19 @@ case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
 move=>p t st1 C F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
 subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
 by move/find_some: F->; case: C.
-Qed.  
+Qed.
+
+Lemma steps_nodes (w w' : World):
+  forall (n : nid) (st : State),
+    find n (localState w) = Some st ->
+    reachable w w' ->
+    n \in dom (localState w').
+Proof.
+move=> n st sF R.
+elim: R=> [|via z S R H].
+- by specialize (find_some sF).
+- by specialize (step_nodes S); move=> dEq; rewrite -dEq.
+Qed.
 
 Lemma system_step_local_step w w' :
   forall (n : nid) (st st' : State),
@@ -142,6 +154,32 @@ case.
         by move=> _ con; contradict con.
         move=> _ sEq. case: sEq=> stEq. rewrite stEq in P.
         by constructor 3 with t; rewrite P.
+Qed.
+
+Lemma no_change_still_holds :
+  forall (w w' : World) (n : nid) (st : State) (cond : State -> Prop),
+    find n (localState w) = Some st ->
+    holds n w cond ->
+    system_step w w' ->
+    find n (localState w') = Some st ->
+    holds n w' cond.
+Proof.
+move=> w w' n st cond f h S sF.
+rewrite /holds. move=> st' s'F. rewrite s'F in sF. case: sF=>eq.
+by specialize (h st f); rewrite -eq in h.
+Qed.
+
+Lemma no_change_has_held :
+  forall (w w' : World) (n : nid) (st : State) (cond : State -> Prop),
+    find n (localState w) = Some st ->
+    system_step w w' ->
+    holds n w' cond ->
+    find n (localState w') = Some st ->
+    holds n w cond.
+Proof.
+move=> w w' n st cond f S h sF.
+rewrite /holds. move=> st' s'F. rewrite f in s'F. case: s'F=>eq. rewrite -eq.
+by specialize (h st sF).
 Qed.
 
 Lemma Coh_step w w' :
