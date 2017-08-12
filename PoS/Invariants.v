@@ -68,8 +68,16 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C If F|
   + set pms := (procMsg _ _); case: pms=>st' ms Z; subst w'.
     rewrite /holds/= findU N/= in H2.
     by rewrite -(has_chain_func D H1 H2); apply: bc_pre_refl.
+  rewrite [procMsg _ _]surjective_pairing=>Z;
+  (* Avoiding premature unfolding. *)
+  set Pm := nosimpl (procMsg _ _) in Z; subst w'. 
+  rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
+  move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
+  move: (H1 _ F)=>{H1}/=H1. 
 
-    (* Now the interesting case: consider all possible messages, i.e. do
+  (* Now the interesting case: consider all possible messages, 
+     reasoning out of H1 and H2. 
+     I.e. do
      case: (msg p). 
      and prove for each subcase. Perhaps, you might move
      some parts into lemmas 
@@ -86,7 +94,9 @@ case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
 (* Another interesting part of the proof: n == proc.
    Consider all branches of procInt and proof the property for each one.
    Don't hesitate to introduce auxiliary lemmas. *)  
+rewrite [procInt _ _]surjective_pairing=>Z; subst w'.
 
+  
 Admitted.
 
 (* Big-step case, proven by induction *)
