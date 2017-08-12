@@ -28,8 +28,8 @@ Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
     find n (localState w) = Some st -> cond st.
 
 Definition Coh (w : World) :=
-   (* No duplicating nodes *)
-   valid (localState w) /\
+  (* No duplicating nodes *)
+  valid (localState w) /\
   forall (n : nid),
     (* IDs match *)
     holds n w (fun st => id st == n).
@@ -72,11 +72,9 @@ Lemma Coh_init : Coh initWorld.
 Proof.
 rewrite /initWorld/initState/localState/=; split.
 - by apply: valid_initState.
-
 (* Since the state is constructed inductively, use induction on N *)
 move=>n st; elim: N=>//=[|n' Hi].
   by move/find_some; rewrite dom0 inE.
-
 (* The main induction transition. *)
 rewrite findUnL; last first.
 - case: validUn; rewrite ?um_validPt ?valid_initState//.
@@ -88,10 +86,8 @@ Qed.
 
 (* Stepping does not remove or add nodes *)
 Lemma step_nodes w w' :
-  let: sm  := localState w  in
-  let: sm' := localState w' in
   system_step w w' ->
-  dom sm =i dom sm'.
+  dom (localState w) =i dom (localState w').
 Proof.
 case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
 - move=>p st1 C pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{sm'}Z1 Z2.
@@ -103,15 +99,12 @@ by move/find_some: F->; case: C.
 Qed.
 
 Lemma steps_nodes (w w' : World):
-  forall (n : nid) (st : State),
-    find n (localState w) = Some st ->
-    reachable w w' ->
-    n \in dom (localState w').
+  reachable w w' ->
+  dom (localState w) =i dom (localState w').
 Proof.
-move=> n st sF R.
-elim: R=> [|via z S R H].
-- by specialize (find_some sF).
-- by specialize (step_nodes S); move=> dEq; rewrite -dEq.
+move=>R.
+elim: R=> [|via z S R H]//.
+by move: (step_nodes S)=> dEq x; rewrite -dEq -H.
 Qed.
 
 Lemma system_step_local_step w w' :
@@ -156,30 +149,26 @@ case.
         by constructor 3 with t; rewrite P.
 Qed.
 
-Lemma no_change_still_holds :
-  forall (w w' : World) (n : nid) (st : State) (cond : State -> Prop),
-    find n (localState w) = Some st ->
-    holds n w cond ->
-    system_step w w' ->
-    find n (localState w') = Some st ->
-    holds n w' cond.
+Lemma no_change_still_holds (w w' : World) (n : nid) st cond:
+  find n (localState w) = Some st ->
+  holds n w cond ->
+  system_step w w' ->
+  find n (localState w') = Some st ->
+  holds n w' cond.
 Proof.
-move=> w w' n st cond f h S sF.
-rewrite /holds. move=> st' s'F. rewrite s'F in sF. case: sF=>eq.
-by specialize (h st f); rewrite -eq in h.
+move=>f h S sF st' s'F; rewrite s'F in sF; case: sF=>->.
+by move: (h st f).
 Qed.
 
-Lemma no_change_has_held :
-  forall (w w' : World) (n : nid) (st : State) (cond : State -> Prop),
-    find n (localState w) = Some st ->
-    system_step w w' ->
-    holds n w' cond ->
-    find n (localState w') = Some st ->
-    holds n w cond.
+Lemma no_change_has_held (w w' : World) (n : nid) st cond:
+  find n (localState w) = Some st ->
+  system_step w w' ->
+  holds n w' cond ->
+  find n (localState w') = Some st ->
+  holds n w cond.
 Proof.
-move=> w w' n st cond f S h sF.
-rewrite /holds. move=> st' s'F. rewrite f in s'F. case: s'F=>eq. rewrite -eq.
-by specialize (h st sF).
+move=> f S h sF st' s'F.
+by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
 
 Lemma Coh_step w w' :
@@ -221,4 +210,5 @@ case: w w'=>sm f c [sm'] f' c'. case=>/=.
       rewrite -sF. rewrite eq_sym. apply /eqP. apply id_constant.
       by constructor 3 with t; rewrite P.
 Qed.
+
 End Semantics.
