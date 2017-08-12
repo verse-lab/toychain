@@ -52,7 +52,7 @@ Lemma local_chain_only_grows_step (w w' : World) n bc bc':
   [bc <<= bc'].
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
-case: S=>[[C]Z|p [n' prs bt pool a i] C If F|
+case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
           proc t [n' prs bt pool a i] C F].
 
 (* 0 steps *)
@@ -73,7 +73,7 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C If F|
   set Pm := nosimpl (procMsg _ _) in Z; subst w'. 
   rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
-  move: (H1 _ F)=>{H1}/=H1. 
+  move: (H1 _ F)=>{H1 C2 F}/=H1. 
 
   (* Now the interesting case: consider all possible messages, 
      reasoning out of H1 and H2. 
