@@ -52,9 +52,9 @@ Lemma local_chain_only_grows_step (w w' : World) n bc bc':
   [bc <<= bc'].
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
-case: S=>[[C]Z|
-          p [n' prs bt pool a i] C If F|
+case: S=>[[C]Z|p [n' prs bt pool a i] C If F|
           proc t [n' prs bt pool a i] C F].
+
 (* 0 steps *)
 - by subst w'; rewrite (has_chain_func D H1 H2); apply: bc_pre_refl.
 (* Step is procedding a message *)
@@ -78,13 +78,13 @@ case: S=>[[C]Z|
 
 (* Internal transition *)
 (* Two sub-cases: proc =? n *)
-  case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
-  set pms := (procInt _ _); case: pms=>st' ms Z; subst w'.
+case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
+- set pms := (procInt _ _); case: pms=>st' ms Z; subst w'.
   rewrite /holds/= findU N/= in H2.
   by rewrite -(has_chain_func D H1 H2); apply: bc_pre_refl.
 
-(* Another interesting part of the proof:
-   consider all branches in procInt and proof for each one.
+(* Another interesting part of the proof: n == proc.
+   Consider all branches of procInt and proof the property for each one.
    Don't hesitate to introduce auxiliary lemmas. *)  
 
 Admitted.
