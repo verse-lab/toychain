@@ -55,7 +55,13 @@ Inductive system_step (w w' : World) : Prop :=
 
 Definition system_step_star := clos_refl_trans_n1 _ system_step.
 
-Definition reachable (w w' : World) := system_step_star w w'.
+Fixpoint reachable' n (w w' : World) : Prop :=
+  if n is n'.+1
+  then exists via, reachable' n' w via /\ system_step via w'
+  else w = w'.
+    
+Definition reachable (w w' : World) :=
+  exists n, reachable' n w w'.
 
 (* TODO: define a relation that "reconstructs" an "ideal" blockchain *)
 (* from a given world, and prove its properties (e.g., functionality, *)
@@ -102,9 +108,8 @@ Lemma steps_nodes (w w' : World):
   reachable w w' ->
   dom (localState w) =i dom (localState w').
 Proof.
-move=>R.
-elim: R=> [|via z S R H]//.
-by move: (step_nodes S)=> dEq x; rewrite -dEq -H.
+move=>[n] R; elim: n w' R=>/=[w'->|n Hi w' [via][R S]]//z. 
+by move: (Hi via R)->; rewrite (step_nodes S).
 Qed.
 
 Lemma system_step_local_step w w' :
