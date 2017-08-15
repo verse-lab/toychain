@@ -2,7 +2,7 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
-Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding. 
+Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -25,11 +25,27 @@ Record Block :=
     txs : seq Transaction;
     proof : VProof;
   }.
+Parameter GenesisBlock : Block.
 
 Parameter hashB : Block -> Hash.
 Definition eq_block b b' := hashB b == hashB b'.
 
 Definition Blockchain := seq Block.
+
+Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
+Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
+  match bc with
+  | [::] => GenesisBlock
+  | prev :: (b :: bc') => prev
+  | _ :: bc' => bcPrev b bc'
+  end.
+
+Fixpoint bcSucc (b : Block) (bc : Blockchain) : option Block :=
+  match bc with
+  | [::] => None
+  | b :: (succ :: bc') => Some succ
+  | _ :: bc' => bcSucc b bc'
+  end.
 
 (* We might want to introduce a notion of time *)
 Parameter VAF : VProof -> Blockchain -> bool.
@@ -56,8 +72,8 @@ Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 
 (* Axioms *)
 (* Is it realistic? *)
-Axiom hashB_inj : forall (b b': Block), hashB b == hashB b' -> b = b'.
-Axiom hashT_inj : forall (t t': Transaction), hashT t == hashT t' -> t = t'.
+Axiom hashB_inj : injective hashB.
+Axiom hashT_inj : injective hashT.
 Axiom hashBT_noCollisions :
   forall (b : Block) (t : Transaction), hashB b != hashT t.
 
@@ -65,7 +81,7 @@ Module BlockEq.
 Lemma eq_blockP : Equality.axiom eq_block.
 Proof.
 move=> b b'. rewrite/eq_block. apply: (iffP idP).
-  - by apply: hashB_inj.
+- by move/eqP; apply: hashB_inj.
   - move=> eq. by rewrite eq.
 Qed.
 
@@ -78,14 +94,18 @@ Module TxEq.
 Lemma eq_txP : Equality.axiom eq_tx.
 Proof.
 move=> t t'. rewrite/eq_tx. apply: (iffP idP).
-  - by apply: hashT_inj.
-  - move=> eq. by rewrite eq.
+  - by move/eqP; apply: hashT_inj.
+  - by move=> eq; rewrite eq.
 Qed.
 
 Canonical Tx_eqMixin := Eval hnf in EqMixin eq_txP.
 Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
+
+Definition fork (bc bc' : Blockchain) : Prop :=
+  exists (b : Block),
+    bcSucc b bc != bcSucc b bc'.
 
 Axiom blockValid_imp_VAF :
   forall (b : Block) (bc : Blockchain),
@@ -103,7 +123,33 @@ Axiom VAF_inj :
 
 Axiom CFR_strictly_increases :
   forall (bc : Blockchain) (b : Block),
-    blockValid b bc -> bc ++ [:: b] > bc.
+    blockValid b bc -> rcons bc b > bc.
+
+Axiom btChain_mem :
+  forall (bt : BlockTree) (b : Block),
+    b \notin bt -> b \notin btChain bt.
+
+Axiom btChain_seq :
+  forall (bt : BlockTree) (bc : Blockchain),
+    btChain bt = bc ->
+    forall (b : Block),
+      b != GenesisBlock ->
+      b \in bc == (prevBlockHash b == hashB (bcPrev b bc)).
+
+Axiom btChain_extend :
+  forall (bt : BlockTree) (bc : Blockchain) (b extension : Block),
+    btChain bt = bc ->
+    b \notin bc ->
+    prevBlockHash extension == hashB (bcLast bc) ->
+    btChain (btExtend bt b) = rcons bc extension.
+
+Axiom btChain_fork :
+  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
+  let: bc' := btChain (btExtend bt b) in
+    btChain bt = bc ->
+    b \notin bc ->
+    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
+    fork bc bc'.
 
 Axiom btExtend_preserve :
   forall (bt : BlockTree) (ob b : Block),
@@ -128,3 +174,10 @@ Axiom tpExtend_validAndConsistent :
 Axiom tpExtend_withDup_noEffect :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
     tx \in pool -> (tpExtend pool bt tx) = pool.
+
+(* Caller must ensure bc' is longer *)
+Fixpoint prefix_diff (bc bc' : Blockchain) :=
+  match bc, bc' with
+  | x :: xs, y :: ys => if x == y then prefix_diff xs ys else y :: ys
+  | _, ys => ys
+  end.

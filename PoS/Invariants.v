@@ -10,14 +10,12 @@ Unset Printing Implicit Defensive.
 
 (* Invariants of the execution regarding the blockchain *)
 (* Properties *)
-(*
-Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
-  forall (st : State),
-    find n (localState w) = Some st -> cond st.
-*)
 
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.
+
+Definition node_with_chain n w bc :=
+  n \in dom (localState w) /\ holds n w (has_chain bc).
 
 Definition chain_sync_agreement (w w' : World) :=
   forall (n n' : nid) (bc bc' : Blockchain),
@@ -44,19 +42,19 @@ TODO:
 
  *)
 
-Lemma local_chain_only_grows_step (w w' : World) n bc bc':
+Lemma local_chain_grows_fork_step (w w' : World) n bc bc':
   n \in dom (localState w) -> 
   holds n w (has_chain bc) ->
   system_step w w' ->
   holds n w' (has_chain bc') ->
-  [bc <<= bc'].
+  [bc <<= bc'] \/ fork bc bc'.
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
 case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
           proc t [n' prs bt pool a i] C F].
 
 (* 0 steps *)
-- by subst w'; rewrite (has_chain_func D H1 H2); apply: bc_pre_refl.
+- by subst w'; rewrite (has_chain_func D H1 H2); apply or_introl; apply: bc_pre_refl.
 (* Step is procedding a message *)
 
 (* Receiving a message *)
@@ -67,7 +65,7 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
   (* Message not to us: don't really care about the outcome of procMsg! *)
   + set pms := (procMsg _ _); case: pms=>st' ms Z; subst w'.
     rewrite /holds/= findU N/= in H2.
-    by rewrite -(has_chain_func D H1 H2); apply: bc_pre_refl.
+    by rewrite -(has_chain_func D H1 H2); apply or_introl; apply: bc_pre_refl.
   rewrite [procMsg _ _]surjective_pairing=>Z;
   (* Avoiding premature unfolding. *)
   set Pm := nosimpl (procMsg _ _) in Z; subst w'. 
@@ -82,7 +80,6 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
      and prove for each subcase. Perhaps, you might move
      some parts into lemmas 
      THIS is the main part of the proof! *)
-  admit.
 
 (* Internal transition *)
 (* Two sub-cases: proc =? n *)
@@ -124,3 +121,37 @@ by exists (btChain (blockTree {|
     addr := a; inv := i |}))=>st[]<-. 
 Qed.  
 
+(* Sketch of global invariant
+ * For simplicity, the predicate available assumes all nodes are directly connected,
+ * but this could be changed to incorporate a more realistic broadcast setting.
+ *)
+
+Definition available b n w :=
+  exists (p : Packet) (peer : nid) (sh : seq Hash),
+    p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
+
+Definition GAligned w :=
+  forall (n n' : nid) (bc bc' : Blockchain),
+    node_with_chain n w bc ->
+    node_with_chain n' w bc ->
+    bc = bc'.
+
+Definition GBehindWithDiffAvailable w :=
+  exists (n : nid) (bc : Blockchain),
+    node_with_chain n w bc /\
+    forall (n' : nid) (bc': Blockchain),
+      node_with_chain n' w bc' ->
+      [bc' <<= bc] /\
+      forall (b : Block),
+        b \in prefix_diff bc' bc ->
+        available b n w.
+
+Definition Inv (w : World) :=
+  Coh w /\
+  [\/ GAligned w | GBehindWithDiffAvailable w].
+
+Variable N : nat.
+Lemma Inv_init : Inv (initWorld N).
+Proof.
+split. by apply Coh_init. apply or_introl. case=> n' bc bc'.
+Admitted.
