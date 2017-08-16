@@ -25,6 +25,12 @@ case=> a1 H1 [a2] H2; subst bc2.
 by rewrite -catA in H2; exists (a1 ++ a2).
 Qed.
 
+Lemma bc_pre_gt bc bc' :
+  [bc <<= bc'] -> bc' > bc.
+Proof.
+by case=>ext=>eq; rewrite eq; apply CFR_ext.
+Qed.
+
 End BlockchainOrder.
 
 Notation "'[' bc1 '<<=' bc2 ']'" := (is_prefix bc1 bc2).
@@ -36,6 +42,13 @@ Definition fork (bc bc' : Blockchain) : Prop :=
     bcSucc b bc != bcSucc b bc'.
 
 (* TODO: prove fork facts! *)
+Lemma bc_fork_neq bc bc' :
+  fork bc bc' -> bc != bc'.
+Proof.
+case=> Of; case bc; case bc'; do? by [].
+move=> h' B' h B. rewrite eqseq_cons negb_and.
+Admitted.
+
 Lemma bc_fork_sym bc bc' :
   fork bc bc' -> fork bc' bc.
 Proof.

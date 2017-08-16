@@ -44,8 +44,8 @@ Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
 Fixpoint bcSucc (b : Block) (bc : Blockchain) : option Block :=
   match bc with
   | [::] => None
-  | b' :: (succ :: bc') =>
-    if eq_block b' b then Some succ else bcSucc b bc'
+  | b' :: ((succ :: bc') as bcc) =>
+    if eq_block b' b then Some succ else bcSucc b bcc
   | _ :: bc' => bcSucc b bc'
   end.
 
@@ -119,13 +119,21 @@ Axiom VAF_inj :
   forall (v : VProof) (bc1 bc2 : Blockchain),
     VAF v bc1 -> VAF v bc2 -> bc1 == bc2.
 
-Axiom CFR_strictly_increases :
-  forall (bc : Blockchain) (b : Block),
-    blockValid b bc -> rcons bc b > bc.
+Axiom CFR_ext :
+  forall (bc : Blockchain) (ext : seq Block),
+    bc ++ ext > bc.
+
+Axiom CFR_trans :
+  forall (A B C : Blockchain),
+    A > B -> B > C -> A > C.
 
 Axiom btChain_mem :
   forall (bt : BlockTree) (b : Block),
     b \notin bt -> b \notin btChain bt.
+
+Axiom btChain_mem2 :
+  forall (bt : BlockTree) (b : Block),
+    b \in btChain bt -> b \in bt.
 
 Axiom btChain_seq :
   forall (bt : BlockTree) (bc : Blockchain),
@@ -156,6 +164,13 @@ Axiom btExtend_withNew_sameOrBetter :
   forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
     b \notin bt ->
       b \in btChain bt' = (btChain bt' > btChain bt).
+
+Axiom btExtend_withNew_mem :
+  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
+    let: bc' := btChain (btExtend bt b) in
+    btChain bt = bc ->
+    b \notin bc ->
+    bc != bc' = (b \in bc').
 
 Axiom tpExtend_validAndConsistent :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),

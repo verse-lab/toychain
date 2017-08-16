@@ -47,7 +47,7 @@ Lemma local_chain_grows_fork_step (w w' : World) n bc bc':
   holds n w (has_chain bc) ->
   system_step w w' ->
   holds n w' (has_chain bc') ->
-  [bc <<= bc'] \/ fork bc bc'.
+  [bc <<= bc'] \/ (fork bc bc' /\ bc' > bc).
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
 case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
@@ -102,7 +102,7 @@ Lemma local_chain_grows_fork (w w' : World) n bc bc':
   holds n w (has_chain bc) ->
   reachable w w' ->
   holds n w' (has_chain bc') ->
-  [bc <<= bc'] \/ fork bc bc'.
+  [bc <<= bc'] \/ (fork bc bc' /\ bc' > bc).
 Proof.
 move=>D H1 [m]R H2.
 elim: m w' R bc' H2=>/=[w'<-|m Hi w' [via][R S]]bc' H2.
@@ -116,10 +116,15 @@ suff X : exists bc1, holds n via (has_chain bc1).
   move: (local_chain_grows_fork_step D' H S H2)=>P2.
   case P1; case P2; clear P1 P2.
   + by move=> Pf1 Pf2; left; move: (bc_pre_trans Pf2 Pf1).
-  + by move=> F1 Pf1; right; move: (bc_fork_prefix F1 Pf1).
-  + move=> Pf1 F1. right; move: (bc_fork_sym F1)=>F1s;
-    by move: (bc_fork_trans F1 (bc_prefix_fork F1s Pf1)).
-  + by move=> F1 F2; right; move: (bc_fork_trans F2 F1).
+  + move=> [F1] Gt Pf1. right; split.
+    by move: (bc_fork_prefix F1 Pf1).
+    by move: (CFR_trans Gt (bc_pre_gt Pf1)).
+  + move=> Pf1 [F1] Gt. right; split.
+    by move: (bc_fork_trans F1 (bc_prefix_fork (bc_fork_sym F1) Pf1)).
+    by move: (CFR_trans (bc_pre_gt Pf1) Gt).
+  + move=> [F1] Gt1 [F2] Gt2; right; split.
+    by move: (bc_fork_trans F2 F1).
+    by move: (CFR_trans Gt1 Gt2).
 rewrite /holds/has_chain.
 move/um_eta: D';case; case=>id ps bt t a i[][->]_.
 by exists (btChain (blockTree {|

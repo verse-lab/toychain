@@ -240,15 +240,14 @@ Qed.
 
 Ltac local_bc_no_change s1 hbc hbc' :=
   (rewrite /procMsg; destruct s1=>/=; rewrite /blockTree in hbc;
-     by move=>hbc'; rewrite hbc in hbc'; rewrite hbc';
-              apply or_introl; apply bc_pre_refl).
+   by move=>hbc'; rewrite hbc in hbc'; rewrite hbc'; left; apply bc_pre_refl).
 
 Lemma procMsg_bc_prefix_or_fork bc bc':
   forall (s1 : State) (m : Message),
     let: s2 := (procMsg s1 m).1 in
     btChain (blockTree s1) = bc  ->
     btChain (blockTree s2) = bc' ->
-    [bc <<= bc'] \/ fork bc bc'.
+    [bc <<= bc'] \/ (fork bc bc' /\ CFR_gt bc' bc).
 Proof.
 move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'.
 - case: s1 hbc =>/= _ _ bt _ _ _ hbc; case B: (b \in bt).
@@ -262,14 +261,19 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'
     move: (btChain_extend hbc B E)=>->; rewrite -cats1.
     by exists [:: bcLast bc'].
   (* Fork *)
-  + right; move/negbT/btChain_mem in B. rewrite hbc in B. rewrite -hbc' in E.
-    move/negbT in E. specialize (btChain_fork hbc B E)=> F.
+  + right. move: (B)=>B'. move/negbT in B.
+    move/negbT/btChain_mem in B'. rewrite hbc in B'. rewrite -hbc' in E.
+    move/negbT in E. specialize (btChain_fork hbc B' E)=> F. split.
     by rewrite -hbc in F; apply F.
+    move: (btExtend_withNew_sameOrBetter B)=><-.
+    move: (btExtend_withNew_mem hbc B')=><-. rewrite hbc' in F *.
+    by move: (bc_fork_neq F).
+
 - destruct s1=>/=. case (ohead _ ). rewrite /blockTree in hbc *=>/=.
   + move=> _ hbc'. rewrite hbc in hbc'.
-    by rewrite -hbc'; apply or_introl; apply bc_pre_refl.
+    by rewrite -hbc'; left; apply bc_pre_refl.
   + case (ohead _) => [x hbc'|hbc']; rewrite /blockTree in hbc *=>/=;
-    by rewrite hbc in hbc'; rewrite -hbc'; apply or_introl; apply bc_pre_refl.
+    by rewrite hbc in hbc'; rewrite -hbc'; left; apply bc_pre_refl.
 Qed.
 
 Lemma procInt_bc_same bc bc':
