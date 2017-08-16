@@ -60,14 +60,12 @@ Proof.
 case=> b1 H1 [b21] H2. rewrite /fork.
 Admitted.
 
+(*  /--B
+* --
+*   \-----A---C
+*)
 Lemma bc_fork_prefix A B C :
-  fork B C -> [A <<= B] -> fork A C.
-Proof.
-Admitted.
-
-(* These are actually different facts! *)
-Lemma bc_prefix_fork A B C :
-  fork A B -> [A <<= C] -> fork A C.
+  fork A B -> [A <<= C] -> fork B C.
 Proof.
 Admitted.
 
