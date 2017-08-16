@@ -272,6 +272,29 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'
     by rewrite hbc in hbc'; rewrite -hbc'; apply or_introl; apply bc_pre_refl.
 Qed.
 
+Lemma procInt_bc_same bc bc':
+  forall (s1 : State) (t : InternalTransition),
+    let: s2 := (procInt s1 t).1 in
+    btChain (blockTree s1) = bc  ->
+    btChain (blockTree s2) = bc' ->
+    bc == bc'.
+Proof.
+move=> s1; case=> [||tx|] hbc; destruct s1; rewrite /procInt.
+- rewrite /blockTree in hbc. case addr0=>/= hbc'.
+  by rewrite hbc in hbc'; rewrite -hbc'.
+  by rewrite hbc in hbc'; rewrite -hbc'.
+- rewrite /blockTree in hbc. case inv0=>/= hbc'.
+  by rewrite hbc in hbc'; rewrite -hbc'.
+  by rewrite hbc in hbc'; rewrite -hbc'.
+- rewrite /blockTree in hbc *=>/= hbc'.
+  by rewrite hbc in hbc'; rewrite -hbc'.
+(* MintT doesn't change local blockTree; it just broadcasts block *)
+- case (genProof _)=>[vpf|hbc']. case (VAF vpf _).
+  by rewrite /blockTree in hbc *; move=>/= hbc'; rewrite hbc in hbc'; rewrite -hbc'.
+  by rewrite /blockTree in hbc *; move=>/= hbc'; rewrite hbc in hbc'; rewrite -hbc'.
+  by rewrite hbc in hbc'; rewrite -hbc'.
+Qed.
+
 Lemma procInt_peers_uniq :
   forall (s1 : State) (t : InternalTransition), let: s2 := (procInt s1 t).1 in
     uniq (peers s1) -> uniq (peers s2).

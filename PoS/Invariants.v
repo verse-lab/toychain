@@ -51,7 +51,7 @@ Lemma local_chain_grows_fork_step (w w' : World) n bc bc':
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
 case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
-          proc t [n' prs bt pool a i] C F].
+          proc t s1 C F].
 
 (* 0 steps *)
 - by subst w'; rewrite (has_chain_func D H1 H2); apply or_introl; apply: bc_pre_refl.
@@ -88,10 +88,13 @@ case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
    Don't hesitate to introduce auxiliary lemmas. *)  
 rewrite [procInt _ _]surjective_pairing=>Z.
 set Pi := nosimpl (procInt _ _) in Z; subst w'.
-rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
-
-  
-Admitted.
+rewrite /holds/= findU eqxx/= (proj1 (C)) in H2. rewrite /holds F in H1.
+have: (Some s1 = Some s1). by []. move=> eq. move: (H1 s1 eq)=>hbc. clear eq.
+have: (Some Pi.1 = Some Pi.1). by []. move=> eq. move: (H2 Pi.1 eq)=>hbc'.
+rewrite /has_chain in hbc hbc'. move/eqP in hbc. move/eqP in hbc'.
+specialize (procInt_bc_same hbc hbc')=>/eqP<-.
+by left; apply bc_pre_refl.
+Qed.
 
 (* Big-step case, proven by induction *)
 Lemma local_chain_only_grows (w w' : World) n bc bc':
