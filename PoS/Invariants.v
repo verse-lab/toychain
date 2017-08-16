@@ -72,26 +72,23 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
   rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
   move: (H1 _ F)=>{H1 C2 F}/=H1. 
-
-  (* Now the interesting case: consider all possible messages, 
-     reasoning out of H1 and H2. 
-     I.e. do
-     case: (msg p). 
-     and prove for each subcase. Perhaps, you might move
-     some parts into lemmas 
-     THIS is the main part of the proof! *)
+  by apply: (@procMsg_bc_prefix_or_fork bc bc'
+        {| id := dst p; peers := prs; blockTree := bt; txPool := pool; addr := a; inv := i |}
+        (msg p)); move/eqP: H2; move/eqP: H1.
 
 (* Internal transition *)
 (* Two sub-cases: proc =? n *)
 case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
 - set pms := (procInt _ _); case: pms=>st' ms Z; subst w'.
   rewrite /holds/= findU N/= in H2.
-  by rewrite -(has_chain_func D H1 H2); apply: bc_pre_refl.
+  by left; rewrite -(has_chain_func D H1 H2); apply: bc_pre_refl.
 
 (* Another interesting part of the proof: n == proc.
    Consider all branches of procInt and proof the property for each one.
    Don't hesitate to introduce auxiliary lemmas. *)  
-rewrite [procInt _ _]surjective_pairing=>Z; subst w'.
+rewrite [procInt _ _]surjective_pairing=>Z.
+set Pi := nosimpl (procInt _ _) in Z; subst w'.
+rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
 
   
 Admitted.

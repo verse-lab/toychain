@@ -36,7 +36,8 @@ Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
   match bc with
   | [::] => GenesisBlock
-  | prev :: (b :: bc') => prev
+  | prev :: ((b' :: bc') as bcc) =>
+    if eq_block b' b then prev else bcPrev b bcc
   | _ :: bc' => bcPrev b bc'
   end.
 
