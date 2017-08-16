@@ -29,3 +29,41 @@ End BlockchainOrder.
 
 Notation "'[' bc1 '<<=' bc2 ']'" := (is_prefix bc1 bc2).
 
+Section Forks.
+
+Definition fork (bc bc' : Blockchain) : Prop :=
+  exists (b : Block),
+    bcSucc b bc != bcSucc b bc'.
+
+(* TODO: prove fork facts! *)
+Lemma bc_fork_sym bc bc' :
+  fork bc bc' -> fork bc' bc.
+Proof.
+Admitted.
+
+Lemma bc_fork_trans bc1 bc2 bc3 :
+  fork bc1 bc2 -> fork bc2 bc3 -> fork bc1 bc3.
+Proof.
+case=> b1 H1 [b21] H2. rewrite /fork.
+Admitted.
+
+Lemma bc_fork_prefix A B C :
+  fork B C -> [A <<= B] -> fork A C.
+Proof.
+Admitted.
+
+(* These are actually different facts! *)
+Lemma bc_prefix_fork A B C :
+  fork A B -> [A <<= C] -> fork A C.
+Proof.
+Admitted.
+
+Axiom btChain_fork :
+  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
+  let: bc' := btChain (btExtend bt b) in
+    btChain bt = bc ->
+    b \notin bc ->
+    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
+    fork bc bc'.
+
+End Forks.

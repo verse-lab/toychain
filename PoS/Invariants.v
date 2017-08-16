@@ -97,23 +97,29 @@ by left; apply bc_pre_refl.
 Qed.
 
 (* Big-step case, proven by induction *)
-Lemma local_chain_only_grows (w w' : World) n bc bc':
+Lemma local_chain_grows_fork (w w' : World) n bc bc':
   n \in dom (localState w) -> 
   holds n w (has_chain bc) ->
   reachable w w' ->
   holds n w' (has_chain bc') ->
-  [bc <<= bc'].
+  [bc <<= bc'] \/ fork bc bc'.
 Proof.
 move=>D H1 [m]R H2.
 elim: m w' R bc' H2=>/=[w'<-|m Hi w' [via][R S]]bc' H2.
-- by move/(has_chain_func D H1 (bc':=bc')):H2=><-; apply bc_pre_refl.
+- by left; move/(has_chain_func D H1 (bc':=bc')):H2=><-; apply bc_pre_refl.
 have D': n \in dom (localState via).
 - suff R' : reachable w via by rewrite -(steps_nodes R').
   by exists m. 
 suff X : exists bc1, holds n via (has_chain bc1).
-- case: X=>bc1 H; move: (Hi _ R _ H)=>P.
-  apply: (bc_pre_trans P).
-  apply: (local_chain_only_grows_step D' H S H2).
+- case: X=>bc1 H; move: (Hi _ R _ H)=>P1.
+  (*apply: (bc_pre_trans P).*)
+  move: (local_chain_grows_fork_step D' H S H2)=>P2.
+  case P1; case P2; clear P1 P2.
+  + by move=> Pf1 Pf2; left; move: (bc_pre_trans Pf2 Pf1).
+  + by move=> F1 Pf1; right; move: (bc_fork_prefix F1 Pf1).
+  + move=> Pf1 F1. right; move: (bc_fork_sym F1)=>F1s;
+    by move: (bc_fork_trans F1 (bc_prefix_fork F1s Pf1)).
+  + by move=> F1 F2; right; move: (bc_fork_trans F2 F1).
 rewrite /holds/has_chain.
 move/um_eta: D';case; case=>id ps bt t a i[][->]_.
 by exists (btChain (blockTree {|

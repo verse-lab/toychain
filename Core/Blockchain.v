@@ -44,7 +44,8 @@ Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
 Fixpoint bcSucc (b : Block) (bc : Blockchain) : option Block :=
   match bc with
   | [::] => None
-  | b :: (succ :: bc') => Some succ
+  | b' :: (succ :: bc') =>
+    if eq_block b' b then Some succ else bcSucc b bc'
   | _ :: bc' => bcSucc b bc'
   end.
 
@@ -104,10 +105,6 @@ Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
 
-Definition fork (bc bc' : Blockchain) : Prop :=
-  exists (b : Block),
-    bcSucc b bc != bcSucc b bc'.
-
 Axiom blockValid_imp_VAF :
   forall (b : Block) (bc : Blockchain),
     (blockValid b bc) -> (VAF (proof b) bc).
@@ -144,14 +141,6 @@ Axiom btChain_extend :
     prevBlockHash extension == hashB (bcLast bc) ->
     btChain (btExtend bt b) = rcons bc extension.
 
-Axiom btChain_fork :
-  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
-  let: bc' := btChain (btExtend bt b) in
-    btChain bt = bc ->
-    b \notin bc ->
-    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
-    fork bc bc'.
-
 Axiom btExtend_preserve :
   forall (bt : BlockTree) (ob b : Block),
     let: bt' := btExtend bt b in
@@ -182,3 +171,5 @@ Fixpoint prefix_diff (bc bc' : Blockchain) :=
   | x :: xs, y :: ys => if x == y then prefix_diff xs ys else y :: ys
   | _, ys => ys
   end.
+
+
