@@ -84,35 +84,3 @@ Axiom btChain_fork :
     fork bc bc'.
 
 End Forks.
-
-
-(*
-Definition fork (bc bc' : Blockchain) : Prop :=
-  exists (b sbc sbc' : Block),
-    [/\ bcSucc b bc = Some sbc, bcSucc b bc' = Some sbc' &
-        sbc != sbc' = true].
-
-Lemma bc_fork_neq bc bc' :
-  fork bc bc' -> bc != bc' = true.
-Proof.
-move=>[fb] [sbc] [sbc'] [] ssibc ssibc' neq.
-by apply: (bc_succ_diff ssibc ssibc' neq).
-Qed.
-
-Lemma bc_fork_sym bc bc' :
-  fork bc bc' -> fork bc' bc.
-Proof.
-move=>[fb] [sbc] [sbc'] [] ssibc ssibc' neq.
-rewrite /fork. exists fb. exists sbc'. exists sbc. split; do? by [].
-by rewrite eq_sym.
-Qed.
-
-(*  /--B
-* --
-*   \-----A---C
-*)
-Lemma bc_fork_prefix A B C :
-  fork A B -> [A <<= C] -> fork B C.
-Proof.
-Admitted.
-*)
