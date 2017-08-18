@@ -240,30 +240,32 @@ Qed.
 
 Ltac local_bc_no_change s1 hbc hbc' :=
   (rewrite /procMsg; destruct s1=>/=; rewrite /blockTree in hbc;
-   by move=>hbc'; rewrite hbc in hbc'; rewrite hbc'; left; apply bc_pre_refl).
+   by move=>hbc'; rewrite hbc in hbc'; rewrite hbc'; left).
 
 Lemma procMsg_bc_prefix_or_fork bc bc':
   forall (s1 : State) (m : Message),
     let: s2 := (procMsg s1 m).1 in
     btChain (blockTree s1) = bc  ->
     btChain (blockTree s2) = bc' ->
-    [bc <<= bc'] \/ (fork bc bc' /\ CFR_gt bc' bc).
+    bc = bc' \/ (([bc <<= bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'.
 - case: s1 hbc =>/= _ _ bt _ _ _ hbc; case B: (b \in bt).
   + move: (btExtend_withDup_noEffect B)=><-<-.
-    by rewrite hbc; left; apply bc_pre_refl.
+    by rewrite hbc; left.
 
   move=>hbc'; rewrite -hbc -hbc'.
   (* Extension – note that b is not necessarily the last block in bc' *)
   case E: (prevBlockHash (bcLast bc') == hashB (bcLast bc)).
-  + left. move/negbT/btChain_mem: B; rewrite hbc=>B.
+  + right. split; move/negbT/btChain_mem: B; rewrite hbc=>B;
     move: (btChain_extend hbc B E)=>->; rewrite -cats1.
-    by exists [:: bcLast bc'].
+    by left; exists [:: bcLast bc'].
+    by apply CFR_ext.
+
   (* Fork *)
   + right. move: (B)=>B'. move/negbT in B.
     move/negbT/btChain_mem in B'. rewrite hbc in B'. rewrite -hbc' in E.
-    move/negbT in E. specialize (btChain_fork hbc B' E)=> F. split.
+    move/negbT in E. specialize (btChain_fork hbc B' E)=> F. split. right.
     by rewrite -hbc in F; apply F.
     move: (btExtend_withNew_sameOrBetter B)=><-.
     move: (btExtend_withNew_mem hbc B')=><-. rewrite hbc' in F *.
@@ -271,9 +273,9 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'
 
 - destruct s1=>/=. case (ohead _ ). rewrite /blockTree in hbc *=>/=.
   + move=> _ hbc'. rewrite hbc in hbc'.
-    by rewrite -hbc'; left; apply bc_pre_refl.
+    by rewrite -hbc'; left.
   + case (ohead _) => [x hbc'|hbc']; rewrite /blockTree in hbc *=>/=;
-    by rewrite hbc in hbc'; rewrite -hbc'; left; apply bc_pre_refl.
+    by rewrite hbc in hbc'; rewrite -hbc'; left.
 Qed.
 
 Lemma procInt_bc_same bc bc':
