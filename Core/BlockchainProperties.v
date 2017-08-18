@@ -31,6 +31,35 @@ Proof.
 by case=>ext=>eq; rewrite eq; apply CFR_ext.
 Qed.
 
+Lemma bc_prefix_mt bc : [bc <<= [::]] -> bc == [::].
+Proof. by case: bc=>//b bc[x]. Qed.
+ 
+Fixpoint prefixb {T: eqType} (s1 s2 : seq T) :=
+  if s2 is y :: s2' then
+    if s1 is x :: s1' then (x == y) && (prefixb s1' s2')
+    else true
+  else s1 == [::].         
+
+Lemma bc_prefixb_mt (bc : Blockchain) : prefixb bc [::] -> bc == [::].
+Proof. by case: bc=>//b bc[x]. Qed.
+
+Lemma prefixP bc1 bc2: reflect [bc1 <<= bc2] (prefixb bc1 bc2).
+Proof.
+elim: bc2 bc1=>//=[|b2 bc2 Hi/=]bc1.
+- case B: (prefixb bc1 [::]); [constructor 1|constructor 2].
+  + by move/bc_prefixb_mt/eqP: B=>->; exists [::].
+  by case: bc1 B=>//b bc1/=_[?].
+case: bc1=>//[|b1 bc1]; first by constructor 1; exists (b2::bc2). 
+case X: (b1 == b2)=>/=; rewrite X/=; last first.
+- constructor 2=>[[p]]; rewrite cat_cons; case=>Z; subst b2.
+  by rewrite eqxx in X.
+- move/eqP: X=>X; subst b2.
+case: Hi=>H; [constructor 1|constructor 2].
+- by case:H=>x->; exists x; rewrite cat_cons.  
+case=>t; rewrite cat_cons; case=>Z; subst bc2; apply: H.
+by exists t.
+Qed.                                               
+
 End BlockchainOrder.
 
 Notation "'[' bc1 '<<=' bc2 ']'" := (is_prefix bc1 bc2).
