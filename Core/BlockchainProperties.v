@@ -38,36 +38,42 @@ Notation "'[' bc1 '<<=' bc2 ']'" := (is_prefix bc1 bc2).
 Section Forks.
 
 Definition fork (bc bc' : Blockchain) : Prop :=
-  exists (b : Block),
-    bcSucc b bc != bcSucc b bc'.
+  ~[bc <<= bc'] /\  ~[bc' <<= bc].
 
-(* TODO: prove fork facts! *)
 Lemma bc_fork_neq bc bc' :
-  fork bc bc' -> bc != bc'.
+  fork bc bc' -> bc != bc' = true.
 Proof.
-case=> Of; case bc; case bc'; do? by [].
-move=> h' B' h B. rewrite eqseq_cons negb_and.
-Admitted.
+elim=> H1 H2. elim: bc H1 H2=>[|x xs Hi] H1 H2.
+- by contradict H1; exists bc'.
+elim: bc' H1 H2 Hi=>[|y ys Hi H1 H2 Hi'].
+- by [].
+case B: (x == y); rewrite eqseq_cons Bool.negb_true_iff Bool.andb_false_iff.
+- right. move/eqP in B. subst x. rewrite/is_prefix in H2.
+  apply/negbTE/negP; move/eqP=>G. apply: H2.
+  by exists [::]; rewrite cats0 G.
+- by left.
+Qed.
 
 Lemma bc_fork_sym bc bc' :
   fork bc bc' -> fork bc' bc.
 Proof.
-Admitted.
+rewrite/fork. elim. move=>nbb' nb'b. split; by [].
+Qed.
 
-Lemma bc_fork_trans bc1 bc2 bc3 :
-  fork bc1 bc2 -> fork bc2 bc3 -> fork bc1 bc3.
+Lemma bc_fork_prefix a b c :
+  fork a b -> [b <<= c] -> fork a c.
 Proof.
-case=> b1 H1 [b21] H2. rewrite /fork.
-Admitted.
-
-(*  /--B
-* --
-*   \-----A---C
-*)
-Lemma bc_fork_prefix A B C :
-  fork A B -> [A <<= C] -> fork B C.
-Proof.
-Admitted.
+rewrite/fork. elim=>H2 H1[x] H3. subst c.
+elim: x b H1 H2=>[|x xs Hi] b H1 H2.
+- by rewrite cats0.
+rewrite -cat_rcons. apply: Hi=>H.
+- by apply: H1; case: H=>z->; rewrite cat_rcons; eexists _.
+- rewrite/is_prefix in H H1 H2.
+case: H=>z. elim/last_ind: z=>[|zs z Hi].
+- by rewrite cats0=>Z; subst a; apply: H1; exists [:: x]; rewrite cats1.
+rewrite -rcons_cat=>/eqP. rewrite eqseq_rcons. move/andP=>[/eqP Z]/eqP Z'.
+by subst x b; apply: H2; exists zs.
+Qed.
 
 Axiom btChain_fork :
   forall (bt : BlockTree) (bc : Blockchain) (b : Block),
@@ -78,3 +84,35 @@ Axiom btChain_fork :
     fork bc bc'.
 
 End Forks.
+
+
+(*
+Definition fork (bc bc' : Blockchain) : Prop :=
+  exists (b sbc sbc' : Block),
+    [/\ bcSucc b bc = Some sbc, bcSucc b bc' = Some sbc' &
+        sbc != sbc' = true].
+
+Lemma bc_fork_neq bc bc' :
+  fork bc bc' -> bc != bc' = true.
+Proof.
+move=>[fb] [sbc] [sbc'] [] ssibc ssibc' neq.
+by apply: (bc_succ_diff ssibc ssibc' neq).
+Qed.
+
+Lemma bc_fork_sym bc bc' :
+  fork bc bc' -> fork bc' bc.
+Proof.
+move=>[fb] [sbc] [sbc'] [] ssibc ssibc' neq.
+rewrite /fork. exists fb. exists sbc'. exists sbc. split; do? by [].
+by rewrite eq_sym.
+Qed.
+
+(*  /--B
+* --
+*   \-----A---C
+*)
+Lemma bc_fork_prefix A B C :
+  fork A B -> [A <<= C] -> fork B C.
+Proof.
+Admitted.
+*)

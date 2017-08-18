@@ -25,6 +25,7 @@ Record Block :=
     txs : seq Transaction;
     proof : VProof;
   }.
+
 Parameter GenesisBlock : Block.
 
 Parameter hashB : Block -> Hash.
@@ -33,21 +34,6 @@ Definition eq_block b b' := hashB b == hashB b'.
 Definition Blockchain := seq Block.
 
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
-Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
-  match bc with
-  | [::] => GenesisBlock
-  | prev :: ((b' :: bc') as bcc) =>
-    if eq_block b' b then prev else bcPrev b bcc
-  | _ :: bc' => bcPrev b bc'
-  end.
-
-Fixpoint bcSucc (b : Block) (bc : Blockchain) : option Block :=
-  match bc with
-  | [::] => None
-  | b' :: ((succ :: bc') as bcc) =>
-    if eq_block b' b then Some succ else bcSucc b bcc
-  | _ :: bc' => bcSucc b bc'
-  end.
 
 (* We might want to introduce a notion of time *)
 Parameter VAF : VProof -> Blockchain -> bool.
@@ -91,6 +77,22 @@ Canonical Block_eqMixin := Eval hnf in EqMixin eq_blockP.
 Canonical Block_eqType := Eval hnf in EqType Block Block_eqMixin.
 End BlockEq.
 Export BlockEq.
+
+Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
+  match bc with
+  | [::] => GenesisBlock
+  | prev :: ((b' :: bc') as bcc) =>
+    if b' == b then prev else bcPrev b bcc
+  | _ :: bc' => bcPrev b bc'
+  end.
+
+Fixpoint bcSucc (b : Block) (bc : Blockchain) : option Block :=
+  match bc with
+  | [::] => None
+  | b' :: ((succ :: bc') as bcc) =>
+    if b' == b then Some succ else bcSucc b bcc
+  | _ :: bc' => bcSucc b bc'
+  end.
 
 Module TxEq.
 Lemma eq_txP : Equality.axiom eq_tx.
@@ -187,4 +189,23 @@ Fixpoint prefix_diff (bc bc' : Blockchain) :=
   | _, ys => ys
   end.
 
-
+(* Facts *)
+Lemma bc_succ_mem b bc:
+  forall (sb : Block),
+    (bcSucc b bc = Some sb) ->
+    (b \in bc) = true /\ (sb \in bc) = true.
+Proof.
+elim: bc=>[|h t Hi]/=; do? by [].
+move=> sb. specialize (Hi sb). case E: (h == b); last first.
+case: {1}t.
+- move=>Ex. move: (Hi Ex). elim. move=> bbc sbbc. clear Hi Ex. split.
+  by rewrite in_cons bbc; apply Bool.orb_true_r.
+  by rewrite in_cons sbbc; apply Bool.orb_true_r.
+- move=>_ _ Ex. move: (Hi Ex). elim. move=> bbc sbbc. clear Hi Ex. split.
+  by rewrite in_cons bbc; apply Bool.orb_true_r.
+  by rewrite in_cons sbbc; apply Bool.orb_true_r.
+case: t Hi; do? by [].
+move=> succ tail Hi eq. case: eq=>eq. rewrite -eq in Hi. split.
+ + by rewrite in_cons; move/eqP in E; rewrite E eq_refl; apply Bool.orb_true_l.
+ + by rewrite eq; rewrite !in_cons; rewrite eqxx=>/=; apply Bool.orb_true_r.
+Qed.
