@@ -58,6 +58,19 @@ case=> a1 H1 [a2] H2; subst bc2.
 by rewrite -catA in H2; exists (a1 ++ a2).
 Qed.
 
+Lemma bc_spre_nrefl {T :eqType} (bc : seq T) : ~ [bc <<< bc].
+Proof.
+move=>[h][t]. elim: bc=>[|x xs H]; do? by[rewrite cat0s|case].
+Qed.
+
+Lemma bc_spre_trans {T :eqType} (bc1 bc2 bc3 : seq T) :
+  [bc1 <<< bc2] -> [bc2 <<< bc3] -> [bc1 <<< bc3].
+Proof.
+move=>[x][xs]eq [y][ys]eq'. rewrite eq' eq. clear eq eq'.
+rewrite/is_strict_prefix. eexists x, (xs ++ y :: ys).
+by rewrite -catA.
+Qed.
+
 Lemma bc_spre_gt bc bc' :
   [bc <<< bc'] -> bc' > bc.
 Proof.
@@ -73,6 +86,21 @@ Lemma bc_pre_spre {T :eqType} (bc bc' : seq T) :
 Proof.
 case; case; first by rewrite cats0=>->; right. 
 by move=>x xs->; left; eexists x, xs.
+Qed.
+
+Lemma bc_pre_both {T :eqType} (bc1 bc2 : seq T) :
+  [bc1 <<= bc2] -> [bc2 <<= bc1] -> bc1 == bc2.
+Proof.
+move=>H1 H2. move: (bc_pre_spre H1) (bc_pre_spre H2). clear H1 H2.
+case=>A; case=>B; do? by [].
+by move: (bc_spre_nrefl (bc_spre_trans A B)).
+by rewrite eq_sym.
+Qed.
+
+Lemma bc_spre_both {T :eqType} (bc1 bc2 : seq T) :
+  sprefixb bc1 bc2 -> sprefixb bc2 bc1 -> False.
+Proof.
+by move/sprefixP=>A /sprefixP=>B; move: (bc_spre_nrefl (bc_spre_trans A B)).
 Qed.
 
 Lemma bc_prefix_mt {T :eqType} (bc : seq T) : [bc <<= [::]] -> bc == [::].
@@ -177,6 +205,29 @@ case: H=>z. elim/last_ind: z=>[|zs z Hi].
 - by rewrite cats0=>Z; subst a; apply: H1; exists [:: x]; rewrite cats1.
 rewrite -rcons_cat=>/eqP; rewrite eqseq_rcons; move/andP=>[/eqP Z]/eqP Z'.
 by subst x b; apply: H2; exists zs.
+Qed.
+
+Inductive bc_rel (bc bc' : Blockchain) : bool-> bool-> bool-> bool-> Set :=
+| CmpBcEq of bc == bc' : bc_rel bc bc' true false false false
+| CmpBcFork of fork bc bc' : bc_rel bc bc' false true false false
+| CmpBcPre12 of sprefixb bc bc' : bc_rel bc bc' false false true false
+| CmpBcPre21 of sprefixb bc' bc: bc_rel bc bc' false false false true.
+
+Lemma bc_relP (bc bc' : Blockchain) :
+  bc_rel bc bc' (bc == bc') (fork bc bc') (sprefixb bc bc') (sprefixb bc' bc).
+Proof.
+case Eq: (bc == bc'); case F: (fork bc bc');
+case S12: (sprefixb bc bc'); case S21: (sprefixb bc' bc);
+do? by [
+  constructor |
+  contradict Eq; move: (bc_fork_neq F)=>/eqP=>A B; apply A; move/eqP in B |
+  contradict Eq; move: (bc_spre_both S12 S21) |
+  contradict S12; move/eqP: Eq=><-=>/sprefixP; apply: bc_spre_nrefl |
+  contradict S21; move/eqP: Eq=><-=>/sprefixP; apply: bc_spre_nrefl
+].
+- by contradict F; move/norP=>[] C; rewrite S12 in C.
+- by contradict F; move/norP=>[] _=>/norP; elim=>C; rewrite S21 in C.
+- by contradict F; rewrite/fork Eq S12 S21.
 Qed.
 
 Axiom btChain_fork :

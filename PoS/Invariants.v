@@ -47,7 +47,7 @@ Lemma local_chain_grows_fork_step (w w' : World) n bc bc':
   holds n w (has_chain bc) ->
   system_step w w' ->
   holds n w' (has_chain bc') ->
-  bc = bc' \/ (([bc <<= bc'] \/ fork bc bc') /\ bc' > bc).
+  bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
 case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
@@ -102,7 +102,7 @@ Lemma local_chain_grows_fork (w w' : World) n bc bc':
   holds n w (has_chain bc) ->
   reachable w w' ->
   holds n w' (has_chain bc') ->
-  bc = bc' \/ (([bc <<= bc'] \/ fork bc bc') /\ bc' > bc).
+  bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>D H1 [m]R H2.
 elim: m w' R bc' H2=>/=[w'<-|m Hi w' [via][R S]]bc' H2.
@@ -127,13 +127,13 @@ suff X : exists bc1, holds n via (has_chain bc1).
   case; case=> HH Gt; case; case=>HH' Gt';
   right; split; do? by move: (CFR_trans Gt Gt').
   (* --bc---bc1---bc' *)
-  by left; move: (bc_pre_trans HH' HH).
+  by left; move: (bc_spre_trans HH' HH).
 
   (*   /--bc
    * --
    *   \-----bc1---bc'
    *)
-  by right; move: (bc_fork_pre_fork HH' HH).
+  by right; move: (bc_fork_prefix HH' (bc_spre_pre HH)).
 
   (*      /-- bc1                /---bc--bc1
    * --bc-               OR   ---
@@ -152,7 +152,7 @@ move/um_eta: D';case; case=>id ps bt t a i[][->]_.
 by exists (btChain (blockTree {|
     id := id; peers := ps; blockTree := bt; txPool := t;
     addr := a; inv := i |}))=>st[]<-. 
-Qed.
+Admitted.
 
 (* Sketch of global invariant
  * For simplicity, the predicate available assumes all nodes are directly connected,

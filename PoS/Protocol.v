@@ -247,7 +247,7 @@ Lemma procMsg_bc_prefix_or_fork bc bc':
     let: s2 := (procMsg s1 m).1 in
     btChain (blockTree s1) = bc  ->
     btChain (blockTree s2) = bc' ->
-    bc = bc' \/ (([bc <<= bc'] \/ fork bc bc') /\ bc' > bc).
+    bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'.
 - case: s1 hbc =>/= _ _ bt _ _ _ hbc; case B: (b \in bt).
@@ -259,7 +259,7 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'
   case E: (prevBlockHash (bcLast bc') == hashB (bcLast bc)).
   + right. split; move/negbT/btChain_mem: B; rewrite hbc=>B;
     move: (btChain_extend hbc B E)=>->; rewrite -cats1.
-    by left; exists [:: bcLast bc'].
+    by left; exists (bcLast bc'), [::].
     by apply CFR_ext.
 
   (* Fork *)
