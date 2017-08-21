@@ -42,11 +42,6 @@ case=>x[xs]; rewrite cat_cons; case=>Z; subst bc2; apply: H.
 by exists x, xs.
 Qed.
 
-(* Decidable fork *)
-Definition fork {T: eqType} (bc1 bc2 : seq T) :=
-  ~~[|| sprefixb bc1 bc2, sprefixb bc2 bc1 | bc1 == bc2].
-
-
 (* Non-strict prefix *)
 Definition is_prefix {T :eqType} (bc bc' : seq T) :=
   exists bc1, bc' = bc ++ bc1.
@@ -72,6 +67,13 @@ Qed.
 Lemma bc_spre_pre {T :eqType} (bc bc' : seq T) :
   [bc <<< bc'] -> [bc <<= bc'].
 Proof. by move=>[] x [] xs=>->; exists (x :: xs). Qed.
+
+Lemma bc_pre_spre {T :eqType} (bc bc' : seq T) :
+  [bc <<= bc'] -> [bc <<< bc'] \/ bc == bc'.
+Proof.
+case; case; first by rewrite cats0=>->; right. 
+by move=>x xs->; left; eexists x, xs.
+Qed.
 
 Lemma bc_prefix_mt {T :eqType} (bc : seq T) : [bc <<= [::]] -> bc == [::].
 Proof. by case: bc=>//b bc[x]. Qed.
@@ -124,6 +126,29 @@ Notation "'[' bc1 '<<<' bc2 ']'" := (is_strict_prefix bc1 bc2).
 
 Section Forks.
 
+(* Decidable fork *)
+Definition fork {T: eqType} (bc1 bc2 : seq T) :=
+  ~~[|| sprefixb bc1 bc2, sprefixb bc2 bc1 | bc1 == bc2].
+
+Definition fork_rel {T: eqType} (bc1 bc2 : seq T) :=
+  ~ ([bc1 <<= bc2] \/ [bc2 <<= bc1]).
+
+Lemma forkP {T: eqType} (bc1 bc2 : seq T) :
+  reflect (fork_rel bc1 bc2) (fork bc1 bc2).
+Proof.
+case F: (fork bc1 bc2); [constructor 1 | constructor 2].
+- move/negP: F=>F; rewrite /fork_rel=>G; apply: F.
+  case: G; case=>xs; case: xs=>[| x xs]; rewrite ?cats0=>->;
+  do? [by rewrite eqxx ![_ || true]orbC].
+  + by apply/orP; left; apply/sprefixP; eexists _, _.  
+  admit. (*  LAE *)
+move=>G. move/negP: F=>F;apply: F. rewrite /fork_rel in G.
+case/orP.
+- move/sprefixP=>[x][xs]E; apply: G; subst bc2.
+  by left; eexists _.
+(* LAE *)
+Admitted.
+  
 Lemma bc_fork_neq {T: eqType} (bc bc' : seq T) :
   fork bc bc' -> bc != bc'.
 Proof.
@@ -137,22 +162,54 @@ Proof.
 by rewrite/fork; rewrite eq_sym orbCA.
 Qed.
 
+Lemma bc_fork_prefix {T: eqType} (a b c : seq T):
+  fork a b -> [b <<= c] -> fork a c.
+Proof.
+move/forkP=>F H; apply/forkP; move: F H.
+move/Decidable.not_or.
+case=>H2 H1[x] H3; subst c.
+elim: x b H1 H2=>[|x xs Hi] b H1 H2.
+- by rewrite cats0; case=>H; [apply: H2|apply:H1].
+rewrite -cat_rcons; apply: Hi=>H.
+- by apply: H1; case: H=>z->; rewrite cat_rcons; eexists _.
+- rewrite/is_prefix in H H1 H2.
+case: H=>z. elim/last_ind: z=>[|zs z Hi].
+- by rewrite cats0=>Z; subst a; apply: H1; exists [:: x]; rewrite cats1.
+rewrite -rcons_cat=>/eqP; rewrite eqseq_rcons; move/andP=>[/eqP Z]/eqP Z'.
+by subst x b; apply: H2; exists zs.
+Qed.
+
+
 Lemma bc_prefix_of_same {T: eqType} (a b c : seq T) :
   prefixb a c -> prefixb b c -> ~~fork a b.
 Proof.
+move=>/prefixP P1 /prefixP P2; apply/negPn.
+case: P1=>xs; case: P2=>ys->.
+elim/last_ind: b a=>[|b bx Hb]a. admit.
+elim/last_ind: a=>[_|a ax Ha].
++ apply/orP; left. admit. 
+rewrite [rcons a ax ++ xs]cat_rcons.
+  
+case/bc_pre_spre: P1=>[/sprefixP|/eqP->]. move/sprefixP.
+
+move/prefixP=>H1/prefixP H2; apply/negP=>F.
+move/negP: F=>F; apply F=>{F}.
+
 rewrite !prb_equiv /fork Bool.negb_involutive.
 case/orP=>H1; case/orP=>H2; apply/orP.
 by move/eqP in H1; move/eqP in H2; right; apply/orP; right; rewrite H2; rewrite H1.
 by move/eqP in H1; rewrite -H1 in H2; right; apply/orP; left.
 by move/eqP in H2; rewrite -H2 in H1; left.
 move/sprefixP in H1. move/sprefixP in H2.
-move: H1=>[] x [] xs eq. move: H2=>[] y [] ys eq'. rewrite eq' in eq. clear eq' c.
+move: H1=>[] x [] xs eq.
+move: H2=>[] y [] ys eq'; rewrite eq' in eq; clear eq' c.
 (* rewrite -!cat_rcons in eq. *)
-elim: ys xs eq=>[|]. 
-  elim=>[|h t Hx].
-  rewrite !cats1. move/eqP. rewrite eqseq_rcons=>/andP[]. admit.
-    
-
+elim: ys eq=>[|y' ys Hy]. 
+  elim: xs a b y=>[|h t Hx] a b y.
+  by rewrite !cats1=>/eqP; rewrite eqseq_rcons=>/andP[/eqP ->] _;
+     right; rewrite orbC eqxx.  
+   
+  
 elim: ys x y xs eq=>[|] x y xs.
 rewrite cats1 -!cat_rcons.
 
