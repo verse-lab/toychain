@@ -63,14 +63,21 @@ case=> a1 H1 [a2] H2; subst bc2.
 by rewrite -catA in H2; exists (a1 ++ a2).
 Qed.
 
-Lemma bc_pre_gt bc bc' :
-  [bc <<= bc'] -> bc' > bc.
+Lemma bc_spre_gt bc bc' :
+  [bc <<< bc'] -> bc' > bc.
 Proof.
-by case=>ext=>eq; rewrite eq; apply CFR_ext.
+by case=>h; case=>t=>eq; rewrite eq; apply CFR_ext.
 Qed.
+
+Lemma bc_spre_pre {T :eqType} (bc bc' : seq T) :
+  [bc <<< bc'] -> [bc <<= bc'].
+Proof. by move=>[] x [] xs=>->; exists (x :: xs). Qed.
 
 Lemma bc_prefix_mt {T :eqType} (bc : seq T) : [bc <<= [::]] -> bc == [::].
 Proof. by case: bc=>//b bc[x]. Qed.
+
+Lemma bc_sprefix_mt {T :eqType} (bc : seq T) : [bc <<< [::]] -> False.
+Proof. by case=>x [] xs; case: bc=>//b bc[x]. Qed.
  
 Fixpoint prefixb {T: eqType} (s1 s2 : seq T) :=
   if s2 is y :: s2' then
@@ -105,9 +112,10 @@ Proof.
 apply/Bool.eq_iff_eq_true; split.
 - move/prefixP=>[x]->; case: x=>[|x xs]; first by rewrite cats0 eqxx.
   by apply/orP; right; apply/sprefixP; exists x, xs.
-(* TODO: george, please, finish this as an exercise! *)
-admit.
-Admitted.
+- move/orP; case.
+  by move/eqP=><-; apply/prefixP; apply bc_pre_refl.
+  by move/sprefixP=>[] x [] xs eq; apply/prefixP; rewrite eq; exists (x :: xs).
+Qed.
   
 End BlockchainOrder.
 
@@ -129,24 +137,50 @@ Proof.
 by rewrite/fork; rewrite eq_sym orbCA.
 Qed.
 
+Lemma bc_prefix_of_same {T: eqType} (a b c : seq T) :
+  prefixb a c -> prefixb b c -> ~~fork a b.
+Proof.
+rewrite !prb_equiv /fork Bool.negb_involutive.
+case/orP=>H1; case/orP=>H2; apply/orP.
+by move/eqP in H1; move/eqP in H2; right; apply/orP; right; rewrite H2; rewrite H1.
+by move/eqP in H1; rewrite -H1 in H2; right; apply/orP; left.
+by move/eqP in H2; rewrite -H2 in H1; left.
+move/sprefixP in H1. move/sprefixP in H2.
+move: H1=>[] x [] xs eq. move: H2=>[] y [] ys eq'. rewrite eq' in eq. clear eq' c.
+(* rewrite -!cat_rcons in eq. *)
+elim: ys xs eq=>[|]. 
+  elim=>[|h t Hx].
+  rewrite !cats1. move/eqP. rewrite eqseq_rcons=>/andP[]. admit.
+    
+
+elim: ys x y xs eq=>[|] x y xs.
+rewrite cats1 -!cat_rcons.
+
+elim/last_ind: xs eq=>[|os o Hi].
+- elim/last_ind: ys=>[|qs q Hi'].
+  by move/eqP; rewrite !cats0 eqseq_rcons eq_sym; move=>/andP[] -> _;
+    right; apply/orP; right. 
+  rewrite !cats0 in Hi' *. Search _ (rcons _ _ ++ rcons _ _).
+Admitted.
+
 Lemma bc_fork_prefix {T: eqType} (a b c : seq T) :
   fork a b -> [b <<= c] -> fork a c.
 Proof.
 move/orP=>H1 H2; apply/negP=>/orP H3; apply: H1.
-case:H3.
-Admitted.  
-(* TODO: redo me for the new fork definition! *)
-
-(* rewrite/fork. elim=>H2 H1[x] H3. subst c. *)
-(* elim: x b H1 H2=>[|x xs Hi] b H1 H2. *)
-(* - by rewrite cats0. *)
-(* rewrite -cat_rcons. apply: Hi=>H. *)
-(* - by apply: H1; case: H=>z->; rewrite cat_rcons; eexists _. *)
-(* - rewrite/is_prefix in H H1 H2. *)
-(* case: H=>z. elim/last_ind: z=>[|zs z Hi]. *)
-(* - by rewrite cats0=>Z; subst a; apply: H1; exists [:: x]; rewrite cats1. *)
-(* rewrite -rcons_cat=>/eqP. rewrite eqseq_rcons. move/andP=>[/eqP Z]/eqP Z'. *)
-(* by subst x b; apply: H2; exists zs. *)
+case:H3; last first.
+- move/orP=>[] Sca.
+  + move/sprefixP in Sca. right. apply/orP. left. apply/sprefixP.
+    case: H2=>xs eq. subst c. case: Sca=>y [] ys eq. subst a.
+    rewrite -catA. case xs.
+    by exists y, ys.
+    by move=> s l; exists s, (l ++ (y :: ys)).
+  + move/eqP in Sca. subst c. right.
+    move/prefixP in H2. rewrite prb_equiv in H2.
+    by rewrite Bool.orb_comm eq_sym.
+- move/sprefixP=> H. apply/orP. move: (bc_spre_pre H)=>H1.
+  move/prefixP in H1. move/prefixP in H2.
+  by move: (bc_prefix_of_same H1 H2); rewrite/fork Bool.negb_involutive.
+Qed.
 
 Axiom btChain_fork :
   forall (bt : BlockTree) (bc : Blockchain) (b : Block),

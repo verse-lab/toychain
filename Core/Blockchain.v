@@ -122,8 +122,8 @@ Axiom VAF_inj :
     VAF v bc1 -> VAF v bc2 -> bc1 == bc2.
 
 Axiom CFR_ext :
-  forall (bc : Blockchain) (ext : seq Block),
-    bc ++ ext > bc.
+  forall (bc : Blockchain) (b : Block) (ext : seq Block),
+    bc ++ (b :: ext) > bc.
 
 Axiom CFR_trans :
   forall (A B C : Blockchain),
