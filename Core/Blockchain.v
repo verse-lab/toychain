@@ -125,9 +125,19 @@ Axiom CFR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
     bc ++ (b :: ext) > bc.
 
+Axiom CFR_nrefl :
+  forall (bc : Blockchain), bc > bc -> False.
+
 Axiom CFR_trans :
   forall (A B C : Blockchain),
     A > B -> B > C -> A > C.
+
+Lemma CFR_excl :
+  forall (bc bc' : Blockchain),
+    bc > bc' -> bc' > bc -> False.
+Proof.
+by move=>bc bc' H1 H2; move: (CFR_trans H1 H2); apply CFR_nrefl.
+Qed.
 
 Axiom btChain_mem :
   forall (bt : BlockTree) (b : Block),

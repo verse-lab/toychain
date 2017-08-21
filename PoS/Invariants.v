@@ -139,20 +139,32 @@ suff X : exists bc1, holds n via (has_chain bc1).
    * --bc-               OR   ---
    *      \------- bc'           \-------------bc'
    *)
-  admit.
+  case: (bc_relP bc bc').
+  - by move/eqP=>Eq; subst bc'; contradict HH; move/norP=>[] _=>/norP;
+       move/sprefixP in HH'; rewrite HH'=>/andP.
+  - by move=>F; right.
+  - by move=>Spf; left; apply/sprefixP.
+  - by move/sprefixP=>Spf; move/sprefixP:(bc_spre_trans Spf HH')=>C;
+       contradict HH; move/norP=>[] _=>/norP; rewrite C=>/andP.
 
-  (*  /-bc
-   *---------bc1
-   *      \---------bc'
-   *)
-  admit.
+  (*  /-bc                      /--bc-----------bc'
+   *---------bc1          OR  --
+   *      \---------bc'         \-------bc1
+   * This is the most interesting case -- only provable if respecting CFR *)
+  case: (bc_relP bc bc').
+  - by move/eqP=>Eq; subst bc'; move: (CFR_trans Gt' Gt)=>C;
+       contradict C; apply: CFR_nrefl.
+  - by move=> F; right.
+  - by move=>Spf; left; apply/sprefixP.
+  - by move/sprefixP=>[b][ext] Eq; subst bc; move: (CFR_trans Gt Gt')=>C;
+       move: (CFR_ext bc' b ext)=>C'; move: (CFR_excl C C').
 
 rewrite /holds/has_chain.
 move/um_eta: D';case; case=>id ps bt t a i[][->]_.
 by exists (btChain (blockTree {|
     id := id; peers := ps; blockTree := bt; txPool := t;
     addr := a; inv := i |}))=>st[]<-. 
-Admitted.
+Qed.
 
 (* Sketch of global invariant
  * For simplicity, the predicate available assumes all nodes are directly connected,

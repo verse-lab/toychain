@@ -184,6 +184,10 @@ move=>H; apply/negbT/negP=>Z; move/eqP:Z=>Z; subst bc'.
 by case/orP: H; right; rewrite orbC eqxx. 
 Qed.
 
+Lemma bc_fork_nrefl {T: eqType} (bc : seq T) :
+  fork bc bc -> False.
+Proof. by move=>H; move: (bc_fork_neq H); move/eqP. Qed.
+
 Lemma bc_fork_sym {T: eqType} (bc bc' : seq T) :
   fork bc bc' -> fork bc' bc.
 Proof.
