@@ -113,9 +113,6 @@ Definition emitMany (packets : ToSend) := packets.
 Definition emitBroadcast (from : nid) (dst : seq nid) (msg : Message) :=
   [seq (mkP from to msg) | to <- dst].
 
-
-Section Node. (* Node behaviour *)
-
 Record State :=
   Node {
     id : nid;
@@ -128,12 +125,19 @@ Record State :=
     inv : bool;
   }.
 
+(*
+Module Notations.
+Notation "{{ s @ t }}" :=
+  (Node t (id s) (peers s) (blockTree s) (txPool s) (addr s) (inv s)).
+End Notations.
+Export Notations.
+*)
+
 Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::] true true.
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
   
 (* Please, explain what happens at each transition *)
-Definition procMsg : State -> Message -> (State * ToSend) :=
-  fun (st: State) (msg: Message) =>
+Definition procMsg (st: State) (msg: Message) (ts: Timestamp) :=
     let: (Node n prs bt pool a i) := st in
     match msg with
     | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool a i) emitZero
@@ -174,8 +178,7 @@ Definition procMsg : State -> Message -> (State * ToSend) :=
     end.
 
 (* TODO: Please, explain these transitions! *)
-Definition procInt : State -> InternalTransition -> (State * ToSend) :=
-  fun (st : State) (tr : InternalTransition) =>
+Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     let: (Node n prs bt pool a i) := st in
     match tr, a, i with
     | AddrT, true, _ =>
@@ -194,7 +197,7 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
       let: attempt := genProof(stake n bc) in
       match attempt with
       | Some(pf) =>
-          if VAF pf bc then
+          if VAF pf ts bc then
             let: allowedTxs := [seq t <- pool | txValid t bc] in
             let: prevBlock := (last GenesisBlock bc) in
             let: block := mkB (height prevBlock + 1) (hashB prevBlock) allowedTxs pf in
@@ -210,26 +213,26 @@ Definition procInt : State -> InternalTransition -> (State * ToSend) :=
     end.
 
 (* Proofs *)
-Lemma procMsg_id_constant : forall (s1 : State) (m : Message),
-    id s1 = id (procMsg s1 m).1.
+Lemma procMsg_id_constant : forall (s1 : State) (m : Message) (ts : Timestamp),
+    id s1 = id (procMsg s1 m ts).1.
 Proof.
 by case=> n1 p1 b1 t1 a i []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
 Qed.
 
-Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition),
-    id s1 = id (procInt s1 t).1.
+Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
+    id s1 = id (procInt s1 t ts).1.
 Proof.
 case=> n1 p1 b1 t1 a i []=>//. case adv: a=>//. case adv': i=>//.
-simpl. case hP: (genProof _)=>//. case vP: (VAF _)=>//.
+simpl. case hP: (genProof _)=>ts //. case vP: (VAF _)=>//.
 Qed.
 
 Lemma procMsg_peers_uniq :
-  forall (s1 : State) (m : Message), let: s2 := (procMsg s1 m).1 in
+  forall (s1 : State) (m : Message) (ts : Timestamp), let: s2 := (procMsg s1 m ts).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
 case=> n1 p1 b1 t1 a i []; do? by [].
-- case=> [known | n2 known]; move=> UniqP1; by apply undup_uniq.
-- simpl. move=> n2 UniqP1. case B: (n2 \in p1).
+- case=> [known | n2 known] ts; move=> UniqP1; by apply undup_uniq.
+- simpl. move=> n2 ts UniqP1. case B: (n2 \in p1).
   + by apply undup_uniq.
   + rewrite cons_uniq undup_id.
     * rewrite B. by [].
@@ -242,14 +245,29 @@ Ltac local_bc_no_change s1 hbc hbc' :=
   (rewrite /procMsg; destruct s1=>/=; rewrite /blockTree in hbc;
    by move=>hbc'; rewrite hbc in hbc'; rewrite hbc'; left).
 
-Lemma procMsg_bc_prefix_or_fork bc bc':
-  forall (s1 : State) (m : Message),
+(*
+Lemma procMsg_bc_no_change :
+  forall (s1 : State) (b : Block) (m : Message) (bc bc' : Blockchain),
     let: s2 := (procMsg s1 m).1 in
+    m != BlockMsg b ->
+    btChain (blockTree s1) = bc  ->
+    btChain (blockTree s2) = bc' ->
+    bc = bc'.
+Proof.
+move=>s1 b m bc bc' Mt hbc.
+case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'.
+
+Qed.
+*)
+
+Lemma procMsg_bc_prefix_or_fork bc bc':
+  forall (s1 : State) (m : Message) (ts : Timestamp),
+    let: s2 := (procMsg s1 m ts).1 in
     btChain (blockTree s1) = bc  ->
     btChain (blockTree s2) = bc' ->
     bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
-move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'.
+move=>s1; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc hbc'.
 - case: s1 hbc =>/= _ _ bt _ _ _ hbc; case B: (b \in bt).
   + move: (btExtend_withDup_noEffect B)=><-<-.
     by rewrite hbc; left.
@@ -279,13 +297,13 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] hbc; do? local_bc_no_change s1 hbc hbc'
 Qed.
 
 Lemma procInt_bc_same bc bc':
-  forall (s1 : State) (t : InternalTransition),
-    let: s2 := (procInt s1 t).1 in
+  forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
+    let: s2 := (procInt s1 t ts).1 in
     btChain (blockTree s1) = bc  ->
     btChain (blockTree s2) = bc' ->
     bc == bc'.
 Proof.
-move=> s1; case=> [||tx|] hbc; destruct s1; rewrite /procInt.
+move=> s1; case=> [||tx|] ts hbc; destruct s1; rewrite /procInt.
 - rewrite /blockTree in hbc. case addr0=>/= hbc'.
   by rewrite hbc in hbc'; rewrite -hbc'.
   by rewrite hbc in hbc'; rewrite -hbc'.
@@ -302,17 +320,18 @@ move=> s1; case=> [||tx|] hbc; destruct s1; rewrite /procInt.
 Qed.
 
 Lemma procInt_peers_uniq :
-  forall (s1 : State) (t : InternalTransition), let: s2 := (procInt s1 t).1 in
+  forall (s1 : State) (t : InternalTransition) ts, let: s2 := (procInt s1 t ts).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
-case=> n1 p1 b1 t1 a i []=>//. case adv: a=>//. case adv': i=>//.
-simpl. case hP: (genProof _)=>//. case vP: (VAF _)=>//.
+move=>s1 t ts; case: s1=>n prs bt txp a i; rewrite /peers/procInt=>Up.
+case: t; case adv: a; case adv': i=>//;
+case hP: (genProof _)=>//; case vP: (VAF _)=>//.
 Qed.
 
 Inductive local_step (s1 s2 : State) : Prop :=
 | Idle of s1 = s2
-| RcvMsg (m : Message) of (s2 = (procMsg s1 m).1)
-| IntT (t : InternalTransition) of (s2 = (procInt s1 t).1).
+| RcvMsg m ts of (s2 = (procMsg s1 m ts).1)
+| IntT t ts of (s2 = (procInt s1 t ts).1).
 
 Lemma id_constant :
   forall (s1 s2 : State),
@@ -320,9 +339,9 @@ Lemma id_constant :
 Proof.
 move=> s1 s2.
 case.
-- move=> eq. rewrite eq. by [].
-- move=> m Us. rewrite Us. apply procMsg_id_constant.
-- move=> t Us. rewrite Us. apply procInt_id_constant.
+- by move=> ->.
+- by move=> m ts ->; apply procMsg_id_constant.
+- by move=> t ts ->; apply procInt_id_constant.
 Qed.
 
 Lemma peers_uniq :
@@ -331,8 +350,7 @@ Lemma peers_uniq :
 Proof.
 move=> s1 s2 UniqP1.
 case.
-- move=> eq. rewrite -eq. by [].
-- move=> m Us. rewrite Us. apply procMsg_peers_uniq. by [].
-- move=> t Us. rewrite Us. apply procInt_peers_uniq. by [].
+- by move=> <-.
+- by move=> m ts ->; apply procMsg_peers_uniq.
+- by move=> t ts ->; apply procInt_peers_uniq.
 Qed.
-End Node.

@@ -34,34 +34,38 @@ Definition Coh (w : World) :=
     (* IDs match *)
     holds n w (fun st => id st == n).
 
+Record Qualifier := Q { ts: Timestamp; allowed: nid; }.
+
 (* Don't you worry about uniqueness of the messages? *)
-Inductive system_step (w w' : World) : Prop :=
+Inductive system_step (w w' : World) (q : Qualifier) : Prop :=
 | Idle of Coh w /\ w = w'
 
 | Deliver (p : Packet) (st : State) of
-      Coh w & p \in inFlightMsgs w &
+      Coh w & (dst p) = allowed q &
+      p \in inFlightMsgs w &
       find (dst p) (localState w) = Some st &
-      let: (st', ms) := procMsg st (msg p) in
+      let: (st', ms) := procMsg st (msg p) (ts q) in
       w' = mkW (upd (dst p) st' (localState w))
                (ms ++ seq.rem p (inFlightMsgs w))
                (rcons (consumedMsgs w) p)
 
 | Intern (proc : nid) (t : InternalTransition) (st : State) of
-      Coh w & find proc (localState w) = Some st &
-      let: (st', ms) := procInt st t in
+      Coh w & proc = allowed q &
+      find proc (localState w) = Some st &
+      let: (st', ms) := (procInt st t (ts q)) in
       w' = mkW (upd proc st' (localState w))
                (ms ++ (inFlightMsgs w))
                (consumedMsgs w).
 
-Definition system_step_star := clos_refl_trans_n1 _ system_step.
+Definition Schedule := seq Qualifier.
 
-Fixpoint reachable' n (w w' : World) : Prop :=
-  if n is n'.+1
-  then exists via, reachable' n' w via /\ system_step via w'
+Fixpoint reachable' (s : Schedule) (w w' : World) : Prop :=
+  if s is (ins :: insts)
+  then exists via, reachable' insts w via /\ system_step via w' ins
   else w = w'.
     
 Definition reachable (w w' : World) :=
-  exists n, reachable' n w w'.
+  exists s, reachable' s w w'.
 
 (* TODO: define a relation that "reconstructs" an "ideal" blockchain *)
 (* from a given world, and prove its properties (e.g., functionality, *)
@@ -91,15 +95,15 @@ by rewrite um_findPt; case=><-.
 Qed.  
 
 (* Stepping does not remove or add nodes *)
-Lemma step_nodes w w' :
-  system_step w w' ->
+Lemma step_nodes w w' q :
+  system_step w w' q ->
   dom (localState w) =i dom (localState w').
 Proof.
 case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
-- move=>p st1 C pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{sm'}Z1 Z2.
+- move=>p st1 C iq pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{sm'}Z1 Z2.
   subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
   by move/find_some: F->; case: C.
-move=>p t st1 C F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
+move=>p t st1 C iq F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
 subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
 by move/find_some: F->; case: C.
 Qed.
@@ -108,13 +112,13 @@ Lemma steps_nodes (w w' : World):
   reachable w w' ->
   dom (localState w) =i dom (localState w').
 Proof.
-move=>[n] R; elim: n w' R=>/=[w'->|n Hi w' [via][R S]]//z. 
+move=>[sch] R. elim: sch w' R=>/=[w'->|q qs Hi w' [via] [R S]]//z.
 by move: (Hi via R)->; rewrite (step_nodes S).
 Qed.
 
-Lemma system_step_local_step w w' :
+Lemma system_step_local_step w w' q:
   forall (n : nid) (st st' : State),
-    system_step w w' ->
+    system_step w w' q ->
     find n (localState w) = Some st ->
     find n (localState w') = Some st' ->
     local_step st st'.
@@ -124,23 +128,22 @@ case.
 (* Idle *)
 - by move=>[] cW<-->[]->; constructor 1.
 (* Deliver *)
-- move=> p old_st cW pIF osF.
-  case P: (procMsg old_st (msg p)). case: w'. move=> sm' f' c'. case.
+- move=> p old_st cW _ pIF osF.
+  case P: (procMsg _ _ _). case: w'. move=> sm' f' c'. case.
   move=> A B C. subst sm' f' c'. move=> sF. rewrite /localState findU=>/=.
   case B: (n == dst p); last first.
     (* n != dst p -- node n is Idle => st st' *)
     + move=> F. rewrite F in sF. case: sF=>stEq. rewrite stEq. by constructor 1.
     (* When n == dst p, notice that st = old_st
      * and st and st' are related by procMsg *)
-    + move/eqP in B. rewrite -B in osF. rewrite sF in osF. case: osF.
-      move=> stEq. rewrite -stEq in P. clear stEq old_st.
+    + move/eqP in B. rewrite -B in osF. rewrite sF in osF. case: osF=>->.
       case: ifP; last first.
         by move=> _ con; contradict con.
         move=> _ sEq. case: sEq=>stEq. rewrite stEq in P.
-        by constructor 2 with (msg p); rewrite P.
+        by constructor 2 with (msg p) (ts q); rewrite P.
 (* Intern *)
-- move=> proc t old_st cW osF.
-  case P: (procInt old_st t). case: w'. move=> sm' f' c'. case.
+- move=> proc t old_st cW _ osF.
+  case P: (procInt _ _ _). case: w'. move=> sm' f' c'. case.
   move=> A B C. subst sm' f' c'. move=> sF. rewrite /localState findU=>/=.
   case B: (n == proc); last first.
     (* n != proc -- node n is Idle => st st' *)
@@ -151,13 +154,13 @@ case.
       case: ifP; last first.
         by move=> _ con; contradict con.
         move=> _ sEq. case: sEq=> stEq. rewrite stEq in P.
-        by constructor 3 with t; rewrite P.
+        by constructor 3 with t (ts q); rewrite P.
 Qed.
 
-Lemma no_change_still_holds (w w' : World) (n : nid) st cond:
+Lemma no_change_still_holds (w w' : World) (n : nid) q st cond:
   find n (localState w) = Some st ->
   holds n w cond ->
-  system_step w w' ->
+  system_step w w' q ->
   find n (localState w') = Some st ->
   holds n w' cond.
 Proof.
@@ -165,9 +168,9 @@ move=>f h S sF st' s'F; rewrite s'F in sF; case: sF=>->.
 by move: (h st f).
 Qed.
 
-Lemma no_change_has_held (w w' : World) (n : nid) st cond:
+Lemma no_change_has_held (w w' : World) (n : nid) q st cond:
   find n (localState w) = Some st ->
-  system_step w w' ->
+  system_step w w' q->
   holds n w' cond ->
   find n (localState w') = Some st ->
   holds n w cond.
@@ -176,14 +179,14 @@ move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
 
-Lemma Coh_step w w' :
-  system_step w w' -> Coh w'.
+Lemma Coh_step w w' q:
+  system_step w w' q -> Coh w'.
 Proof.
 case: w w'=>sm f c [sm'] f' c'. case=>/=.
 (* Idle *)
 - by case=>Cw []<-<-<-.
 (* Deliver *)
-- move=> p st Cw iF sF. case P: (procMsg st (msg p)).
+- move=> p st Cw _ iF sF. case P: (procMsg _ _ _)=>[a b].
   case. move=> A B C. subst sm' f' c'. split.
   + rewrite /localState validU=>/=. apply Cw.
   + rewrite /holds/localState. move=> n stN. rewrite findU=>/=.
@@ -197,9 +200,9 @@ case: w w'=>sm f c [sm'] f' c'. case=>/=.
       move: Cw. elim. move=> _. rewrite /holds/localState. move=> idN.
       apply idN in sF. move/eqP in sF. rewrite -sF.
       rewrite eq_sym. apply /eqP. apply id_constant.
-      by constructor 2 with (msg p); rewrite P.
+      by constructor 2 with (msg p) (ts q); rewrite P.
 (* Intern *)
-- move=> proc t st Cw sF. case P: (procInt st t).
+- move=> proc t st Cw _ sF. case P: (procInt _ _ _)=>[a b].
   case. move=> A B C. subst sm' f' c'. split.
   + rewrite /localState validU=>/=. apply Cw.
   + rewrite /holds/localState. move=>n stN. rewrite findU=>/=.
@@ -213,7 +216,7 @@ case: w w'=>sm f c [sm'] f' c'. case=>/=.
       move: Cw. elim. move=> _. rewrite /holds/localState. move=> idN.
       apply idN in sF. move/eqP in sF. rewrite -B in sF.
       rewrite -sF. rewrite eq_sym. apply /eqP. apply id_constant.
-      by constructor 3 with t; rewrite P.
+      by constructor 3 with t (ts q); rewrite P.
 Qed.
 
 End Semantics.

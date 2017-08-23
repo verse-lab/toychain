@@ -37,7 +37,6 @@ Qed.
 (*
 TODO: 
 
-1. Simple property: local BC only grows with stepping;
 2. More complicated: the "rollback" is no more than a contstant;
 
  *)
@@ -175,11 +174,10 @@ Definition available b n w :=
   exists (p : Packet) (peer : nid) (sh : seq Hash),
     p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
 
-Definition GAligned w :=
-  forall (n n' : nid) (bc bc' : Blockchain),
-    node_with_chain n w bc ->
-    node_with_chain n' w bc ->
-    bc = bc'.
+Definition GStable w :=
+  (* No packets *) /\
+  exists (bc : Blockchain), forall (n : nid),
+    holds n w (has_chain bc).
 
 Definition GBehindWithDiffAvailable w :=
   exists (n : nid) (bc : Blockchain),
@@ -192,11 +190,28 @@ Definition GBehindWithDiffAvailable w :=
         available b n w.
 
 Definition Inv (w : World) :=
-  Coh w /\
-  [\/ GAligned w | GBehindWithDiffAvailable w].
+  Coh w /\ GAligned w.
 
 Variable N : nat.
+
 Lemma Inv_init : Inv (initWorld N).
 Proof.
-split. by apply Coh_init. apply or_introl. case=> n' bc bc'.
-Admitted.
+split; do? by apply Coh_init.
+exists (btChain (blockTree (Init 0)))=>/=.
+rewrite /holds/has_chain; move=>n st; elim: N=>[|n' Hi].
+  by move/find_some; rewrite dom0 inE.
+  rewrite findUnL; last first.
+  - case: validUn; rewrite ?um_validPt ?valid_initState//.
+    move=>k; rewrite um_domPt !inE=>/eqP Z; subst k.
+    by rewrite dom_initState mem_iota addnC addn1 ltnn andbC.
+  - case: ifP=>//; rewrite um_domPt inE=>/eqP<-.
+    by rewrite um_findPt; case=><-.
+Qed.
+
+Lemma Inv_step w w' :
+  Inv w -> system_step w w' -> Inv w'.
+Proof.
+move=>Iw S; rewrite/Inv; split; do? by apply: (Coh_step S). case: S.
+- by elim=>_ <-; move: Iw=>[].
+- move=> p st Cw iF sF. case: (procMsg st (msg p))=>st' ms'=>->.
+Qed.

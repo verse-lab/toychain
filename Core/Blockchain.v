@@ -10,6 +10,7 @@ Unset Printing Implicit Defensive.
 (* A fomalization of a blockchain structure *)
 
 Definition Address := nat.
+Definition Timestamp := nat.
 
 Parameter Stake : eqType.
 Parameter Hash : eqType.
@@ -36,7 +37,7 @@ Definition Blockchain := seq Block.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* We might want to introduce a notion of time *)
-Parameter VAF : VProof -> Blockchain -> bool.
+Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 
 Parameter stake : Address -> Blockchain -> Stake.
 Parameter genProof : Stake -> option VProof.
@@ -107,19 +108,17 @@ Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
 
-Axiom blockValid_imp_VAF :
-  forall (b : Block) (bc : Blockchain),
-    (blockValid b bc) -> (VAF (proof b) bc).
-
 (* TODO: justify the need for this *)
 Axiom no_proof_reuse :
   forall (b b' : Block) (bc : Blockchain),
     b != b' -> blockValid b bc -> blockValid b' bc ->
     proof b != proof b'.
 
+(* REDO!
 Axiom VAF_inj :
   forall (v : VProof) (bc1 bc2 : Blockchain),
     VAF v bc1 -> VAF v bc2 -> bc1 == bc2.
+*)
 
 Axiom CFR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
