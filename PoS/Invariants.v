@@ -41,16 +41,16 @@ TODO:
 
  *)
 
-Lemma local_chain_grows_fork_step (w w' : World) n bc bc':
+Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
   n \in dom (localState w) -> 
   holds n w (has_chain bc) ->
-  system_step w w' ->
+  system_step w w' q ->
   holds n w' (has_chain bc') ->
   bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
-case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
-          proc t s1 C F].
+case: S=>[[C]Z|p [n' prs bt pool a i] C _ _ F|
+          proc t s1 C _ F].
 
 (* 0 steps *)
 - by subst w'; rewrite (has_chain_func D H1 H2); left.
@@ -65,28 +65,28 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C _ F|
   + set pms := (procMsg _ _); case: pms=>st' ms Z; subst w'.
     rewrite /holds/= findU N/= in H2.
     by rewrite -(has_chain_func D H1 H2); left.
-  rewrite [procMsg _ _]surjective_pairing=>Z;
+  rewrite [procMsg _ _ _]surjective_pairing=>Z;
   (* Avoiding premature unfolding. *)
-  set Pm := nosimpl (procMsg _ _) in Z; subst w'. 
+  set Pm := nosimpl (procMsg _ _ _) in Z; subst w'. 
   rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
   move: (H1 _ F)=>{H1 C2 F}/=H1. 
   by apply: (@procMsg_bc_prefix_or_fork bc bc'
         {| id := dst p; peers := prs; blockTree := bt; txPool := pool; addr := a; inv := i |}
-        (msg p)); move/eqP: H2; move/eqP: H1.
+        (msg p) (ts q)); move/eqP: H2; move/eqP: H1.
 
 (* Internal transition *)
 (* Two sub-cases: proc =? n *)
 case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
-- set pms := (procInt _ _); case: pms=>st' ms Z; subst w'.
+- set pms := (procInt _ _ _). case: pms=>st' ms Z. subst w'.
   rewrite /holds/= findU N/= in H2.
   by left; rewrite -(has_chain_func D H1 H2).
 
 (* Another interesting part of the proof: n == proc.
    Consider all branches of procInt and proof the property for each one.
    Don't hesitate to introduce auxiliary lemmas. *)  
-rewrite [procInt _ _]surjective_pairing=>Z.
-set Pi := nosimpl (procInt _ _) in Z; subst w'.
+rewrite [procInt _ _ _]surjective_pairing=>Z.
+set Pi := nosimpl (procInt _ _ _) in Z; subst w'.
 rewrite /holds/= findU eqxx/= (proj1 (C)) in H2. rewrite /holds F in H1.
 have: (Some s1 = Some s1). by []. move=> eq. move: (H1 s1 eq)=>hbc. clear eq.
 have: (Some Pi.1 = Some Pi.1). by []. move=> eq. move: (H2 Pi.1 eq)=>hbc'.
@@ -104,7 +104,7 @@ Lemma local_chain_grows_fork (w w' : World) n bc bc':
   bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>D H1 [m]R H2.
-elim: m w' R bc' H2=>/=[w'<-|m Hi w' [via][R S]]bc' H2.
+elim: m w' R bc' H2=>/=[w'<-|q m Hi w' [via][R S]] bc' H2.
 - by left; move/(has_chain_func D H1 (bc':=bc')):H2=><-.
 have D': n \in dom (localState via).
 - suff R' : reachable w via by rewrite -(steps_nodes R').
@@ -175,7 +175,6 @@ Definition available b n w :=
     p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
 
 Definition GStable w :=
-  (* No packets *) /\
   exists (bc : Blockchain), forall (n : nid),
     holds n w (has_chain bc).
 
@@ -190,7 +189,7 @@ Definition GBehindWithDiffAvailable w :=
         available b n w.
 
 Definition Inv (w : World) :=
-  Coh w /\ GAligned w.
+  Coh w /\ GStable w.
 
 Variable N : nat.
 
@@ -208,10 +207,10 @@ rewrite /holds/has_chain; move=>n st; elim: N=>[|n' Hi].
     by rewrite um_findPt; case=><-.
 Qed.
 
-Lemma Inv_step w w' :
-  Inv w -> system_step w w' -> Inv w'.
+Lemma Inv_step w w' q :
+  Inv w -> system_step w w' q -> Inv w'.
 Proof.
 move=>Iw S; rewrite/Inv; split; do? by apply: (Coh_step S). case: S.
 - by elim=>_ <-; move: Iw=>[].
-- move=> p st Cw iF sF. case: (procMsg st (msg p))=>st' ms'=>->.
-Qed.
+- move=> p st Cw iF _ sF; case: (procMsg st (msg p) (ts q))=>st' ms'=>->.
+Admitted.
