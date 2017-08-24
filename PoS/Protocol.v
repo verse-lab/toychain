@@ -22,8 +22,6 @@ Inductive Message :=
   | GetDataMsg of nid & Hash.
 
 Inductive InternalTransition :=
-  | AddrT
-  | InvT
   | TxT of Transaction
   | MintT.
 
@@ -119,40 +117,34 @@ Record State :=
     peers : peers_t;
     blockTree : BlockTree;
     txPool : TxPool;
-
-    (* Flag - shows whether broadcast is needed *)
-    addr : bool;
-    inv : bool;
   }.
 
-(*
-Module Notations.
-Notation "{{ s @ t }}" :=
-  (Node t (id s) (peers s) (blockTree s) (txPool s) (addr s) (inv s)).
-End Notations.
-Export Notations.
-*)
-
-Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::] true true.
+Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::].
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
   
 (* Please, explain what happens at each transition *)
 Definition procMsg (st: State) (msg: Message) (ts: Timestamp) :=
-    let: (Node n prs bt pool a i) := st in
+    let: (Node n prs bt pool) := st in
     match msg with
-    | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool a i) emitZero
+    | ConnectMsg peer => pair (Node n (undup (peer :: prs)) bt pool) emitZero
 
     | AddrMsg _ knownPeers =>
       let: newP := [seq x <- knownPeers | x \notin prs] in
       let: connects := [seq mkP n p (ConnectMsg n) | p <- newP] in
-      pair (Node n (undup (prs ++ newP)) bt pool true i) (emitMany(connects))
+      let: updP := undup (prs ++ newP) in
+      pair (Node n updP bt pool)
+           (emitMany(connects) ++ emitBroadcast n prs (AddrMsg n updP))
 
     | BlockMsg b =>
       let: newBt := (btExtend bt b) in
-      let: updatedTxs := [seq t <- pool | txValid t (btChain newBt)] in
-      pair (Node n prs newBt updatedTxs a true) emitZero
+      let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
+      let: ownHashes := [seq hashB b | b <- newBt] ++ [seq hashT t | t <- newPool] in
+      pair (Node n prs newBt newPool) (emitBroadcast n prs (InvMsg n ownHashes))
 
-    | TxMsg tx => pair (Node n prs bt (tpExtend pool bt tx) a true) emitZero
+    | TxMsg tx =>
+      let: newPool := tpExtend pool bt tx in
+      let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- newPool] in
+      pair (Node n prs bt newPool) (emitBroadcast n prs (InvMsg n ownHashes))
 
     | InvMsg p peerHashes =>
       let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
@@ -165,11 +157,11 @@ Definition procMsg (st: State) (msg: Message) (ts: Timestamp) :=
       let: matchingTxs := [seq t <- pool | (hashT t) == h] in
       match ohead matchingBlocks with
       | Some(b) =>
-        pair (Node n prs bt pool a true) (emitOne(mkP n p (BlockMsg b)))
+        pair (Node n prs bt pool) (emitOne(mkP n p (BlockMsg b)))
       | _ =>
         match ohead matchingTxs with
         | Some (tx) =>
-          pair (Node n prs bt pool a true) (emitOne(mkP n p (TxMsg tx)))
+          pair (Node n prs bt pool) (emitOne(mkP n p (TxMsg tx)))
         | _ => pair st emitZero
         end
       end
@@ -179,20 +171,12 @@ Definition procMsg (st: State) (msg: Message) (ts: Timestamp) :=
 
 (* TODO: Please, explain these transitions! *)
 Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
-    let: (Node n prs bt pool a i) := st in
-    match tr, a, i with
-    | AddrT, true, _ =>
-    pair (Node n prs bt pool false i) (emitBroadcast n prs (AddrMsg n prs))
-
-    | InvT, _ , true =>
-    let: ownHashes := [seq hashB b | b <- bt] ++ [seq hashT t | t <- pool] in
-    pair (Node n prs bt pool a false) (emitBroadcast n prs (InvMsg n ownHashes))
-
-    | TxT tx, _, _ =>
-    pair st (emitBroadcast n prs (TxMsg tx))
+    let: (Node n prs bt pool) := st in
+    match tr with
+    | TxT tx => pair st (emitBroadcast n prs (TxMsg tx))
 
     (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
-    | MintT, _, _ =>
+    | MintT =>
       let: bc := (btChain bt) in
       let: attempt := genProof(stake n bc) in
       match attempt with
@@ -208,29 +192,26 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
 
       | _ => pair st emitZero
       end
-
-    | _, _, _ => pair st emitZero
     end.
 
 (* Proofs *)
 Lemma procMsg_id_constant : forall (s1 : State) (m : Message) (ts : Timestamp),
     id s1 = id (procMsg s1 m ts).1.
 Proof.
-by case=> n1 p1 b1 t1 a i []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
+by case=> n1 p1 b1 t1 []=>//=p h; case exB: (ohead _)=>//; case exT: (ohead _).
 Qed.
 
 Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
     id s1 = id (procInt s1 t ts).1.
 Proof.
-case=> n1 p1 b1 t1 a i []=>//. case adv: a=>//. case adv': i=>//.
-simpl. case hP: (genProof _)=>ts //. case vP: (VAF _)=>//.
+case=> n1 p1 b1 t1 [] =>//; simpl; case hP: (genProof _)=>ts //; case vP: (VAF _)=>//.
 Qed.
 
 Lemma procMsg_peers_uniq :
   forall (s1 : State) (m : Message) (ts : Timestamp), let: s2 := (procMsg s1 m ts).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
-case=> n1 p1 b1 t1 a i []; do? by [].
+case=> n1 p1 b1 t1 []; do? by [].
 - case=> [known | n2 known] ts; move=> UniqP1; by apply undup_uniq.
 - simpl. move=> n2 ts UniqP1. case B: (n2 \in p1).
   + by apply undup_uniq.
@@ -268,7 +249,7 @@ Lemma procMsg_bc_prefix_or_fork bc bc':
     bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>s1; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc hbc'.
-- case: s1 hbc =>/= _ _ bt _ _ _ hbc; case B: (b \in bt).
+- case: s1 hbc =>/= _ _ bt _ hbc; case B: (b \in bt).
   + move: (btExtend_withDup_noEffect B)=><-<-.
     by rewrite hbc; left.
 
@@ -303,13 +284,7 @@ Lemma procInt_bc_same bc bc':
     btChain (blockTree s2) = bc' ->
     bc == bc'.
 Proof.
-move=> s1; case=> [||tx|] ts hbc; destruct s1; rewrite /procInt.
-- rewrite /blockTree in hbc. case addr0=>/= hbc'.
-  by rewrite hbc in hbc'; rewrite -hbc'.
-  by rewrite hbc in hbc'; rewrite -hbc'.
-- rewrite /blockTree in hbc. case inv0=>/= hbc'.
-  by rewrite hbc in hbc'; rewrite -hbc'.
-  by rewrite hbc in hbc'; rewrite -hbc'.
+move=> s1; case=> [tx|] ts hbc; destruct s1; rewrite /procInt.
 - rewrite /blockTree in hbc *=>/= hbc'.
   by rewrite hbc in hbc'; rewrite -hbc'.
 (* MintT doesn't change local blockTree; it just broadcasts block *)
@@ -323,9 +298,8 @@ Lemma procInt_peers_uniq :
   forall (s1 : State) (t : InternalTransition) ts, let: s2 := (procInt s1 t ts).1 in
     uniq (peers s1) -> uniq (peers s2).
 Proof.
-move=>s1 t ts; case: s1=>n prs bt txp a i; rewrite /peers/procInt=>Up.
-case: t; case adv: a; case adv': i=>//;
-case hP: (genProof _)=>//; case vP: (VAF _)=>//.
+move=>s1 t ts; case: s1=>n prs bt txp; rewrite /peers/procInt=>Up.
+case: t=>//; case hP: (genProof _)=>//; case vP: (VAF _)=>//.
 Qed.
 
 Inductive local_step (s1 s2 : State) : Prop :=

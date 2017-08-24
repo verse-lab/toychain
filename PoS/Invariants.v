@@ -49,7 +49,7 @@ Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
   bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
-case: S=>[[C]Z|p [n' prs bt pool a i] C _ _ F|
+case: S=>[[C]Z|p [n' prs bt pool] C _ _ F|
           proc t s1 C _ F].
 
 (* 0 steps *)
@@ -72,7 +72,7 @@ case: S=>[[C]Z|p [n' prs bt pool a i] C _ _ F|
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
   move: (H1 _ F)=>{H1 C2 F}/=H1. 
   by apply: (@procMsg_bc_prefix_or_fork bc bc'
-        {| id := dst p; peers := prs; blockTree := bt; txPool := pool; addr := a; inv := i |}
+        {| id := dst p; peers := prs; blockTree := bt; txPool := pool |}
         (msg p) (ts q)); move/eqP: H2; move/eqP: H1.
 
 (* Internal transition *)
@@ -159,10 +159,9 @@ suff X : exists bc1, holds n via (has_chain bc1).
        move: (CFR_ext bc' b ext)=>C'; move: (CFR_excl C C').
 
 rewrite /holds/has_chain.
-move/um_eta: D';case; case=>id ps bt t a i[][->]_.
+move/um_eta: D';case; case=>id ps bt t [][->]_.
 by exists (btChain (blockTree {|
-    id := id; peers := ps; blockTree := bt; txPool := t;
-    addr := a; inv := i |}))=>st[]<-. 
+    id := id; peers := ps; blockTree := bt; txPool := t |}))=>st[]<-. 
 Qed.
 
 (* Sketch of global invariant
@@ -175,18 +174,19 @@ Definition available b n w :=
     p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
 
 Definition GStable w :=
+  inFlightMsgs w = [::] /\
   exists (bc : Blockchain), forall (n : nid),
     holds n w (has_chain bc).
 
-Definition GBehindWithDiffAvailable w :=
-  exists (n : nid) (bc : Blockchain),
-    node_with_chain n w bc /\
-    forall (n' : nid) (bc': Blockchain),
-      node_with_chain n' w bc' ->
-      [bc' <<= bc] /\
-      forall (b : Block),
-        b \in prefix_diff bc' bc ->
-        available b n w.
+Definition GSyncingExt w :=
+  exists (bc : Blockchain) (n : nid),
+    holds n w (has_chain bc) /\
+    forall (n' : nid) (bc' : Blockchain),
+      holds n' w (has_chain bc') -> bc != bc' ->
+      [bc' <<< bc] /\
+      (forall (b : Block), b \in (prefix_diff bc' bc) -> available b n' w). 
+
+(* TODO: lemma that prefix_diff A B with [A <<< B] is ext *)
 
 Definition Inv (w : World) :=
   Coh w /\ GStable w.
@@ -195,7 +195,7 @@ Variable N : nat.
 
 Lemma Inv_init : Inv (initWorld N).
 Proof.
-split; do? by apply Coh_init.
+split; do? by apply Coh_init. split; do? by [].
 exists (btChain (blockTree (Init 0)))=>/=.
 rewrite /holds/has_chain; move=>n st; elim: N=>[|n' Hi].
   by move/find_some; rewrite dom0 inE.

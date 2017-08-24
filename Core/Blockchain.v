@@ -108,17 +108,9 @@ Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
 
-(* TODO: justify the need for this *)
-Axiom no_proof_reuse :
-  forall (b b' : Block) (bc : Blockchain),
-    b != b' -> blockValid b bc -> blockValid b' bc ->
-    proof b != proof b'.
-
-(* REDO!
 Axiom VAF_inj :
-  forall (v : VProof) (bc1 bc2 : Blockchain),
-    VAF v bc1 -> VAF v bc2 -> bc1 == bc2.
-*)
+  forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
+    VAF v ts bc1 -> VAF v' ts bc2 -> v == v' /\ bc1 == bc2.
 
 Axiom CFR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
