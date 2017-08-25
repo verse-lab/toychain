@@ -164,11 +164,10 @@ by exists (btChain (blockTree {|
     id := id; peers := ps; blockTree := bt; txPool := t |}))=>st[]<-. 
 Qed.
 
-(* Sketch of global invariant
- * For simplicity, the predicate available assumes all nodes are directly connected,
- * but this could be changed to incorporate a more realistic broadcast setting.
- *)
-
+(*
+* For simplicity, we assume all nodes are directly connected.
+* This could be changed to incorporate a more realistic broadcast setting.
+*)
 Definition available b n w :=
   exists (p : Packet) (peer : nid) (sh : seq Hash),
     p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
@@ -179,23 +178,32 @@ Definition GStable w :=
     holds n w (has_chain bc).
 
 Definition GSyncingExt w :=
+  (* There is a largest blockchain *)
   exists (bc : Blockchain) (n : nid),
-    holds n w (has_chain bc) /\
+  [/\ holds n w (has_chain bc),
+    
+   (* All BlockMsgs in flight are of this blockchain *)
+    (forall (p : Packet) (b : Block),
+        p \in inFlightMsgs w -> msg p = BlockMsg b -> b \in bc) &
+
+   (* TODO: If the difference (in flight) is applied, they become canonical *) 
     forall (n' : nid) (bc' : Blockchain),
       holds n' w (has_chain bc') -> bc != bc' ->
       [bc' <<< bc] /\
-      (forall (b : Block), b \in (prefix_diff bc' bc) -> available b n' w). 
+      (forall (b : Block), b \in (prefix_diff bc' bc) -> available b n' w)
+   ].
 
 (* TODO: lemma that prefix_diff A B with [A <<< B] is ext *)
 
 Definition Inv (w : World) :=
-  Coh w /\ GStable w.
+  Coh w /\
+  [\/ GStable w | GSyncingExt w].
 
 Variable N : nat.
 
 Lemma Inv_init : Inv (initWorld N).
 Proof.
-split; do? by apply Coh_init. split; do? by [].
+split; do? by apply Coh_init. left; split; do? by [].
 exists (btChain (blockTree (Init 0)))=>/=.
 rewrite /holds/has_chain; move=>n st; elim: N=>[|n' Hi].
   by move/find_some; rewrite dom0 inE.
@@ -210,7 +218,32 @@ Qed.
 Lemma Inv_step w w' q :
   Inv w -> system_step w w' q -> Inv w'.
 Proof.
-move=>Iw S; rewrite/Inv; split; do? by apply: (Coh_step S). case: S.
-- by elim=>_ <-; move: Iw=>[].
-- move=> p st Cw iF _ sF; case: (procMsg st (msg p) (ts q))=>st' ms'=>->.
+move=>Iw S; rewrite/Inv; split; first by apply: (Coh_step S).
+case: S=>[|p st1 Cw hA iF F|proc t st1 Cw _ F]; first by elim=>_ <-; move: Iw=>[].
+case: Iw=>_ [GStabW|GSyncW].
+- by case GStabW=>noPackets; contradict iF; rewrite noPackets.
+- case GSyncW=>can_bc [can_n] [] HHold HBlockOf HDiffIF.
+  case P: (procMsg _ _ _)=>[stPm ms]; move=>->.
+  right. rewrite/GSyncingExt.
+  (* The canonical blockchain will remain canonical after any msg *)
+  exists can_bc; exists can_n; split.
+  + rewrite/holds/localState findU. case: ifP=>/=.
+      * move/eqP=>Dst; rewrite -Dst in F;
+        case: ifP=>/= _; last by [move=>ConSt Con; contradict Con];
+        move=>nst SStEq; case: SStEq=><-; clear nst;
+        case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
+        rewrite/has_chain in HHold *; move/eqP: (HHold st1 F)=><-;
+        rewrite eq_sym; do? by [
+          assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []);
+          by move: (procMsg_non_block_nc st1 (ts q) H)=>->; rewrite Msg P
+        ].
+        by specialize (HBlockOf p b iF Msg);
+           specialize (HHold st1 F); move/eqP in HHold;
+           rewrite -HHold in HBlockOf;
+           move: (procMsg_known_block_nc (ts q) HBlockOf)=>->;
+           apply/eqP; rewrite P.
+      * by move=>_; apply HHold. 
+  + 
+
+  
 Admitted.
