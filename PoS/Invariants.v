@@ -14,8 +14,9 @@ Unset Printing Implicit Defensive.
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.
 
-Definition node_with_chain n w bc :=
-  n \in dom (localState w) /\ holds n w (has_chain bc).
+Definition exists_and_holds (n : nid) (w : World) (cond : State -> Prop) :=
+  exists (st : State),
+    find n (localState w) = Some st /\ cond st.
 
 Definition chain_sync_agreement (w w' : World) :=
   forall (n n' : nid) (bc bc' : Blockchain),
@@ -168,7 +169,9 @@ Qed.
 * For simplicity, we assume all nodes are directly connected.
 * This could be changed to incorporate a more realistic broadcast setting.
 *)
-Definition available b n w :=
+Definition available (blocks : seq Block) n w :=
+  forall (b : Block),
+  b \in blocks ->
   exists (p : Packet) (peer : nid) (sh : seq Hash),
     p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
 
@@ -177,27 +180,28 @@ Definition GStable w :=
   exists (bc : Blockchain), forall (n : nid),
     holds n w (has_chain bc).
 
-Definition GSyncingExt w :=
-  (* There is a largest blockchain *)
-  exists (bc : Blockchain) (n : nid),
+Definition GSyncing w :=
+  exists (bc : Blockchain) (n : nid),  
   [/\ holds n w (has_chain bc),
-    
-   (* All BlockMsgs in flight are of this blockchain *)
-    (forall (p : Packet) (b : Block),
-        p \in inFlightMsgs w -> msg p = BlockMsg b -> b \in bc) &
 
-   (* TODO: If the difference (in flight) is applied, they become canonical *) 
-    forall (n' : nid) (bc' : Blockchain),
-      holds n' w (has_chain bc') -> bc != bc' ->
-      [bc' <<< bc] /\
-      (forall (b : Block), b \in (prefix_diff bc' bc) -> available b n' w)
-   ].
+   (* The canonical chain is the largest in the network *)
+   forall (n' : nid) (bc' : Blockchain),
+    exists_and_holds n' w (has_chain bc') -> bc != bc' -> bc > bc',
 
-(* TODO: lemma that prefix_diff A B with [A <<< B] is ext *)
+   (* All blocks in flight are of this chain or of smaller chains *)
+   forall (p : Packet) (b : Block) (n' : nid) (bc' : Blockchain),
+     p \in inFlightMsgs w -> msg p = BlockMsg b ->
+     exists_and_holds n' w (has_chain bc') -> (bc = bc' \/ bc > bc') /\ b \in bc' &
+  
+   (* The difference needed to obtain the canonical chain is available *)
+   forall (n' : nid) (bc' : Blockchain),
+     holds n' w (has_chain bc') -> available (bc_diff bc' bc) n' w
+].
+(* TODO: prove that applying difference results in canonical chain *)
 
 Definition Inv (w : World) :=
   Coh w /\
-  [\/ GStable w | GSyncingExt w].
+  [\/ GStable w | GSyncing w].
 
 Variable N : nat.
 
@@ -222,28 +226,38 @@ move=>Iw S; rewrite/Inv; split; first by apply: (Coh_step S).
 case: S=>[|p st1 Cw hA iF F|proc t st1 Cw _ F]; first by elim=>_ <-; move: Iw=>[].
 case: Iw=>_ [GStabW|GSyncW].
 - by case GStabW=>noPackets; contradict iF; rewrite noPackets.
-- case GSyncW=>can_bc [can_n] [] HHold HBlockOf HDiffIF.
-  case P: (procMsg _ _ _)=>[stPm ms]; move=>->.
-  right. rewrite/GSyncingExt.
-  (* The canonical blockchain will remain canonical after any msg *)
+- case GSyncW=>can_bc [can_n] [] HHold HGt HInFlight HDiffAv.
+  case P: (procMsg _ _ _)=>[stPm ms]; move=>->; right.
+  case Msg: (msg p)=>[|||b|||]; rewrite Msg in P.
+  (* For non-block messages, the canonical chain remains the same *)
   exists can_bc; exists can_n; split.
   + rewrite/holds/localState findU. case: ifP=>/=.
-      * move/eqP=>Dst; rewrite -Dst in F;
-        case: ifP=>/= _; last by [move=>ConSt Con; contradict Con];
-        move=>nst SStEq; case: SStEq=><-; clear nst;
-        case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
-        rewrite/has_chain in HHold *; move/eqP: (HHold st1 F)=><-;
-        rewrite eq_sym; do? by [
-          assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []);
-          by move: (procMsg_non_block_nc st1 (ts q) H)=>->; rewrite Msg P
-        ].
-        by specialize (HBlockOf p b iF Msg);
-           specialize (HHold st1 F); move/eqP in HHold;
-           rewrite -HHold in HBlockOf;
-           move: (procMsg_known_block_nc (ts q) HBlockOf)=>->;
-           apply/eqP; rewrite P.
-      * by move=>_; apply HHold. 
-  + 
-
-  
+    (* ... the original node still retains it *)
+    * move/eqP=>Dst; rewrite -Dst in F;
+      case: ifP=>/= _; last by [move=>ConSt Con; contradict Con];
+      move=>nst SStEq; case: SStEq=><-; clear nst;
+      rewrite/has_chain in HHold *; move/eqP: (HHold st1 F)=><-;
+      rewrite eq_sym; do? by [
+        assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []);
+        by move: (procMsg_non_block_nc st1 (ts q) H)=>->; rewrite Msg P
+      ].
+      by move=>_; apply HHold. 
+    (* ... it's still the largest chain in the network *)
+    * rewrite/exists_and_holds/localState=>n' bc'; rewrite findU; case: ifP=>/=.
+      move/eqP=>Dst; rewrite -Dst in F; case: ifP=>/= _.
+      case=>st' [] [] StEq; subst st'; move=> Hbc' Neq.
+      rewrite/has_chain in Hbc'; move/eqP in Hbc'.
+      assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []).
+      move: (procMsg_non_block_nc st1 (ts q) H); rewrite Msg P=>/= BcEq; clear H.
+      subst bc'; rewrite -BcEq in Neq *.
+        assert (exists_and_holds n' w (has_chain (btChain (blockTree st1))))
+        by (exists st1; split; do? by[rewrite/has_chain]).
+      by move: (HGt n' (btChain (blockTree st1)) H Neq).
+      by move=>Con; contradict Con; case=>ConSt Con; contradict Con; case.
+      by move=>_; apply HGt. 
+    (* ... all blocks in the packet soup are still known *)
+    * rewrite/inFlightMsgs. move=>p0 b0 n' bc'. admit.
+    (* ... the difference is still in flight *)
+    * admit.
+ 
 Admitted.

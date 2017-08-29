@@ -190,6 +190,9 @@ Fixpoint prefix_diff (bc bc' : Blockchain) :=
   | _, ys => ys
   end.
 
+(* Caller must ensure bc' is longer *)
+Definition bc_diff (bc bc' : Blockchain) := [seq b <- bc' | b \notin bc].
+
 (* Facts *)
 Lemma bc_succ_mem b bc:
   forall (sb : Block),
