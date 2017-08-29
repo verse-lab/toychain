@@ -256,6 +256,7 @@ case: Iw=>_ [GStabW|GSyncW].
       by move=>_; apply HGt. 
     (* ... all blocks in the packet soup are still known *)
     * move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
+      (* This semms like a generic thing: can we move it above? *)
       (* p0 is still in in-flight messages *)
       - move/mem_rem=>H1 H2 H3; apply: (HInFlight p0 b0 n' bc' H1 H2).
         case: H3=>s/=[H3 H4];exists s; split=>//.
