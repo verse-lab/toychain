@@ -239,8 +239,7 @@ case: Iw=>_ [GStabW|GSyncW].
       rewrite/has_chain in HHold *; move/eqP: (HHold st1 F)=><-;
       rewrite eq_sym; do? by [
         assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []);
-        by move: (procMsg_non_block_nc st1 (ts q) H)=>->; rewrite Msg P
-      ].
+        by move: (procMsg_non_block_nc st1 (ts q) H)=>->; rewrite Msg P].
       by move=>_; apply HHold. 
     (* ... it's still the largest chain in the network *)
     * rewrite/exists_and_holds/localState=>n' bc'; rewrite findU; case: ifP=>/=.
@@ -256,7 +255,22 @@ case: Iw=>_ [GStabW|GSyncW].
       by move=>Con; contradict Con; case=>ConSt Con; contradict Con; case.
       by move=>_; apply HGt. 
     (* ... all blocks in the packet soup are still known *)
-    * rewrite/inFlightMsgs. move=>p0 b0 n' bc'. admit.
+    * move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
+      (* p0 is still in in-flight messages *)
+      - move/mem_rem=>H1 H2 H3; apply: (HInFlight p0 b0 n' bc' H1 H2).
+        case: H3=>s/=[H3 H4];exists s; split=>//.
+        case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in H3=>//. 
+        move/eqP:X=>X; subst n'; case: H3=>Z; subst stPm; rewrite F; clear F.
+        by case: st1 P=>/=????; case=><-.
+      (* p0 is a newly emitted message *)    
+      case: st1 P F=>/=id peers bt tp[]-> Z2 F; subst ms; rewrite inE=>/eqP=>Z.
+      subst p0=>Bm[s]/=[F']H'.
+      case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in F'.
+      + case: F'=>Z; subst stPm.
+        admit.
+        admit.      
+      
+        
     (* ... the difference is still in flight *)
     * admit.
  
