@@ -146,8 +146,8 @@ Axiom btChain_seq :
       b \in bc == (prevBlockHash b == hashB (bcPrev b bc)).
 
 Axiom btChain_extend :
-  forall (bt : BlockTree) (bc : Blockchain) (b extension : Block),
-    btChain bt = bc ->
+  forall (bt : BlockTree) (b extension : Block),
+    let bc := (btChain bt) in
     b \notin bc ->
     prevBlockHash extension == hashB (bcLast bc) ->
     btChain (btExtend bt b) = rcons bc extension.

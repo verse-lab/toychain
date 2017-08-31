@@ -2,8 +2,8 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
-Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap. 
-Require Import Blockchain Protocol Semantics States BlockchainProperties. 
+Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap.
+Require Import Blockchain Protocol Semantics States BlockchainProperties.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -36,14 +36,14 @@ by move: (nbc st Sf) (nbc' st Sf)=>/eqP<-/eqP->.
 Qed.
 
 (*
-TODO: 
+TODO:
 
 2. More complicated: the "rollback" is no more than a contstant;
 
  *)
 
 Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
-  n \in dom (localState w) -> 
+  n \in dom (localState w) ->
   holds n w (has_chain bc) ->
   system_step w w' q ->
   holds n w' (has_chain bc') ->
@@ -68,10 +68,10 @@ case: S=>[[C]Z|p [n' prs bt pool] C _ _ F|
     by rewrite -(has_chain_func D H1 H2); left.
   rewrite [procMsg _ _ _]surjective_pairing=>Z;
   (* Avoiding premature unfolding. *)
-  set Pm := nosimpl (procMsg _ _ _) in Z; subst w'. 
+  set Pm := nosimpl (procMsg _ _ _) in Z; subst w'.
   rewrite /holds/= findU eqxx/= (proj1 (C)) in H2.
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
-  move: (H1 _ F)=>{H1 C2 F}/=H1. 
+  move: (H1 _ F)=>{H1 C2 F}/=H1.
   by apply: (@procMsg_bc_prefix_or_fork bc bc'
         {| id := dst p; peers := prs; blockTree := bt; txPool := pool |}
         (msg p) (ts q)); move/eqP: H2; move/eqP: H1.
@@ -85,20 +85,22 @@ case N : (n == proc);[move/eqP:N=>N; subst n|]; last first.
 
 (* Another interesting part of the proof: n == proc.
    Consider all branches of procInt and proof the property for each one.
-   Don't hesitate to introduce auxiliary lemmas. *)  
+   Don't hesitate to introduce auxiliary lemmas. *)
 rewrite [procInt _ _ _]surjective_pairing=>Z.
 set Pi := nosimpl (procInt _ _ _) in Z; subst w'.
 rewrite /holds/= findU eqxx/= (proj1 (C)) in H2. rewrite /holds F in H1.
 have: (Some s1 = Some s1). by []. move=> eq. move: (H1 s1 eq)=>hbc. clear eq.
-have: (Some Pi.1 = Some Pi.1). by []. move=> eq. move: (H2 Pi.1 eq)=>hbc'.
+have: (Some Pi.1 = Some Pi.1). by []. move=> eq. move: (H2 Pi.1 eq)=>hbc'. clear eq.
 rewrite /has_chain in hbc hbc'. move/eqP in hbc. move/eqP in hbc'.
-specialize (procInt_bc_same hbc hbc')=>/eqP<-.
-by left.
+specialize (procInt_bc_same_or_extension s1 t (ts q))=>/=.
+case=>/=; rewrite -hbc -hbc'; first by left.
+move=>Pf; right; split; first by left.
+by move: Pf=>[] eh [] et ->; apply CFR_ext.
 Qed.
 
 (* Big-step case, proven by induction *)
 Lemma local_chain_grows_fork (w w' : World) n bc bc':
-  n \in dom (localState w) -> 
+  n \in dom (localState w) ->
   holds n w (has_chain bc) ->
   reachable w w' ->
   holds n w' (has_chain bc') ->
@@ -109,7 +111,7 @@ elim: m w' R bc' H2=>/=[w'<-|q m Hi w' [via][R S]] bc' H2.
 - by left; move/(has_chain_func D H1 (bc':=bc')):H2=><-.
 have D': n \in dom (localState via).
 - suff R' : reachable w via by rewrite -(steps_nodes R').
-  by exists m. 
+  by exists m.
 suff X : exists bc1, holds n via (has_chain bc1).
 - case: X=>bc1 H; move: (Hi _ R _ H)=>P1.
   move: (local_chain_grows_fork_step D' H S H2)=>P2.
@@ -162,7 +164,7 @@ suff X : exists bc1, holds n via (has_chain bc1).
 rewrite /holds/has_chain.
 move/um_eta: D';case; case=>id ps bt t [][->]_.
 by exists (btChain (blockTree {|
-    id := id; peers := ps; blockTree := bt; txPool := t |}))=>st[]<-. 
+    id := id; peers := ps; blockTree := bt; txPool := t |}))=>st[]<-.
 Qed.
 
 (*
@@ -181,18 +183,18 @@ Definition GStable w :=
     holds n w (has_chain bc).
 
 Definition GSyncing w :=
-  exists (bc : Blockchain) (n : nid),  
+  exists (bc : Blockchain) (n : nid),
   [/\ holds n w (has_chain bc),
 
    (* The canonical chain is the largest in the network *)
    forall (n' : nid) (bc' : Blockchain),
-    exists_and_holds n' w (has_chain bc') -> bc != bc' -> bc > bc',
+    holds n' w (fun st => has_chain bc' st -> bc != bc' -> bc > bc'),
 
    (* All blocks in flight are of this chain or of smaller chains *)
    forall (p : Packet) (b : Block) (n' : nid) (bc' : Blockchain),
      p \in inFlightMsgs w -> msg p = BlockMsg b ->
-     exists_and_holds n' w (has_chain bc') -> (bc = bc' \/ bc > bc') /\ b \in bc' &
-  
+     holds n' w (fun st => has_chain bc' st -> (bc = bc' \/ bc > bc') /\ b \in bc') &
+
    (* The difference needed to obtain the canonical chain is available *)
    forall (n' : nid) (bc' : Blockchain),
      holds n' w (has_chain bc') -> available (bc_diff bc' bc) n' w
@@ -223,56 +225,45 @@ Lemma Inv_step w w' q :
   Inv w -> system_step w w' q -> Inv w'.
 Proof.
 move=>Iw S; rewrite/Inv; split; first by apply: (Coh_step S).
-case: S=>[|p st1 Cw hA iF F|proc t st1 Cw _ F]; first by elim=>_ <-; move: Iw=>[].
+case: S=>[|p st1 Cw _ iF Fw|proc t st1 Cw _ Fw]; first by elim=>_ <-; move: Iw=>[].
 case: Iw=>_ [GStabW|GSyncW].
 - by case GStabW=>noPackets; contradict iF; rewrite noPackets.
 - case GSyncW=>can_bc [can_n] [] HHold HGt HInFlight HDiffAv.
   case P: (procMsg _ _ _)=>[stPm ms]; move=>->; right.
   case Msg: (msg p)=>[|||b|||]; rewrite Msg in P.
-  (* For non-block messages, the canonical chain remains the same *)
+  (* For non-block messages, the canonical chain is guaranteed to remain the same *)
+  assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []).
   exists can_bc; exists can_n; split.
-  + rewrite/holds/localState findU. case: ifP=>/=.
-    (* ... the original node still retains it *)
-    * move/eqP=>Dst; rewrite -Dst in F;
-      case: ifP=>/= _; last by [move=>ConSt Con; contradict Con];
-      move=>nst SStEq; case: SStEq=><-; clear nst;
-      rewrite/has_chain in HHold *; move/eqP: (HHold st1 F)=><-;
-      rewrite eq_sym; do? by [
-        assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []);
-        by move: (procMsg_non_block_nc st1 (ts q) H)=>->; rewrite Msg P].
-      by move=>_; apply HHold. 
-    (* ... it's still the largest chain in the network *)
-    * rewrite/exists_and_holds/localState=>n' bc'; rewrite findU; case: ifP=>/=.
-      move/eqP=>Dst; rewrite -Dst in F; case: ifP=>/= _.
-      case=>st' [] [] StEq; subst st'; move=> Hbc' Neq.
-      rewrite/has_chain in Hbc'; move/eqP in Hbc'.
-      assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []).
-      move: (procMsg_non_block_nc st1 (ts q) H); rewrite Msg P=>/= BcEq; clear H.
-      subst bc'; rewrite -BcEq in Neq *.
-        assert (exists_and_holds n' w (has_chain (btChain (blockTree st1))))
-        by (exists st1; split; do? by[rewrite/has_chain]).
-      by move: (HGt n' (btChain (blockTree st1)) H Neq).
-      by move=>Con; contradict Con; case=>ConSt Con; contradict Con; case.
-      by move=>_; apply HGt. 
-    (* ... all blocks in the packet soup are still known *)
-    * move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
-      (* This semms like a generic thing: can we move it above? *)
-      (* p0 is still in in-flight messages *)
-      - move/mem_rem=>H1 H2 H3; apply: (HInFlight p0 b0 n' bc' H1 H2).
-        case: H3=>s/=[H3 H4];exists s; split=>//.
-        case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in H3=>//. 
-        move/eqP:X=>X; subst n'; case: H3=>Z; subst stPm; rewrite F; clear F.
-        by case: st1 P=>/=????; case=><-.
-      (* p0 is a newly emitted message *)    
-      case: st1 P F=>/=id peers bt tp[]-> Z2 F; subst ms; rewrite inE=>/eqP=>Z.
-      subst p0=>Bm[s]/=[F']H'.
-      case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in F'.
-      + case: F'=>Z; subst stPm.
-        admit.
-        admit.      
-      
-        
-    (* ... the difference is still in flight *)
-    * admit.
- 
+  (* ... the original node still retains it *)
+  + rewrite/holds/localState/has_chain=>st'; case X: (can_n == dst p); move/eqP in X.
+    * subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP; do? by [move/eqP].
+      by move=>_ [] <-; move: (procMsg_non_block_nc st1 (ts q) H);
+         rewrite Msg P=><-; apply (HHold st1 Fw).
+    * rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; do? by[move/eqP].
+      by move=>_ Fc; move: (HHold st' Fc).
+  (* ... it's still the largest *)
+  + rewrite/holds/localState/has_chain=>n' bc' st';
+    case X: (can_n == dst p); move/eqP in X;
+    rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; move/eqP;
+      do? by [
+        move=>_ Fc; move: (HGt n' bc' st' Fc) |
+        move=>Eq [] <-; move: (procMsg_non_block_nc st1 (ts q) H);
+        rewrite Msg P=><-; rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)
+      ].
+  (* ... all blocks in the packet soup are still known *)
+  (*
+  + move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
+    (* p0 is still in in-flight messages *)
+    * move/mem_rem=>H1 H2 H3; apply: (HInFlight p0 b0 n' bc' H1 H2).
+      case: H3=>s/=[H3 H4]; exists s; split=>//.
+      case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in H3=>//.
+      move/eqP:X=>X; subst n'; case: H3=>Z; subst stPm; rewrite Fw; clear Fw.
+      by case: st1 P=>/=????; case=><-.
+    (* p0 is a newly emitted message *)
+    * case: st1 P Fw=>/=id peers bt tp[]-> Z2 F; subst ms; rewrite inE=>/eqP=>Z.
+      subst p0=>Bm[s]/=[F']H'; by contradict Bm.
+  *)
+  (* ... the difference is still in flight *)
+  +
+
 Admitted.

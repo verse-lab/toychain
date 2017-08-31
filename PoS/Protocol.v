@@ -61,7 +61,7 @@ case: ma=>[|n p|n|b|t|p h|p h].
   by case/Bool.andb_false_elim: B=>B; constructor 2; case; move/eqP: B.
 
 (* TODO: unify this! *)
-- by simple_tactic mb n n' B. 
+- by simple_tactic mb n n' B.
 - by simple_tactic mb b b' B.
 - by simple_tactic mb t t' B.
 
@@ -121,7 +121,7 @@ Record State :=
 
 Definition Init (n : nid) : State := Node n [:: n] [:: GenesisBlock] [::].
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
-  
+
 (* Please, explain what happens at each transition *)
 Definition procMsg (st: State) (msg: Message) (ts: Timestamp) :=
     let: (Node n prs bt pool) := st in
@@ -186,7 +186,11 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
             let: prevBlock := (last GenesisBlock bc) in
             let: block := mkB (height prevBlock + 1) (hashB prevBlock) allowedTxs pf in
 
-            pair st (emitBroadcast n prs (BlockMsg block))
+            let: newBt := (btExtend bt block) in
+            let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
+            let: ownHashes := [seq hashB b | b <- newBt] ++ [seq hashT t | t <- newPool] in
+            pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
+
           else
             pair st emitZero
 
@@ -220,7 +224,7 @@ case=> n1 p1 b1 t1 []; do? by [].
     * by  [].
 move=> p h. simpl. case exB: (ohead _). by [].
 case exT: (ohead _); by [].
-Qed.  
+Qed.
 
 Ltac local_bc_no_change s1 hbc hbc' :=
   (rewrite /procMsg; destruct s1=>/=; rewrite /blockTree in hbc;
@@ -266,7 +270,7 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc h
   (* Extension – note that b is not necessarily the last block in bc' *)
   case E: (prevBlockHash (bcLast bc') == hashB (bcLast bc)).
   + right. split; move/negbT/btChain_mem: B; rewrite hbc=>B;
-    move: (btChain_extend hbc B E)=>->; rewrite -cats1.
+    rewrite -hbc in B E; move: (btChain_extend B E)=>->; rewrite -cats1 hbc.
     by left; exists (bcLast bc'), [::].
     by apply CFR_ext.
 
@@ -286,23 +290,6 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc h
     by rewrite hbc in hbc'; rewrite -hbc'; left.
 Qed.
 
-Lemma procInt_bc_same bc bc':
-  forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
-    let: s2 := (procInt s1 t ts).1 in
-    btChain (blockTree s1) = bc  ->
-    btChain (blockTree s2) = bc' ->
-    bc == bc'.
-Proof.
-move=> s1; case=> [tx|] ts hbc; destruct s1; rewrite /procInt.
-- rewrite /blockTree in hbc *=>/= hbc'.
-  by rewrite hbc in hbc'; rewrite -hbc'.
-(* MintT doesn't change local blockTree; it just broadcasts block *)
-- case (genProof _)=>[vpf|hbc']. case (VAF vpf _).
-  by rewrite /blockTree in hbc *; move=>/= hbc'; rewrite hbc in hbc'; rewrite -hbc'.
-  by rewrite /blockTree in hbc *; move=>/= hbc'; rewrite hbc in hbc'; rewrite -hbc'.
-  by rewrite hbc in hbc'; rewrite -hbc'.
-Qed.
-
 Lemma procInt_peers_uniq :
   forall (s1 : State) (t : InternalTransition) ts, let: s2 := (procInt s1 t ts).1 in
     uniq (peers s1) -> uniq (peers s2).
@@ -310,6 +297,28 @@ Proof.
 move=>s1 t ts; case: s1=>n prs bt txp; rewrite /peers/procInt=>Up.
 case: t=>//; case hP: (genProof _)=>//; case vP: (VAF _)=>//.
 Qed.
+
+Lemma procInt_bc_same_or_extension :
+  forall (s1 : State) (t : InternalTransition) ts,
+    let s2 := (procInt s1 t ts).1 in
+    let bc := btChain (blockTree s1) in
+    let bc' := btChain (blockTree s2) in
+    bc = bc' \/ [bc <<< bc'].
+Proof.
+move=>s1 t ts=>/=; destruct s1; case t=>/=; first by left.
+case hP: (genProof _)=>[pf|]; last by left.
+case vP: (VAF _)=>/=; last by left. right.
+set B :=
+  {| height := height (last GenesisBlock (btChain blockTree0)) + 1;
+     prevBlockHash := hashB (last GenesisBlock (btChain blockTree0));
+     txs := [seq t0 <- txPool0 | txValid t0 (btChain blockTree0)];
+     proof := pf
+  |}.
+(*TODO: this is a trivial statement, but we might need a new axiom *)
+assert (B \notin (btChain blockTree0)) by admit.
+assert (prevBlockHash B == hashB (bcLast (btChain blockTree0))) by done.
+by move: (btChain_extend H H0)->; exists B, [::]; rewrite cats1.
+Admitted.
 
 Inductive local_step (s1 s2 : State) : Prop :=
 | Idle of s1 = s2
