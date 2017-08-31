@@ -177,6 +177,10 @@ Definition available (blocks : seq Block) n w :=
   exists (p : Packet) (peer : nid) (sh : seq Hash),
     p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
 
+Definition largest_chain (w : World) (bc : Blockchain) :=
+   forall (n' : nid) (bc' : Blockchain),
+    holds n' w (fun st => has_chain bc' st -> bc >= bc').
+
 Definition GStable w :=
   inFlightMsgs w = [::] /\
   exists (bc : Blockchain), forall (n : nid),
@@ -187,13 +191,13 @@ Definition GSyncing w :=
   [/\ holds n w (has_chain bc),
 
    (* The canonical chain is the largest in the network *)
-   forall (n' : nid) (bc' : Blockchain),
-    holds n' w (fun st => has_chain bc' st -> bc != bc' -> bc > bc'),
+   largest_chain w bc,
 
-   (* All blocks in flight are of this chain or of smaller chains *)
+   (* Blocks in flight induce either the canonical chain  or a smaller one
+    * In other words, no BlockMsg will change the canonical chain. *)
    forall (p : Packet) (b : Block) (n' : nid) (bc' : Blockchain),
-     p \in inFlightMsgs w -> msg p = BlockMsg b ->
-     holds n' w (fun st => has_chain bc' st -> (bc = bc' \/ bc > bc') /\ b \in bc') &
+     p \in inFlightMsgs w -> msg p = BlockMsg b -> n' = dst p ->
+     holds n' w (fun st => bc >= btChain (btExtend (blockTree st) b)) &
 
    (* The difference needed to obtain the canonical chain is available *)
    forall (n' : nid) (bc' : Blockchain),
@@ -237,7 +241,7 @@ case: Iw=>_ [GStabW|GSyncW].
   (* ... the original node still retains it *)
   + rewrite/holds/localState/has_chain=>st'; case X: (can_n == dst p); move/eqP in X.
     * subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP; do? by [move/eqP].
-      by move=>_ [] <-; move: (procMsg_non_block_nc st1 (ts q) H);
+      by move=>_ [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
          rewrite Msg P=><-; apply (HHold st1 Fw).
     * rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; do? by[move/eqP].
       by move=>_ Fc; move: (HHold st' Fc).
@@ -245,24 +249,29 @@ case: Iw=>_ [GStabW|GSyncW].
   + rewrite/holds/localState/has_chain=>n' bc' st';
     case X: (can_n == dst p); move/eqP in X;
     rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; move/eqP;
-      do? by [
-        move=>_ Fc; move: (HGt n' bc' st' Fc) |
-        move=>Eq [] <-; move: (procMsg_non_block_nc st1 (ts q) H);
-        rewrite Msg P=><-; rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)
-      ].
-  (* ... all blocks in the packet soup are still known *)
-  (*
+    by [
+      move=>_ Fc; move: (HGt n' bc' st' Fc) |
+      move=>Eq [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
+      rewrite /has_chain Msg P=><-; rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)
+    ].
+  (* ... no surprise blocks in the packet soup *)
   + move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
-    (* p0 is still in in-flight messages *)
-    * move/mem_rem=>H1 H2 H3; apply: (HInFlight p0 b0 n' bc' H1 H2).
-      case: H3=>s/=[H3 H4]; exists s; split=>//.
-      case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in H3=>//.
-      move/eqP:X=>X; subst n'; case: H3=>Z; subst stPm; rewrite Fw; clear Fw.
-      by case: st1 P=>/=????; case=><-.
+    (* p0 is already in the packet soup *)
+    * move/mem_rem=> iF0 bM0 dst0 st'; rewrite/localState.
+      case X: (dst p0 == dst p); subst n'; last first.
+        (* trivial case, no change from last state *)
+        rewrite findU ?(proj1 Cw)=>//; case: ifP.
+        by move/eqP in X; move/eqP=>Con; contradict Con.
+        by move=>_ F0; have: (dst p0 = dst p0) by []=>Obvs;
+           apply (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st' F0).
+        (* inductive case -- msg p is applied, THEN b0 is applied *)
+        rewrite findU X/= ?(proj1 Cw)=>//[][]<-.
+        have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw.
+        move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw).
+        by move: (procMsg_non_block_nc_blockTree st1 (ts q) H); rewrite Msg P=>/= <-.
     (* p0 is a newly emitted message *)
     * case: st1 P Fw=>/=id peers bt tp[]-> Z2 F; subst ms; rewrite inE=>/eqP=>Z.
       subst p0=>Bm[s]/=[F']H'; by contradict Bm.
-  *)
   (* ... the difference is still in flight *)
   +
 

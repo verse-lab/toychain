@@ -46,6 +46,7 @@ Parameter blockValid : Block -> Blockchain -> bool.
 
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (CFR_gt A B).
+Notation "A >= B" := (A = B \/ A > B).
 
 (* Also keeps orphan blocks *)
 Definition BlockTree := seq Block.

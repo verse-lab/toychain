@@ -230,11 +230,11 @@ Ltac local_bc_no_change s1 hbc hbc' :=
   (rewrite /procMsg; destruct s1=>/=; rewrite /blockTree in hbc;
    by move=>hbc'; rewrite hbc in hbc'; rewrite hbc'; left).
 
-Lemma procMsg_non_block_nc :
+Lemma procMsg_non_block_nc_blockTree :
   forall (s1 : State) (m : Message) (ts : Timestamp),
     let: s2 := (procMsg s1 m ts).1 in
     (forall b, m != BlockMsg b) ->
-    btChain (blockTree s1) = btChain (blockTree s2).
+    blockTree s1 = blockTree s2.
 Proof.
 move=>s1 m ts neq.
 case: m neq=>[|p prs|p|b|t|p sh|p h] neq;
@@ -244,14 +244,34 @@ rewrite/procMsg=>//; destruct s1.
 case: (ohead  _); first by []. case (ohead _); by [].
 Qed.
 
-Lemma procMsg_known_block_nc :
+Lemma procMsg_non_block_nc_btChain :
+  forall (s1 : State) (m : Message) (ts : Timestamp),
+    let: s2 := (procMsg s1 m ts).1 in
+    (forall b, m != BlockMsg b) ->
+    btChain (blockTree s1) = btChain (blockTree s2).
+Proof.
+move=>s1 m ts neq.
+by move: (procMsg_non_block_nc_blockTree s1 ts neq)=><-.
+Qed.
+
+Lemma procMsg_known_block_nc_blockTree :
+  forall (s1 : State) (b : Block) (ts : Timestamp),
+    let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
+    let: bt := blockTree s1 in
+    b \in bt -> bt = blockTree s2.
+Proof.
+move=>s1 b ts biT; destruct s1=>/=; rewrite/blockTree in biT.
+by apply (btExtend_withDup_noEffect biT).
+Qed.
+
+Lemma procMsg_known_block_nc_btChain :
   forall (s1 : State) (b : Block) (ts : Timestamp),
     let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
     let: bc := btChain (blockTree s1) in
     b \in bc -> bc = btChain (blockTree s2).
 Proof.
-move=>s1 b ts biC; destruct s1=>/=; rewrite /blockTree in biC.
-by move: (btExtend_withDup_noEffect (btChain_mem2 biC))=><-.
+move=>s1 b ts biC.
+by move: (procMsg_known_block_nc_blockTree ts (btChain_mem2 biC))=><-.
 Qed.
 
 Lemma procMsg_bc_prefix_or_fork bc bc':
