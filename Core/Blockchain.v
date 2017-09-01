@@ -10,6 +10,7 @@ Unset Printing Implicit Defensive.
 (* A fomalization of a blockchain structure *)
 
 Definition Address := nat.
+Definition Timestamp := nat.
 
 Parameter Stake : eqType.
 Parameter Hash : eqType.
@@ -36,7 +37,7 @@ Definition Blockchain := seq Block.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* We might want to introduce a notion of time *)
-Parameter VAF : VProof -> Blockchain -> bool.
+Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 
 Parameter stake : Address -> Blockchain -> Stake.
 Parameter genProof : Stake -> option VProof.
@@ -45,6 +46,7 @@ Parameter blockValid : Block -> Blockchain -> bool.
 
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (CFR_gt A B).
+Notation "A >= B" := (A = B \/ A > B).
 
 (* Also keeps orphan blocks *)
 Definition BlockTree := seq Block.
@@ -107,19 +109,9 @@ Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
 
-Axiom blockValid_imp_VAF :
-  forall (b : Block) (bc : Blockchain),
-    (blockValid b bc) -> (VAF (proof b) bc).
-
-(* TODO: justify the need for this *)
-Axiom no_proof_reuse :
-  forall (b b' : Block) (bc : Blockchain),
-    b != b' -> blockValid b bc -> blockValid b' bc ->
-    proof b != proof b'.
-
 Axiom VAF_inj :
-  forall (v : VProof) (bc1 bc2 : Blockchain),
-    VAF v bc1 -> VAF v bc2 -> bc1 == bc2.
+  forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
+    VAF v ts bc1 -> VAF v' ts bc2 -> v == v' /\ bc1 == bc2.
 
 Axiom CFR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
@@ -155,8 +147,8 @@ Axiom btChain_seq :
       b \in bc == (prevBlockHash b == hashB (bcPrev b bc)).
 
 Axiom btChain_extend :
-  forall (bt : BlockTree) (bc : Blockchain) (b extension : Block),
-    btChain bt = bc ->
+  forall (bt : BlockTree) (b extension : Block),
+    let bc := (btChain bt) in
     b \notin bc ->
     prevBlockHash extension == hashB (bcLast bc) ->
     btChain (btExtend bt b) = rcons bc extension.
@@ -198,6 +190,9 @@ Fixpoint prefix_diff (bc bc' : Blockchain) :=
   | x :: xs, y :: ys => if x == y then prefix_diff xs ys else y :: ys
   | _, ys => ys
   end.
+
+(* Caller must ensure bc' is longer *)
+Definition bc_diff (bc bc' : Blockchain) := [seq b <- bc' | b \notin bc].
 
 (* Facts *)
 Lemma bc_succ_mem b bc:
