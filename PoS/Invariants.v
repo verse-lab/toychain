@@ -174,8 +174,14 @@ Qed.
 Definition available (blocks : seq Block) n w :=
   forall (b : Block),
   b \in blocks ->
-  exists (p : Packet) (peer : nid) (sh : seq Hash),
-    p \in inFlightMsgs w /\ msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh.
+  exists (p : Packet),
+    p \in inFlightMsgs w /\
+    [\/ exists (peer : nid) (sh : seq Hash),
+         msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh,
+       exists (hash : Hash),
+         msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash |
+       msg p = BlockMsg b /\ dst p = n
+    ].
 
 Definition largest_chain (w : World) (bc : Blockchain) :=
    forall (n' : nid) (bc' : Blockchain),
@@ -201,7 +207,7 @@ Definition GSyncing w :=
 
    (* The difference needed to obtain the canonical chain is available *)
    forall (n' : nid) (bc' : Blockchain),
-     holds n' w (has_chain bc') -> available (bc_diff bc' bc) n' w
+     holds n' w (fun st => has_chain bc' st -> available (bc_diff bc' bc) n' w)
 ].
 (* TODO: prove that applying difference results in canonical chain *)
 
@@ -260,19 +266,38 @@ case: Iw=>_ [GStabW|GSyncW].
     * move/mem_rem=> iF0 bM0 dst0 st'; rewrite/localState.
       case X: (dst p0 == dst p); subst n'; last first.
         (* trivial case, no change from last state *)
-        rewrite findU ?(proj1 Cw)=>//; case: ifP.
+        rewrite findU ?(proj1 Cw)=>/=; case: ifP.
         by move/eqP in X; move/eqP=>Con; contradict Con.
         by move=>_ F0; have: (dst p0 = dst p0) by []=>Obvs;
            apply (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st' F0).
         (* inductive case -- msg p is applied, THEN b0 is applied *)
-        rewrite findU X/= ?(proj1 Cw)=>//[][]<-.
+        rewrite findU X/= ?(proj1 Cw)=>/=[][]<-.
         have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw.
         move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw).
         by move: (procMsg_non_block_nc_blockTree st1 (ts q) H); rewrite Msg P=>/= <-.
     (* p0 is a newly emitted message *)
     * case: st1 P Fw=>/=id peers bt tp[]-> Z2 F; subst ms; rewrite inE=>/eqP=>Z.
       subst p0=>Bm[s]/=[F']H'; by contradict Bm.
-  (* ... the difference is still in flight *)
-  +
+  (* ... the difference remains available *)
+  + move=>n' bc' st'. case X: (n' == dst p ); last first.
+      (* n' sees no change from last state *)
+      rewrite findU ?(proj1 Cw)=>/=; case: ifP.
+      by move/eqP in X; move/eqP=>Con; contradict Con.
+      move=>_ H1 H2. rewrite/available/inFlightMsgs. move=>b0 diffIF.
+      move: (HDiffAv n' bc' st' H1 H2 b0 diffIF)=>[p0] [iF0] HStage.
+      case: HStage=>[[pr0] [sh]|[hash]|[block]].
+      * move=>[MInv0] [dst0] hash0. exists p0; split.
+        rewrite mem_cat orbC. apply/orP. left. (*(X & dst0 => p != p0) + iF0*) admit.
+        by constructor 1; exists pr0, sh.
+      * move=>[MGD0] [src0] hash0. case Dlv: (p == p0).
+        (* If p0 was delivered, then there should be a new BlockMsg for us in ms *)
+        admit.
+        (* Otherwise, p0 remains in soup *)
+        admit.
+      * move=>dst0. exists p0. split.
+        rewrite mem_cat orbC. apply/orP. left. (*(X & dst0 => p != p0) + iF0*) admit.
+        by constructor 3.
+      (* n' state updated *)
+      admit.
 
 Admitted.
