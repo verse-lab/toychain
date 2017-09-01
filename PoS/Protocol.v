@@ -282,6 +282,38 @@ Lemma procMsg_block_btExtend :
 Proof.
 Admitted.
 
+Lemma ohead_filter_some (bt : BlockTree) (b0 : Block) (h0 : Hash):
+    ohead [seq b <- bt | hashB b == h0] = Some b0 ->
+    h0 = hashB b0.
+Proof.
+Admitted.
+
+Lemma procMsg_no_block_in_ms :
+  forall (s1 : State) req resp b ts,
+  let: ms := (procMsg s1 req ts).2 in
+  resp \in ms -> msg resp = BlockMsg b ->
+  req = GetDataMsg (dst resp) (hashB b).
+Proof.
+move=>[n prs bt tp] req resp b ts iMs B;
+case: req iMs=>[|to knwP|to||||]; rewrite/procMsg.
+- by rewrite inE=>Con; contradict Con; rewrite/NullPacket;
+     case: resp B=>srcR dstR msgR; rewrite/msg=>->; move/eqP.
+- rewrite/emitMany/emitBroadcast mem_cat; move/orP. admit.
+- by rewrite inE=>Con; contradict Con; rewrite/NullPacket;
+     case: resp B=>srcR dstR msgR; rewrite/msg=>->; move/eqP.
+- rewrite/emitBroadcast=>/=. admit.
+- rewrite/emitBroadcast=>/=. admit.
+- rewrite/emitMany=>/=. admit.
+(* This is the interesting case *)
+- move=>n0 h0. case X: (ohead _)=>[b0|]; rewrite/emitOne=>/=.
+  * rewrite inE; case: resp B=>srcR dstR msgR; rewrite/msg=>->.
+    move/eqP=>[] src dst Beq; rewrite/dst.
+    by move: (ohead_filter_some X)=>->; rewrite dst Beq.
+  * case: (ohead _)=>[tx|];
+    by rewrite inE=>Con; contradict Con; rewrite/NullPacket;
+     case: resp B=>srcR dstR msgR; rewrite/msg=>->; move/eqP.
+Admitted.
+
 Lemma procMsg_bc_prefix_or_fork bc bc':
   forall (s1 : State) (m : Message) (ts : Timestamp),
     let: s2 := (procMsg s1 m ts).1 in

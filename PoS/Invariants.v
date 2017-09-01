@@ -297,92 +297,41 @@ case: Iw=>_ [GStabW|GSyncW].
          move: (procMsg_block_btExtend st1 b (ts q))=>->.
 
   (* ... no surprise blocks in the packet soup *)
-  + case Msg: (msg p)=>[|||b|||].
-    move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
-    (* p0 is already in the packet soup *)
-    move/mem_rem=> iF0 bM0 dst0 st'; rewrite/localState;
-    case X: (dst p0 == dst p); subst n';
-    (* trivial case, no change from last state *)
-    do? [rewrite findU ?(proj1 Cw)=>/=; case: ifP;
-      by [
-        move/eqP in X; move/eqP=>Con; contradict Con |
+  + case Msg: (msg p)=>[|fr knw||b|||];
+    move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP;
+    do? [
+      (* p0 is already in the packet soup *)
+      move/mem_rem=> iF0 bM0 dst0 st'; rewrite/localState;
+      case X: (dst p0 == dst p); subst n';
+      (* trivial case, no change from last state *)
+      do? [rewrite findU ?(proj1 Cw)=>/=; case: ifP;
+      by [ move/eqP in X; move/eqP=>Con; contradict Con |
         move=>_ F0; have: (dst p0 = dst p0) by []=>Obvs;
         apply (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st' F0)
+      ]];
+      (* inductive case -- msg p is applied, THEN b0 is applied *)
+      do? by [
+        rewrite findU X/= ?(proj1 Cw)=>/=[][]<-;
+        have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw;
+        move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw);
+        rewrite Msg in P;
+        (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
+        by move: (procMsg_non_block_nc_blockTree st1 (ts q) H);
+           rewrite Msg P=>/= <-
       ]
     ];
-    (* inductive case -- msg p is applied, THEN b0 is applied *)
-    do? by [
-      rewrite findU X/= ?(proj1 Cw)=>/=[][]<-;
-      have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw;
-      move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw); rewrite Msg in P;
-      (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
-      by move: (procMsg_non_block_nc_blockTree st1 (ts q) H); rewrite Msg P=>/= <-
-    ].
-   (* p0 is a newly emitted message *)
-    move=>iMs Bm Dst. rewrite/holds/localState findU ?(proj1 Cw)=>/=;
-    rewrite [procMsg _ _ _] surjective_pairing Msg /procMsg in P.
-    contradict iMs.
-    case: P; move=>_ <-; clear Fw; case: st1=>????/=; rewrite /emitZero.
-    by clear Dst; case: p0 Bm=>//=???->/=; rewrite inE=>/eqP.
-
-
-    case X: (n' == dst p); move/eqP in X; subst n';
-    rewrite [procMsg _ _ _] surjective_pairing Msg /procMsg in P; case: P.
-    Focus 2.
-    * move=><- _ /= st' [] <-.
-
-      case: st1 P Fw=>/=id peers bt tp[]-> Z2 Fw; subst ms; rewrite inE=>/eqP=>Z.
-      subst p0=>Bm[s]/=[F']H'.
-      case X: (n' == dst p); rewrite findU X/= ?(proj1 Cw) in F'.
-      + case: F'=>Z; subst stPm.
-        admit.
-        admit.
-
-  case Msg: (msg p)=>[|to||b|||].
-  (* The canonical chain is guaranteed to remain the same for any msg:
-   *  - for non-block messages, this holds by procMsg_non_block_nc_btChain
-   *  - for block messages, it holds by HInFlight *)
-  assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []).
-  exists can_bc; exists can_n; split.
-  (* ... the original node still retains it *)
-  + rewrite/holds/localState/has_chain=>st'; case X: (can_n == dst p); move/eqP in X.
-    * subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP; last by move/eqP.
-        by move=>_ [] <-; rewrite Msg in P;
-           move: (procMsg_non_block_nc_btChain st1 (ts q) H);
-           rewrite Msg P=><-; apply (HHold st1 Fw).
-    * rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; first by move/eqP.
-      by move=>_ Fc; move: (HHold st' Fc).
-  (* ... it's still the largest *)
-  + rewrite/holds/localState/has_chain=>n' bc' st';
-    case X: (can_n == dst p); move/eqP in X;
-    rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; move/eqP;
-    by [
-      move=>_ Fc; move: (HGt n' bc' st' Fc) |
-      move=>Eq [] <-; rewrite Msg in P;
-      move: (procMsg_non_block_nc_btChain st1 (ts q) H);
-      rewrite /has_chain Msg P=><-; rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)
-    ].
-  (* ... no surprise blocks in the packet soup *)
-  + move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP.
-    (* p0 is already in the packet soup *)
-    * move/mem_rem=> iF0 bM0 dst0 st'; rewrite/localState.
-      case X: (dst p0 == dst p); subst n'; last first.
-        (* trivial case, no change from last state *)
-        rewrite findU ?(proj1 Cw)=>/=; case: ifP.
-        by move/eqP in X; move/eqP=>Con; contradict Con.
-        by move=>_ F0; have: (dst p0 = dst p0) by []=>Obvs;
-           apply (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st' F0).
-        (* inductive case -- msg p is applied, THEN b0 is applied *)
-        rewrite findU X/= ?(proj1 Cw)=>/=[][]<-.
-        have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw.
-        move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw); rewrite Msg in P.
-        by move: (procMsg_non_block_nc_blockTree st1 (ts q) H); rewrite Msg P=>/= <-.
     (* p0 is a newly emitted message *)
-    (* TODO: do this without contradiction, so it holds for all message types *)
-    * move=>iMs Bm Dst; rewrite/holds/localState findU ?(proj1 Cw)=>/=.
-      rewrite Msg /procMsg in P.
-      admit.
-  (* ... the difference remains available *)
+    do? [
+      move=>iMs Bm Dst; rewrite/holds/localState findU ?(proj1 Cw)=>/=;
+      rewrite [procMsg _ _ _] surjective_pairing in P;
+      case: P=> PSt PMs; subst ms;
+      move: (procMsg_no_block_in_ms iMs Bm)=>Con;
+      by contradict Con; rewrite Msg
+    ].
+    admit.
+    admit.
+
+ (* ... the difference remains available *)
   + move=>n' bc' st'. case X: (n' == dst p ); last first.
       (* n' sees no change from last state *)
       rewrite findU ?(proj1 Cw)=>/=; case: ifP.
