@@ -274,6 +274,14 @@ move=>s1 b ts biC.
 by move: (procMsg_known_block_nc_blockTree ts (btChain_mem2 biC))=><-.
 Qed.
 
+(* TODO -- simplication doesn't work when it should *)
+Lemma procMsg_block_btExtend :
+  forall (s1 : State) (b : Block) (ts: Timestamp),
+  let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
+  btChain (blockTree s2) = btChain (btExtend (blockTree s1) b).
+Proof.
+Admitted.
+
 Lemma procMsg_bc_prefix_or_fork bc bc':
   forall (s1 : State) (m : Message) (ts : Timestamp),
     let: s2 := (procMsg s1 m ts).1 in
