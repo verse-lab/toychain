@@ -322,8 +322,8 @@ case: Iw=>_ [GStabW|GSyncW].
     move=>iMs Bm Dst. rewrite/holds/localState findU ?(proj1 Cw)=>/=;
     rewrite [procMsg _ _ _] surjective_pairing Msg /procMsg in P.
     contradict iMs.
-    case: P. move=>_ <-.
-    (* HERE!!! *)
+    case: P; move=>_ <-; clear Fw; case: st1=>????/=; rewrite /emitZero.
+    by clear Dst; case: p0 Bm=>//=???->/=; rewrite inE=>/eqP.
 
 
     case X: (n' == dst p); move/eqP in X; subst n';
