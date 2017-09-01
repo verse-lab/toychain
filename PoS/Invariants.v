@@ -179,7 +179,8 @@ Definition available (blocks : seq Block) n w :=
     [\/ exists (peer : nid) (sh : seq Hash),
          msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh,
        exists (hash : Hash),
-         msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash |
+         msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash /\
+         holds (dst p ) w (fun st => b \in blockTree st) |
        msg p = BlockMsg b /\ dst p = n
     ].
 
@@ -240,16 +241,19 @@ case: Iw=>_ [GStabW|GSyncW].
 - by case GStabW=>noPackets; contradict iF; rewrite noPackets.
 - case GSyncW=>can_bc [can_n] [] HHold HGt HInFlight HDiffAv.
   case P: (procMsg _ _ _)=>[stPm ms]; move=>->; right.
-  case Msg: (msg p)=>[|||b|||]; rewrite Msg in P.
-  (* For non-block messages, the canonical chain is guaranteed to remain the same *)
+  case Msg: (msg p)=>[|to||b|||].
+  (* The canonical chain is guaranteed to remain the same for any msg:
+   *  - for non-block messages, this holds by procMsg_non_block_nc_btChain
+   *  - for block messages, it holds by HInFlight *)
   assert (forall b, msg p != BlockMsg b) by (move=>b; rewrite Msg; by []).
   exists can_bc; exists can_n; split.
   (* ... the original node still retains it *)
   + rewrite/holds/localState/has_chain=>st'; case X: (can_n == dst p); move/eqP in X.
-    * subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP; do? by [move/eqP].
-      by move=>_ [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
-         rewrite Msg P=><-; apply (HHold st1 Fw).
-    * rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; do? by[move/eqP].
+    * subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP; last by move/eqP.
+        by move=>_ [] <-; rewrite Msg in P;
+           move: (procMsg_non_block_nc_btChain st1 (ts q) H);
+           rewrite Msg P=><-; apply (HHold st1 Fw).
+    * rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; first by move/eqP.
       by move=>_ Fc; move: (HHold st' Fc).
   (* ... it's still the largest *)
   + rewrite/holds/localState/has_chain=>n' bc' st';
@@ -257,7 +261,8 @@ case: Iw=>_ [GStabW|GSyncW].
     rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; move/eqP;
     by [
       move=>_ Fc; move: (HGt n' bc' st' Fc) |
-      move=>Eq [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
+      move=>Eq [] <-; rewrite Msg in P;
+      move: (procMsg_non_block_nc_btChain st1 (ts q) H);
       rewrite /has_chain Msg P=><-; rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)
     ].
   (* ... no surprise blocks in the packet soup *)
@@ -273,11 +278,13 @@ case: Iw=>_ [GStabW|GSyncW].
         (* inductive case -- msg p is applied, THEN b0 is applied *)
         rewrite findU X/= ?(proj1 Cw)=>/=[][]<-.
         have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw.
-        move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw).
+        move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw); rewrite Msg in P.
         by move: (procMsg_non_block_nc_blockTree st1 (ts q) H); rewrite Msg P=>/= <-.
     (* p0 is a newly emitted message *)
-    * case: st1 P Fw=>/=id peers bt tp[]-> Z2 F; subst ms; rewrite inE=>/eqP=>Z.
-      subst p0=>Bm[s]/=[F']H'; by contradict Bm.
+    (* TODO: do this without contradiction, so it holds for all message types *)
+    * move=>iMs Bm Dst; rewrite/holds/localState findU ?(proj1 Cw)=>/=.
+      rewrite Msg /procMsg in P.
+      admit.
   (* ... the difference remains available *)
   + move=>n' bc' st'. case X: (n' == dst p ); last first.
       (* n' sees no change from last state *)
@@ -289,15 +296,24 @@ case: Iw=>_ [GStabW|GSyncW].
       * move=>[MInv0] [dst0] hash0. exists p0; split.
         rewrite mem_cat orbC. apply/orP. left. (*(X & dst0 => p != p0) + iF0*) admit.
         by constructor 1; exists pr0, sh.
-      * move=>[MGD0] [src0] hash0. case Dlv: (p == p0).
+      * move=>[MGD0] [src0] [hash0] ExN; case Dlv: (p == p0).
         (* If p0 was delivered, then there should be a new BlockMsg for us in ms *)
+        move/eqP in Dlv; rewrite Dlv MGD0 in P; rewrite Dlv in Fw; move: P.
+        rewrite/procMsg. move: (ExN st1 Fw)=>/eqP iBT. rewrite -hash0.
+        (* Since hashB is inj, b = b0 => emitOne BlockMsg b0  where dst := n' *)
         admit.
         (* Otherwise, p0 remains in soup *)
-        admit.
+        exists p0; split.
+        rewrite mem_cat orbC; apply/orP. left. (* Given Dlv and iF0 *) admit.
+        constructor 2; exists hash; do? [split; first done].
+        rewrite/holds/localState=>st0. rewrite findU ?(proj1 Cw)=>/=.
+        (* Given Dlv and Exn *) admit.
       * move=>dst0. exists p0. split.
         rewrite mem_cat orbC. apply/orP. left. (*(X & dst0 => p != p0) + iF0*) admit.
         by constructor 3.
       (* n' state updated *)
       admit.
 
+(* the canonical chain can only change throught a MintT transition *)
+- admit.
 Admitted.
