@@ -8,6 +8,19 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(***************************************************)
+(*        Some useful facts about lists            *)
+(***************************************************)
+
+Lemma rem_neq {T: eqType} (x y :T) (ls : seq T) :
+  x != y -> x \in ls -> x \in seq.rem y ls.
+Proof.
+move=>N; elim: ls=>//h ls Hi.
+rewrite inE; case/orP=>//=.
+- by move/eqP=>Z; subst h; move/negbTE: N=>->; rewrite inE eqxx.
+by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.        
+Qed.
+
 (* Invariants of the execution regarding the blockchain *)
 (* Properties *)
 
@@ -339,24 +352,33 @@ case: Iw=>_ [GStabW|GSyncW].
       move=>_ H1 H2. rewrite/available/inFlightMsgs. move=>b0 diffIF.
       move: (HDiffAv n' bc' st' H1 H2 b0 diffIF)=>[p0] [iF0] HStage.
       case: HStage=>[[pr0] [sh]|[hash]|[block]].
-      * move=>[MInv0] [dst0] hash0. exists p0; split.
-        rewrite mem_cat orbC. apply/orP. left. (*(X & dst0 => p != p0) + iF0*) admit.
-        by constructor 1; exists pr0, sh.
+      * move=>[MInv0] [dst0] hash0. exists p0.
+        split; last by constructor 1; exists pr0, sh.
+        rewrite mem_cat orbC; apply/orP; left.
+        case: (w) iF0=>ls ifM cM/= Hi.
+        suff N : (p0 != p) by rewrite (rem_neq N Hi).
+        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X. 
       * move=>[MGD0] [src0] [hash0] ExN; case Dlv: (p == p0).
         (* If p0 was delivered, then there should be a new BlockMsg for us in ms *)
         move/eqP in Dlv; rewrite Dlv MGD0 in P; rewrite Dlv in Fw; move: P.
-        rewrite/procMsg. move: (ExN st1 Fw)=>/eqP iBT. rewrite -hash0.
+        rewrite/procMsg; move: (ExN st1 Fw)=>/eqP iBT; rewrite -hash0.
         (* Since hashB is inj, b = b0 => emitOne BlockMsg b0  where dst := n' *)
         admit.
         (* Otherwise, p0 remains in soup *)
         exists p0; split.
-        rewrite mem_cat orbC; apply/orP. left. (* Given Dlv and iF0 *) admit.
+        - rewrite mem_cat orbC; apply/orP; left. (* Given Dlv and iF0 *)
+          case: (w) iF0=>ls ifM cM/= Hi.
+          suff N : (p0 != p) by rewrite (rem_neq N Hi).
+          by rewrite eq_sym in Dlv; move/negbT: Dlv.
         constructor 2; exists hash; do? [split; first done].
         rewrite/holds/localState=>st0. rewrite findU ?(proj1 Cw)=>/=.
         (* Given Dlv and Exn *) admit.
-      * move=>dst0. exists p0. split.
-        rewrite mem_cat orbC. apply/orP. left. (*(X & dst0 => p != p0) + iF0*) admit.
-        by constructor 3.
+      * move=>dst0; exists p0; split; last by constructor 3.
+        rewrite mem_cat orbC; apply/orP; left.
+        case: (w) iF0=>ls ifM cM/= Hi.
+        suff N : (p0 != p) by rewrite (rem_neq N Hi).
+        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X. 
+        
       (* n' state updated *)
       admit.
 
