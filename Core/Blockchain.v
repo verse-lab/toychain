@@ -170,11 +170,25 @@ Axiom btExtend_withNew_sameOrBetter :
       b \in btChain bt' = (btChain bt' > btChain bt).
 
 Axiom btExtend_withNew_mem :
-  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
+  forall (bt : BlockTree) (b : Block),
+    let bc := btChain bt in
     let: bc' := btChain (btExtend bt b) in
-    btChain bt = bc ->
     b \notin bc ->
     bc != bc' = (b \in bc').
+
+Lemma btExtend_not_worse :
+  forall (bt : BlockTree) (b : Block),
+    ~ (btChain bt > btChain (btExtend bt b)).
+Proof.
+move=>bt b; case H: (b \in bt).
+by move: (btExtend_withDup_noEffect H)=><-; apply: CFR_nrefl.
+have: (btChain (btExtend bt b) > btChain bt).
+move/negP/negP in H; move: (btExtend_withNew_sameOrBetter H)=><-.
+move: (btExtend_withNew_mem (btChain_mem H))=><-.
+(* This is essentially a new axiom; it's probably time to just write
+    a blocktree implementation and prove these facts about it.
+ *)
+Admitted.
 
 Axiom tpExtend_validAndConsistent :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),

@@ -339,9 +339,9 @@ move=>s1; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc h
     move/negbT/btChain_mem in B'. rewrite hbc in B'. rewrite -hbc' in E.
     move/negbT in E. specialize (btChain_fork hbc B' E)=> F. split. right.
     by rewrite -hbc in F; apply F.
-    move: (btExtend_withNew_sameOrBetter B)=><-.
-    move: (btExtend_withNew_mem hbc B')=><-. rewrite hbc' in F *.
-    by move: (bc_fork_neq F).
+    move: (btExtend_withNew_sameOrBetter B)=><-. rewrite -hbc in B'.
+    move: (btExtend_withNew_mem B')=><-. rewrite hbc' in F.
+    by rewrite hbc hbc'; move: (bc_fork_neq F).
 
 - destruct s1=>/=. case (ohead _ ). rewrite /blockTree in hbc *=>/=.
   + move=> _ hbc'. rewrite hbc in hbc'.

@@ -282,7 +282,7 @@ case: Iw=>_ [GStabW|GSyncW].
     * by move: (procMsg_block_btExtend st1 b (ts q))=>->.
     * move=>Con. contradict Con.
       rewrite/has_chain in HHold; move/eqP in HHold; rewrite -HHold.
-      admit.
+      by apply btExtend_not_worse.
 
  (* ... it's still the largest *)
   + case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
