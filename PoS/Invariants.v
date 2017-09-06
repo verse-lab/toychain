@@ -18,7 +18,7 @@ Proof.
 move=>N; elim: ls=>//h ls Hi.
 rewrite inE; case/orP=>//=.
 - by move/eqP=>Z; subst h; move/negbTE: N=>->; rewrite inE eqxx.
-by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.        
+by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.
 Qed.
 
 (* Invariants of the execution regarding the blockchain *)
@@ -48,11 +48,7 @@ case/um_eta=>st[Sf]_ nbc nbc'.
 by move: (nbc st Sf) (nbc' st Sf)=>/eqP<-/eqP->.
 Qed.
 
-(*
-TODO:
-
-2. More complicated: the "rollback" is no more than a contstant;
-
+(* TODO: More complicated -- the "rollback" is no more than a contstant;
  *)
 
 Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
@@ -282,7 +278,7 @@ case: Iw=>_ [GStabW|GSyncW].
     * by move: (procMsg_block_btExtend st1 b (ts q))=>->.
     * move=>Con. contradict Con.
       rewrite/has_chain in HHold; move/eqP in HHold; rewrite -HHold.
-      by apply btExtend_not_worse.
+      by apply btExtend_btChain_not_worse.
 
  (* ... it's still the largest *)
   + case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
@@ -341,6 +337,14 @@ case: Iw=>_ [GStabW|GSyncW].
       move: (procMsg_no_block_in_ms iMs Bm)=>Con;
       by contradict Con; rewrite Msg
     ].
+    move/eqP in X; rewrite X findU ?(proj1 Cw)=>/=; case: ifP; last by move/eqP.
+    move=>_ [] <-.
+    (* blockTree stPm = btExtend (blockTree st1) b *)
+    have: (blockTree stPm = btExtend (blockTree st1) b).
+    by rewrite [procMsg _ _ _] surjective_pairing Msg in P; case: P=><- _;
+    rewrite/procMsg=>/=; clear Fw; case: st1=>????/=.
+    move=>->.
+    (* Do we need to know that order of btExtends doesn't matter ? *)
     admit.
     admit.
 
@@ -357,7 +361,7 @@ case: Iw=>_ [GStabW|GSyncW].
         rewrite mem_cat orbC; apply/orP; left.
         case: (w) iF0=>ls ifM cM/= Hi.
         suff N : (p0 != p) by rewrite (rem_neq N Hi).
-        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X. 
+        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X.
       * move=>[MGD0] [src0] [hash0] ExN; case Dlv: (p == p0).
         (* If p0 was delivered, then there should be a new BlockMsg for us in ms *)
         move/eqP in Dlv; rewrite Dlv MGD0 in P; rewrite Dlv in Fw; move: P.
@@ -377,8 +381,8 @@ case: Iw=>_ [GStabW|GSyncW].
         rewrite mem_cat orbC; apply/orP; left.
         case: (w) iF0=>ls ifM cM/= Hi.
         suff N : (p0 != p) by rewrite (rem_neq N Hi).
-        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X. 
-        
+        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X.
+
       (* n' state updated *)
       admit.
 
