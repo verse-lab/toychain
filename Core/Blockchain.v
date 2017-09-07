@@ -11,7 +11,7 @@ Unset Printing Implicit Defensive.
 
 Definition Address := nat.
 Definition Timestamp := nat.
-Definition Hash := nat.
+Definition Hash := [ordType of nat].
 
 Parameter Stake : eqType.
 Parameter VProof : eqType.
@@ -87,7 +87,7 @@ Export TxEq.
  *****************************)
 
 (* Also keeps orphan blocks *)
-Definition BlockTree := union_map [ordType of Hash] Block.
+Definition BlockTree := union_map Hash Block.
 Definition btHasBlock (bt : BlockTree) (b : Block) := hashB b \in dom bt.
 
 (* How can we assert there are no cycles? *)
@@ -98,17 +98,40 @@ Definition btExtend :=
  * Sylvain suggested removing top from bt before passing it
  *  into the recursive call. Not sure if it will work.
  *)
-Fixpoint _chain_from (bt : BlockTree) (top : Block) : option Blockchain :=
+
+Fixpoint _chain_from' (bt : BlockTree) (top : Block) (n : nat) :
+  option Blockchain :=
   match find (prevBlockHash top) bt with
   | None => None
   | Some prev =>
-    if prev == GenesisBlock then Some [:: GenesisBlock]
-    else
-      match _chain_from bt prev with
-      | None => None
-      | Some pr_chain => Some (pr_chain ++ [:: prev] ++ [:: top])
-      end
+    if n is n'.+1 then
+      if prev == GenesisBlock then Some [:: GenesisBlock]
+      else
+        (* It's not really important whether you remove top or not
+           since you only give some constant amount of "fuel" to your function. *)
+        (* let pv := _chain_from' (free (hashB top) bt) prev n' in *)
+        let pv := _chain_from' bt prev n' in
+        match pv with
+        | None => None
+        | Some pr_chain => Some (rcons (rcons pr_chain prev) top)
+        end
+    else None
   end.
+
+Definition _chain_from bt top :=
+  _chain_from' bt top (size (keys_of bt)) .
+
+(* Fixpoint _chain_from (bt : BlockTree) (top : Block) : option Blockchain := *)
+(*   match find (prevBlockHash top) bt with *)
+(*   | None => None *)
+(*   | Some prev => *)
+(*     if prev == GenesisBlock then Some [:: GenesisBlock] *)
+(*     else *)
+(*       match _chain_from bt prev with *)
+(*       | None => None *)
+(*       | Some pr_chain => Some (pr_chain ++ [:: prev] ++ [:: top]) *)
+(*       end *)
+(*   end. *)
 
 
 (* btChain:
