@@ -99,40 +99,71 @@ Definition btExtend :=
  *  into the recursive call. Not sure if it will work.
  *)
 
-Fixpoint _chain_from' (bt : BlockTree) (top : Block) (n : nat) :
+Section BlockTreeProperties.
+
+Variable bt: BlockTree.
+
+(* b' is the previous of b in bt *)
+Definition is_prev_in b : pred Block :=
+  [pred b' | (hashB b' == prevBlockHash b) && (hashB b' \in dom bt)].
+
+(* Genesis block is in the beginning *)
+(* Are these basic conditions *)
+Definition is_valid_chain_from b bc : Prop :=
+  [/\ path is_prev_in b bc,
+   (exists bc', bc = rcons bc' GenesisBlock) &
+   uniq (map hashB bc)].
+
+(* Fixpoint build_chain_from b := *)
+  
+
+(* Now state what does it mean for a BlockTree to be valid:
+
+- define a total function (non-option-retur) to get a chain from a block
+
+- establish that for any block in BT its chain is valid
+
+ *)
+
+Definition valid_bt : Prop :=
+  [/\ find (hashB GenesisBlock) bt = Some (GenesisBlock),
+   forall h b, find h bt = Some b -> h = hashB b &
+   (* TODO: Add more *)                                  
+   True                                  
+  ].
+
+End BlockTreeProperties.
+
+
+Fixpoint _chain_from' (bt : BlockTree) (cur : Block) (n : nat) :
   option Blockchain :=
-  match find (prevBlockHash top) bt with
+  match find (prevBlockHash cur) bt with
   | None => None
   | Some prev =>
     if n is n'.+1 then
-      if prev == GenesisBlock then Some [:: GenesisBlock]
-      else
-        (* It's not really important whether you remove top or not
+      (* It's not really important whether you remove top or not
            since you only give some constant amount of "fuel" to your function. *)
-        (* let pv := _chain_from' (free (hashB top) bt) prev n' in *)
-        let pv := _chain_from' bt prev n' in
-        match pv with
-        | None => None
-        | Some pr_chain => Some (rcons (rcons pr_chain prev) top)
-        end
-    else None
+      let pv := _chain_from' (free (hashB cur) bt) prev n' in
+      (* let pv := _chain_from' bt prev n' in *)
+      match pv with
+      | None => None
+      | Some chain => Some (rcons chain prev)
+      end
+    else None (* Out of fuel *)
   end.
 
-Definition _chain_from bt top :=
-  _chain_from' bt top (size (keys_of bt)) .
+Definition _chain_from bt cur :=
+  if cur == GenesisBlock
+  then Some [:: cur] 
+  else match _chain_from' bt cur (size (keys_of bt)) with
+       | None => None
+       | Some chain => (Some (rcons chain cur))
+       end.
 
-(* Fixpoint _chain_from (bt : BlockTree) (top : Block) : option Blockchain := *)
-(*   match find (prevBlockHash top) bt with *)
-(*   | None => None *)
-(*   | Some prev => *)
-(*     if prev == GenesisBlock then Some [:: GenesisBlock] *)
-(*     else *)
-(*       match _chain_from bt prev with *)
-(*       | None => None *)
-(*       | Some pr_chain => Some (pr_chain ++ [:: prev] ++ [:: top]) *)
-(*       end *)
-(*   end. *)
-
+(* You will probably need to assert that there is no cycles in this, *)
+(* i.e., BlockTree is a tree -- let me know if you need help with
+   this. *)
+   
 
 (* btChain:
  *  - find all possible tops: ~ exists b, b \in bt -> prevBlockHash b == top
