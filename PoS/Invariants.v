@@ -18,7 +18,7 @@ Proof.
 move=>N; elim: ls=>//h ls Hi.
 rewrite inE; case/orP=>//=.
 - by move/eqP=>Z; subst h; move/negbTE: N=>->; rewrite inE eqxx.
-by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.        
+by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.
 Qed.
 
 Lemma in_rem_msg p0 p ms w :
@@ -69,11 +69,7 @@ case/um_eta=>st[Sf]_ nbc nbc'.
 by move: (nbc st Sf) (nbc' st Sf)=>/eqP<-/eqP->.
 Qed.
 
-(*
-TODO:
-
-2. More complicated: the "rollback" is no more than a contstant;
-
+(* TODO: More complicated -- the "rollback" is no more than a contstant;
  *)
 
 Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
@@ -362,6 +358,14 @@ case: Iw=>_ [GStabW|GSyncW].
       move: (procMsg_no_block_in_ms iMs Bm)=>Con;
       by contradict Con; rewrite Msg
     ].
+    move/eqP in X; rewrite X findU ?(proj1 Cw)=>/=; case: ifP; last by move/eqP.
+    move=>_ [] <-.
+    (* blockTree stPm = btExtend (blockTree st1) b *)
+    have: (blockTree stPm = btExtend (blockTree st1) b).
+    by rewrite [procMsg _ _ _] surjective_pairing Msg in P; case: P=><- _;
+    rewrite/procMsg=>/=; clear Fw; case: st1=>????/=.
+    move=>->.
+    (* Do we need to know that order of btExtends doesn't matter ? *)
     admit.
     admit.
 
@@ -393,7 +397,6 @@ case: Iw=>_ [GStabW|GSyncW].
         (* Given Dlv and Exn *) admit.
       * move=>dst0; exists p0; split; last by constructor 3.
         by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in X.
-        
       (* n' state updated *)
       admit.
 
