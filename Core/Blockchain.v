@@ -11,9 +11,9 @@ Unset Printing Implicit Defensive.
 
 Definition Address := nat.
 Definition Timestamp := nat.
+Definition Hash := nat.
 
 Parameter Stake : eqType.
-Parameter Hash : eqType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter hashT : Transaction -> Hash.
@@ -48,18 +48,6 @@ Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (CFR_gt A B).
 Notation "A >= B" := (A = B \/ A > B).
 
-(* Also keeps orphan blocks *)
-Definition BlockTree := seq Block.
-
-Parameter btExtend : BlockTree -> Block -> BlockTree.
-Parameter btChain : BlockTree -> Blockchain.
-
-Definition TxPool := seq Transaction.
-
-(* Transaction is valid and consistent with the given chain. *)
-Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
-
 (* Axioms *)
 (* Is it realistic? *)
 Axiom hashB_inj : injective hashB.
@@ -80,22 +68,6 @@ Canonical Block_eqType := Eval hnf in EqType Block Block_eqMixin.
 End BlockEq.
 Export BlockEq.
 
-Fixpoint bcPrev (b : Block) (bc : Blockchain) : Block :=
-  match bc with
-  | [::] => GenesisBlock
-  | prev :: ((b' :: bc') as bcc) =>
-    if b' == b then prev else bcPrev b bcc
-  | _ :: bc' => bcPrev b bc'
-  end.
-
-Fixpoint bcSucc (b : Block) (bc : Blockchain) : option Block :=
-  match bc with
-  | [::] => None
-  | b' :: ((succ :: bc') as bcc) =>
-    if b' == b then Some succ else bcSucc b bcc
-  | _ :: bc' => bcSucc b bc'
-  end.
-
 Module TxEq.
 Lemma eq_txP : Equality.axiom eq_tx.
 Proof.
@@ -108,6 +80,55 @@ Canonical Tx_eqMixin := Eval hnf in EqMixin eq_txP.
 Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
+
+
+(*****************************
+ *  BlockTree implementation *
+ *****************************)
+
+(* Also keeps orphan blocks *)
+Definition BlockTree := union_map [ordType of Hash] Block.
+Definition btHasBlock (bt : BlockTree) (b : Block) := hashB b \in dom bt.
+
+(* How can we assert there are no cycles? *)
+Definition btExtend :=
+  fun (bt : BlockTree) (b : Block) => bt \+ (hashB b \\-> b).
+
+(* How to show this terminates?
+ * Sylvain suggested removing top from bt before passing it
+ *  into the recursive call. Not sure if it will work.
+ *)
+Fixpoint _chain_from (bt : BlockTree) (top : Block) : option Blockchain :=
+  match find (prevBlockHash top) bt with
+  | None => None
+  | Some prev =>
+    if prev == GenesisBlock then Some [:: GenesisBlock]
+    else
+      match _chain_from bt prev with
+      | None => None
+      | Some pr_chain => Some (pr_chain ++ [:: prev] ++ [:: top])
+      end
+  end.
+
+
+(* btChain:
+ *  - find all possible tops: ~ exists b, b \in bt -> prevBlockHash b == top
+ *  - compute _chain_from all tops
+ *  - return greatest such chain (according to CFR)
+ *)
+
+Parameter btChain : BlockTree -> BlockChain.
+
+(**************************
+ *  TxPool implementation *
+ **************************)
+Definition TxPool := seq Transaction.
+
+(* Transaction is valid and consistent with the given chain. *)
+Parameter txValid : Transaction -> Blockchain -> bool.
+Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
+
+
 
 Axiom VAF_inj :
   forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
