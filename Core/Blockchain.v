@@ -176,11 +176,10 @@ Axiom btExtend_withNew_mem :
     b \notin bc ->
     bc != bc' = (b \in bc').
 
-Lemma btExtend_not_worse :
-  forall (bt : BlockTree) (b : Block),
+Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
     ~ (btChain bt > btChain (btExtend bt b)).
 Proof.
-move=>bt b; case H: (b \in bt).
+case H: (b \in bt).
 by move: (btExtend_withDup_noEffect H)=><-; apply: CFR_nrefl.
 have: (btChain (btExtend bt b) > btChain bt).
 move/negP/negP in H; move: (btExtend_withNew_sameOrBetter H)=><-.

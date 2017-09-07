@@ -21,6 +21,27 @@ rewrite inE; case/orP=>//=.
 by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.        
 Qed.
 
+Lemma in_rem_msg p0 p ms w :
+  p0 \in inFlightMsgs w -> p0 <> p ->
+  p0 \in ms ++ seq.rem p (let (_, inFlightMsgs, _) := w in inFlightMsgs).
+Proof.
+move=>iF0 E; rewrite mem_cat orbC; apply/orP; left.
+case: (w) iF0=>ls ifM cM/= Hi.
+suff N : (p0 != p) by rewrite (rem_neq N Hi).
+by apply/negP=>/eqP Z; subst p0. 
+Qed.
+
+Lemma ohead_hash b0 bt:
+  b0 \in bt ->
+  ohead [seq b <- bt | hashB b == hashB b0] = Some b0.
+Proof.
+elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
+- by subst b0; rewrite eqxx.
+by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
+Qed.
+
+(***************************************************)
+
 (* Invariants of the execution regarding the blockchain *)
 (* Properties *)
 
@@ -345,43 +366,38 @@ case: Iw=>_ [GStabW|GSyncW].
     admit.
 
  (* ... the difference remains available *)
-  + move=>n' bc' st'. case X: (n' == dst p ); last first.
+  + move=>n' bc' st'; case X: (n' == dst p ); last first.
       (* n' sees no change from last state *)
       rewrite findU ?(proj1 Cw)=>/=; case: ifP.
       by move/eqP in X; move/eqP=>Con; contradict Con.
       move=>_ H1 H2. rewrite/available/inFlightMsgs. move=>b0 diffIF.
       move: (HDiffAv n' bc' st' H1 H2 b0 diffIF)=>[p0] [iF0] HStage.
       case: HStage=>[[pr0] [sh]|[hash]|[block]].
-      * move=>[MInv0] [dst0] hash0. exists p0.
+      * move=>[MInv0] [dst0] hash0; exists p0.
         split; last by constructor 1; exists pr0, sh.
-        rewrite mem_cat orbC; apply/orP; left.
-        case: (w) iF0=>ls ifM cM/= Hi.
-        suff N : (p0 != p) by rewrite (rem_neq N Hi).
-        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X. 
+        by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in X. 
       * move=>[MGD0] [src0] [hash0] ExN; case Dlv: (p == p0).
         (* If p0 was delivered, then there should be a new BlockMsg for us in ms *)
         move/eqP in Dlv; rewrite Dlv MGD0 in P; rewrite Dlv in Fw; move: P.
         rewrite/procMsg; move: (ExN st1 Fw)=>/eqP iBT; rewrite -hash0.
         (* Since hashB is inj, b = b0 => emitOne BlockMsg b0  where dst := n' *)
-        admit.
+        subst hash p0 n'; case: st1 Fw iBT =>id ps bt txp/= Fw iBT.
+        move/eqP:iBT=>iBT; rewrite ohead_hash//; case=>??; subst ms stPm=>/=.
+        exists {| src := id; dst := src p; msg := BlockMsg b0 |}.
+        by split; [by rewrite inE eqxx|by constructor 3].
         (* Otherwise, p0 remains in soup *)
         exists p0; split.
-        - rewrite mem_cat orbC; apply/orP; left. (* Given Dlv and iF0 *)
-          case: (w) iF0=>ls ifM cM/= Hi.
-          suff N : (p0 != p) by rewrite (rem_neq N Hi).
-          by rewrite eq_sym in Dlv; move/negbT: Dlv.
+        by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in Dlv.
         constructor 2; exists hash; do? [split; first done].
-        rewrite/holds/localState=>st0. rewrite findU ?(proj1 Cw)=>/=.
+        rewrite/holds/localState=>st0; rewrite findU ?(proj1 Cw)=>/=.
         (* Given Dlv and Exn *) admit.
       * move=>dst0; exists p0; split; last by constructor 3.
-        rewrite mem_cat orbC; apply/orP; left.
-        case: (w) iF0=>ls ifM cM/= Hi.
-        suff N : (p0 != p) by rewrite (rem_neq N Hi).
-        by apply/negP=>/eqP Z; subst p0 n'; rewrite eqxx in X. 
+        by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in X.
         
       (* n' state updated *)
       admit.
 
 (* the canonical chain can only change throught a MintT transition *)
+(* TODO: refactor it into a lemma *)
 - admit.
 Admitted.
