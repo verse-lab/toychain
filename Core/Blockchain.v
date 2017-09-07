@@ -119,7 +119,7 @@ Definition is_valid_chain_from b bc : Prop :=
 
 (* Now state what does it mean for a BlockTree to be valid:
 
-- define a total function (non-option-retur) to get a chain from a block
+- define a total function (non-option-returning) to get a chain from a block
 
 - establish that for any block in BT its chain is valid
 
