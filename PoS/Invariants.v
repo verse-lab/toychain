@@ -394,7 +394,13 @@ case: Iw=>_ [GStabW|GSyncW].
         by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in Dlv.
         constructor 2; exists hash; do? [split; first done].
         rewrite/holds/localState=>st0; rewrite findU ?(proj1 Cw)=>/=.
-        (* Given Dlv and Exn *) admit.
+        (* Given Dlv and Exn *)
+        case: ifP=>[/eqP C|C]; last by move/ExN.  
+        case=>?; subst stPm; rewrite C in ExN.
+        move: (ExN st1 Fw)=>iBT{ExN}.
+        rewrite [procMsg _ _ _] surjective_pairing in P.
+        case: P=>??; subst st0 ms. 
+        by apply/procMsg_block_in_blockTree. 
       * move=>dst0; exists p0; split; last by constructor 3.
         by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in X.
       (* n' state updated *)

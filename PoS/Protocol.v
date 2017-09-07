@@ -244,6 +244,18 @@ rewrite/procMsg=>//; destruct s1.
 case: (ohead  _); first by []. case (ohead _); by [].
 Qed.
 
+Lemma procMsg_block_in_blockTree
+  (s1 : State) (m : Message) (ts : Timestamp):
+  {subset blockTree s1 <= blockTree (procMsg s1 m ts).1}.
+Proof.
+case: m=>[|p prs|p|b|t|p sh|p h];
+do? by[rewrite/procMsg; destruct s1=>/=]; last first.
+- rewrite -procMsg_non_block_nc_blockTree=>//.
+case: s1=>id ps bt' tp/= z. 
+(* TODO: implement btExtend!!! *)
+admit.
+Admitted.
+
 Lemma procMsg_non_block_nc_btChain :
   forall (s1 : State) (m : Message) (ts : Timestamp),
     let: s2 := (procMsg s1 m ts).1 in
