@@ -87,12 +87,23 @@ Export TxEq.
  *****************************)
 
 (* Also keeps orphan blocks *)
-Definition BlockTree := union_map Hash Block.
-Definition btHasBlock (bt : BlockTree) (b : Block) := hashB b \in dom bt.
+Record BlockTree :=
+  BT { (* define as implicit conversions*)
+      bmap :> union_map Hash Block;
+      tops :> seq Block}.
+
+Definition btHasBlock (bt : BlockTree) (b : Block) :=
+  hashB b \in dom (bmap bt).
 
 (* How can we assert there are no cycles? *)
-Definition btExtend :=
-  fun (bt : BlockTree) (b : Block) => bt \+ (hashB b \\-> b).
+(* You only add "fresh blocks" *)
+Definition btExtend (bt : BlockTree) (b : Block) :=
+  let new_bm   := (bmap bt) \+ (hashB b \\-> b) in
+  let prhash   := prevBlockHash b in
+  (* Remove top that is no longer on top :) *)
+  let rm_top   := filter (fun c => hashB c == prhash) (tops bt) in
+  let new_tops := b :: rm_top in
+  BT new_bm new_tops.
 
 (* How to show this terminates?
  * Sylvain suggested removing top from bt before passing it
@@ -103,75 +114,67 @@ Section BlockTreeProperties.
 
 Variable bt: BlockTree.
 
-(* b' is the previous of b in bt *)
-Definition is_prev_in b : pred Block :=
-  [pred b' | (hashB b' == prevBlockHash b) && (hashB b' \in dom bt)].
+Notation bm := (bmap bt).
+Notation tps := (tops bt).
+
+(* b is the previous of b' in bt: 
+.... b <-- b' ....
+*)
+Definition next_of b : pred Block :=
+  [pred b' | (hashB b == prevBlockHash b') && (hashB b' \in dom bm)].
+
+(* All paths/chains should start with the GenesisBlock *)
+Fixpoint compute_chain' (b : Block) (n : nat) : Blockchain :=
+  if n is n'.+1
+  then match find (prevBlockHash b) bm with
+       | None => [:: b]
+       | Some prev => rcons (compute_chain' prev n') prev
+       end
+  else [::].
+
+Definition compute_chain b := compute_chain' b (size (keys_of bm)).  
 
 (* Genesis block is in the beginning *)
-(* Are these basic conditions *)
-Definition is_valid_chain_from b bc : Prop :=
-  [/\ path is_prev_in b bc,
-   (exists bc', bc = rcons bc' GenesisBlock) &
+(* Are these basic conditions? *)
+Definition valid_chain bc : Prop :=
+  [/\
+   (* Evey chain is a path in bt.bm starting from GenesisBlock *)
+   path next_of GenesisBlock bc,
+   (* Every block in the chain is also in bm *)
+   forall b, b \in bc -> find (hashB b) bm = Some b &
+   (* Every block/hash in the chain is unique *)                      
    uniq (map hashB bc)].
 
-(* Fixpoint build_chain_from b := *)
-  
-
-(* Now state what does it mean for a BlockTree to be valid:
-
-- define a total function (non-option-returning) to get a chain from a block
-
-- establish that for any block in BT its chain is valid
-
- *)
-
 Definition valid_bt : Prop :=
-  [/\ find (hashB GenesisBlock) bt = Some (GenesisBlock),
-   forall h b, find h bt = Some b -> h = hashB b &
-   (* TODO: Add more *)                                  
-   True                                  
-  ].
+  [/\
+   (* The map has a genesis block *)
+   find (hashB GenesisBlock) bm = Some (GenesisBlock),
+   (* Every key in bm is a hash *)
+   forall h b, find h bm = Some b -> h = hashB b,
+   (* A chain from every block is a valid one *)
+   forall h b, find h bm = Some b -> valid_chain (compute_chain b) &
+   (* Tops are indeed on top *)                                    
+   forall b, b \in tps ->
+     forall h' b', find h' bm = Some b' -> prevBlockHash b' != hashB b].
+
+(* TODO: provide "getter" lemmas to extract specific conjuncts *)
+
+Definition btChain : Blockchain :=
+  let all_top_chains := [seq compute_chain top | top <- tps] in
+  foldl (fun bc1 bc2 => if bc2 > bc1 then bc2 else bc1)
+        [::] all_top_chains.
 
 End BlockTreeProperties.
 
+(* Facts about BlockTree manipulations *)
 
-Fixpoint _chain_from' (bt : BlockTree) (cur : Block) (n : nat) :
-  option Blockchain :=
-  match find (prevBlockHash cur) bt with
-  | None => None
-  | Some prev =>
-    if n is n'.+1 then
-      (* It's not really important whether you remove top or not
-           since you only give some constant amount of "fuel" to your function. *)
-      let pv := _chain_from' (free (hashB cur) bt) prev n' in
-      (* let pv := _chain_from' bt prev n' in *)
-      match pv with
-      | None => None
-      | Some chain => Some (rcons chain prev)
-      end
-    else None (* Out of fuel *)
-  end.
-
-Definition _chain_from bt cur :=
-  if cur == GenesisBlock
-  then Some [:: cur] 
-  else match _chain_from' bt cur (size (keys_of bt)) with
-       | None => None
-       | Some chain => (Some (rcons chain cur))
-       end.
-
-(* You will probably need to assert that there is no cycles in this, *)
-(* i.e., BlockTree is a tree -- let me know if you need help with
-   this. *)
-   
-
-(* btChain:
- *  - find all possible tops: ~ exists b, b \in bt -> prevBlockHash b == top
- *  - compute _chain_from all tops
- *  - return greatest such chain (according to CFR)
- *)
-
-Parameter btChain : BlockTree -> BlockChain.
+Lemma btExtend_valid bt b :
+  let dm := (dom (bmap bt)) in 
+  valid_bt bt -> (hashB b) \notin dm ->
+  prevBlockHash b \in dm -> valid_bt (btExtend bt b).
+Proof.
+move=>/=V H1 H2; rewrite /btExtend; split=>//.
+Admitted.
 
 (**************************
  *  TxPool implementation *
@@ -181,8 +184,6 @@ Definition TxPool := seq Transaction.
 (* Transaction is valid and consistent with the given chain. *)
 Parameter txValid : Transaction -> Blockchain -> bool.
 Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
-
-
 
 Axiom VAF_inj :
   forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
