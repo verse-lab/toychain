@@ -243,12 +243,8 @@ Definition GSyncing w :=
        forall n2, holds n2 w (fun st' =>
          b \in blockTree st' \/ available b n2 w))].
 
-     (* exists_and_holds n1 w (fun st => b \in blockTree st) -> *)
-     (* holds n2 w (fun st => b \in blockTree st \/ available b n2 w) *)
-
 Definition Inv (w : World) :=
-  Coh w /\
-  [\/ GStable w | GSyncing w].
+  Coh w /\ [\/ GStable w | GSyncing w].
 
 Variable N : nat.
 
