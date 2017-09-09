@@ -21,6 +21,12 @@ Inductive Message :=
   | InvMsg of nid & seq Hash
   | GetDataMsg of nid & Hash.
 
+Definition msg_block (msg : Message) : Block :=
+  match msg with
+  | BlockMsg b => b
+  | _ => GenesisBlock
+  end.
+
 Inductive InternalTransition :=
   | TxT of Transaction
   | MintT.

@@ -28,7 +28,7 @@ Proof.
 move=>iF0 E; rewrite mem_cat orbC; apply/orP; left.
 case: (w) iF0=>ls ifM cM/= Hi.
 suff N : (p0 != p) by rewrite (rem_neq N Hi).
-by apply/negP=>/eqP Z; subst p0. 
+by apply/negP=>/eqP Z; subst p0.
 Qed.
 
 Lemma ohead_hash b0 bt:
@@ -201,9 +201,7 @@ Qed.
 * For simplicity, we assume all nodes are directly connected.
 * This could be changed to incorporate a more realistic broadcast setting.
 *)
-Definition available (blocks : seq Block) n w :=
-  forall (b : Block),
-  b \in blocks ->
+Definition available (b : Block) n w :=
   exists (p : Packet),
     p \in inFlightMsgs w /\
     [\/ exists (peer : nid) (sh : seq Hash),
@@ -230,17 +228,20 @@ Definition GSyncing w :=
    (* The canonical chain is the largest in the network *)
    largest_chain w bc,
 
-   (* Blocks in flight induce either the canonical chain  or a smaller one
-    * In other words, no BlockMsg will change the canonical chain. *)
-   forall (p : Packet) (b : Block) (n' : nid) (bc' : Blockchain),
-     p \in inFlightMsgs w -> msg p = BlockMsg b -> n' = dst p ->
-     holds n' w (fun st => bc >= btChain (btExtend (blockTree st) b)) &
+   (* Applying blocks in flight will induce either the canonical
+      chain or a smaller one. *)
+   forall (n' : nid),
+    let toN' := filter (fun p => dst p == n') (inFlightMsgs w) in
+    let allBlocks := map (fun p => msg_block (msg p)) toN' in
+    forall (blocks : seq Block),
+      let bt' := fun st => foldr (fun b bt => btExtend bt b) (blockTree st) blocks in
+      {subset blocks <= allBlocks} -> holds n' w (fun st => bc >= btChain (bt' st)) &
 
-   (* The difference needed to obtain the canonical chain is available *)
-   forall (n' : nid) (bc' : Blockchain),
-     holds n' w (fun st => has_chain bc' st -> available (bc_diff bc' bc) n' w)
+   (* All blocks (in any BlockTree) are available to every node *)
+   forall (n1 n2 : nid) (b : Block),
+     exists_and_holds n1 w (fun st => b \in blockTree st) ->
+     holds n2 w (fun st => b \in blockTree st \/ available b n2 w)
 ].
-(* TODO: prove that applying difference results in canonical chain *)
 
 Definition Inv (w : World) :=
   Coh w /\
@@ -293,8 +294,10 @@ case: Iw=>_ [GStabW|GSyncW].
     (* BlockMsg *)
     rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; last by move/eqP.
     move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
-    rewrite -X in Fw; specialize (HInFlight p b can_n can_bc iF Msg X st1 Fw).
-    move=><- _; specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
+    rewrite -X in Fw; move=><- _; specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
+    (* Specialize HInFlight for just BlockMsg b *)
+    specialize (HInFlight can_n [:: b]).
+
     apply/eqP; case: HInFlight.
     * by move: (procMsg_block_btExtend st1 b (ts q))=>->.
     * move=>Con. contradict Con.
@@ -316,8 +319,11 @@ case: Iw=>_ [GStabW|GSyncW].
     ].
     (* BlockMsg *)
     * move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
-      rewrite -X in Fw; specialize (HInFlight p b can_n can_bc iF Msg X st1 Fw).
-      move=><- _; specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
+      rewrite -X in Fw; move=><- _;
+      specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
+      (* Specialize HInFlight for just BlockMsg b *)
+      specialize (HInFlight can_n [:: b]).
+
       by move/eqP=>->; move: (procMsg_block_btExtend st1 b (ts q))=>->.
     * move=>Dst; subst n'; specialize (HGt (dst p) bc' st1 Fw).
       move=>[] Eq; subst stPm; have: (dst p = dst p) by []=>Obvs;
@@ -325,86 +331,6 @@ case: Iw=>_ [GStabW|GSyncW].
       clear Obvs; rewrite/has_chain; move/eqP=><-.
       by rewrite [procMsg _ _ _] surjective_pairing in P; case: P=><- _;
          move: (procMsg_block_btExtend st1 b (ts q))=>->.
-
-  (* ... no surprise blocks in the packet soup *)
-  + case Msg: (msg p)=>[|fr knw||b|||];
-    move=>/==>p0 b0 n' bc'; rewrite mem_cat orbC; case/orP;
-    do? [
-      (* p0 is already in the packet soup *)
-      move/mem_rem=> iF0 bM0 dst0 st'; rewrite/localState;
-      case X: (dst p0 == dst p); subst n';
-      (* trivial case, no change from last state *)
-      do? [rewrite findU ?(proj1 Cw)=>/=; case: ifP;
-      by [ move/eqP in X; move/eqP=>Con; contradict Con |
-        move=>_ F0; have: (dst p0 = dst p0) by []=>Obvs;
-        apply (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st' F0)
-      ]];
-      (* inductive case -- msg p is applied, THEN b0 is applied *)
-      do? by [
-        rewrite findU X/= ?(proj1 Cw)=>/=[][]<-;
-        have: (dst p0 = dst p0) by []=>Obvs; move/eqP in X; rewrite -X in Fw;
-        move: (HInFlight p0 b0 (dst p0) bc' iF0 bM0 Obvs st1 Fw);
-        rewrite Msg in P;
-        (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
-        by move: (procMsg_non_block_nc_blockTree st1 (ts q) H);
-           rewrite Msg P=>/= <-
-      ]
-    ];
-    (* p0 is a newly emitted message *)
-    do? [
-      move=>iMs Bm Dst; rewrite/holds/localState findU ?(proj1 Cw)=>/=;
-      rewrite [procMsg _ _ _] surjective_pairing in P;
-      case: P=> PSt PMs; subst ms;
-      move: (procMsg_no_block_in_ms iMs Bm)=>Con;
-      by contradict Con; rewrite Msg
-    ].
-    move/eqP in X; rewrite X findU ?(proj1 Cw)=>/=; case: ifP; last by move/eqP.
-    move=>_ [] <-.
-    (* blockTree stPm = btExtend (blockTree st1) b *)
-    have: (blockTree stPm = btExtend (blockTree st1) b).
-    by rewrite [procMsg _ _ _] surjective_pairing Msg in P; case: P=><- _;
-    rewrite/procMsg=>/=; clear Fw; case: st1=>????/=.
-    move=>->.
-    (* Do we need to know that order of btExtends doesn't matter ? *)
-    admit.
-    admit.
-
- (* ... the difference remains available *)
-  + move=>n' bc' st'; case X: (n' == dst p ); last first.
-      (* n' sees no change from last state *)
-      rewrite findU ?(proj1 Cw)=>/=; case: ifP.
-      by move/eqP in X; move/eqP=>Con; contradict Con.
-      move=>_ H1 H2. rewrite/available/inFlightMsgs. move=>b0 diffIF.
-      move: (HDiffAv n' bc' st' H1 H2 b0 diffIF)=>[p0] [iF0] HStage.
-      case: HStage=>[[pr0] [sh]|[hash]|[block]].
-      * move=>[MInv0] [dst0] hash0; exists p0.
-        split; last by constructor 1; exists pr0, sh.
-        by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in X. 
-      * move=>[MGD0] [src0] [hash0] ExN; case Dlv: (p == p0).
-        (* If p0 was delivered, then there should be a new BlockMsg for us in ms *)
-        move/eqP in Dlv; rewrite Dlv MGD0 in P; rewrite Dlv in Fw; move: P.
-        rewrite/procMsg; move: (ExN st1 Fw)=>/eqP iBT; rewrite -hash0.
-        (* Since hashB is inj, b = b0 => emitOne BlockMsg b0  where dst := n' *)
-        subst hash p0 n'; case: st1 Fw iBT =>id ps bt txp/= Fw iBT.
-        move/eqP:iBT=>iBT; rewrite ohead_hash//; case=>??; subst ms stPm=>/=.
-        exists {| src := id; dst := src p; msg := BlockMsg b0 |}.
-        by split; [by rewrite inE eqxx|by constructor 3].
-        (* Otherwise, p0 remains in soup *)
-        exists p0; split.
-        by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in Dlv.
-        constructor 2; exists hash; do? [split; first done].
-        rewrite/holds/localState=>st0; rewrite findU ?(proj1 Cw)=>/=.
-        (* Given Dlv and Exn *)
-        case: ifP=>[/eqP C|C]; last by move/ExN.  
-        case=>?; subst stPm; rewrite C in ExN.
-        move: (ExN st1 Fw)=>iBT{ExN}.
-        rewrite [procMsg _ _ _] surjective_pairing in P.
-        case: P=>??; subst st0 ms. 
-        by apply/procMsg_block_in_blockTree. 
-      * move=>dst0; exists p0; split; last by constructor 3.
-        by subst n'; apply: in_rem_msg=>//E; subst p0; rewrite eqxx in X.
-      (* n' state updated *)
-      admit.
 
 (* the canonical chain can only change throught a MintT transition *)
 (* TODO: refactor it into a lemma *)
