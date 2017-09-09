@@ -232,10 +232,9 @@ Definition GSyncing w :=
 
    (* Applying blocks in flight will induce either the canonical
       chain or a smaller one. *)
-   forall n' blocks,
-      {subset blocks <= blocksFor n' w} ->
+   forall n',
       holds n' w (fun st =>
-         bc >= btChain (foldl btExtend (blockTree st) blocks)) &
+         bc >= btChain (foldl btExtend (blockTree st) (blocksFor n' w))) &
 
    (* All blocks (in any BlockTree) are available to every node *)
    forall n1 b,
@@ -305,9 +304,30 @@ case: Iw=>_ [GStabW|GSyncW].
     move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
     rewrite -X in Fw; move=><- _; move: (HHold st1 Fw); rewrite/has_chain eq_sym.
     (* Specialize HInFlight for just BlockMsg b *)
-    specialize (HInFlight can_n [:: b]).
+    specialize (HInFlight can_n).
     move/eqP=>?; subst can_n can_bc.
-    move/HInFlight: (block_in_blocksFor Msg iF)=>/(_ _ Fw)[]/=.
+    rewrite (procMsg_block_btExtend st1 b (ts q)).
+    move/HInFlight : (Fw)=>[|]/=.
+    * have X: b \in (blocksFor (dst p) w).
+      - apply/mapP; exists p; last by rewrite /msg_block Msg.
+        by rewrite mem_filter eqxx. 
+      have Y : btExtend (blockTree st1) b =
+               foldl btExtend (blockTree st1) [::b] by [].
+      rewrite Y; clear Y.
+      have Z: exists bx1 bx2, (blocksFor (dst p) w) = bx1 ++ b :: bx2.
+      (* Proof by induction on (blocksFor (dst p) w) *)
+      admit.
+      case: Z=>bx1[bx2]->.
+      have W: btChain (foldl btExtend (blockTree st1) [:: b]) >=
+              btChain (blockTree st1). admit.
+      case: W=>[->|]//W Z; rewrite !Z in W *; clear Z.
+      (* Prove monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
+      (* Then: contradiction out of W *)
+      admit.
+    * rewrite -(procMsg_block_btExtend st1 b (ts q)).
+      (* Provable out of properties of byExtend, which is monotone. *)
+      admit.
+      
     * by move: (procMsg_block_btExtend st1 b (ts q))=>->->.
     * by move/btExtend_not_worse.
  (* ... it's still the largest *)
