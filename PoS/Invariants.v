@@ -237,13 +237,22 @@ Definition GSyncing w :=
          bc >= btChain (foldl btExtend (blockTree st) (blocksFor n' w))) &
 
    (* All blocks (in any BlockTree) are available to every node *)
-   forall n1 b,
-     holds n1 w (fun st => b \in blockTree st ->      
-       forall n2, holds n2 w (fun st' =>
-         b \in blockTree st' \/ available b n2 w))].
+   forall n',
+     holds n' w (fun st => (~exists b, available b n' w) -> has_chain bc st)]. 
 
 Definition Inv (w : World) :=
   Coh w /\ [\/ GStable w | GSyncing w].
+
+Lemma Eventual_Consensus w n :
+  Inv w -> (~exists b, available b n w) ->
+  holds n w (fun st => exists bc, (has_chain bc st) /\ largest_chain w bc).
+Proof.
+case=>C; case=>[H|[bc][can_n][H1 H2 H3 H4]] Na st Fw.
+- case: H=>cE[bc]H; exists bc; split=>//; first by move:(H _ _ Fw).
+  move=>n' bc' st' Fw'/eqP Z.
+  by move: (H n' _ Fw')=>/eqP; rewrite Z=>->; left.
+by exists bc; split=>//; move: (H4 n _ Fw Na)=>Hc.
+Qed.
 
 Variable N : nat.
 
