@@ -209,8 +209,7 @@ Definition available (b : Block) n w :=
        exists (hash : Hash),
          msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash /\
          holds (dst p ) w (fun st => b \in blockTree st) |
-       msg p = BlockMsg b /\ dst p = n
-    ].
+       msg p = BlockMsg b /\ dst p = n].
 
 Definition largest_chain (w : World) (bc : Blockchain) :=
    forall (n' : nid) (bc' : Blockchain),
@@ -221,6 +220,9 @@ Definition GStable w :=
   exists (bc : Blockchain), forall (n : nid),
     holds n w (has_chain bc).
 
+Definition blocksFor n' w :=
+  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
+
 Definition GSyncing w :=
   exists (bc : Blockchain) (n : nid),
   [/\ holds n w (has_chain bc),
@@ -230,18 +232,19 @@ Definition GSyncing w :=
 
    (* Applying blocks in flight will induce either the canonical
       chain or a smaller one. *)
-   forall (n' : nid),
-    let toN' := filter (fun p => dst p == n') (inFlightMsgs w) in
-    let allBlocks := map (fun p => msg_block (msg p)) toN' in
-    forall (blocks : seq Block),
-      let bt' := fun st => foldr (fun b bt => btExtend bt b) (blockTree st) blocks in
-      {subset blocks <= allBlocks} -> holds n' w (fun st => bc >= btChain (bt' st)) &
+   forall n' blocks,
+      {subset blocks <= blocksFor n' w} ->
+      holds n' w (fun st =>
+         bc >= btChain (foldl btExtend (blockTree st) blocks)) &
 
    (* All blocks (in any BlockTree) are available to every node *)
-   forall (n1 n2 : nid) (b : Block),
-     exists_and_holds n1 w (fun st => b \in blockTree st) ->
-     holds n2 w (fun st => b \in blockTree st \/ available b n2 w)
-].
+   forall n1 b,
+     holds n1 w (fun st => b \in blockTree st ->      
+       forall n2, holds n2 w (fun st' =>
+         b \in blockTree st' \/ available b n2 w))].
+
+     (* exists_and_holds n1 w (fun st => b \in blockTree st) -> *)
+     (* holds n2 w (fun st => b \in blockTree st \/ available b n2 w) *)
 
 Definition Inv (w : World) :=
   Coh w /\
@@ -263,6 +266,15 @@ rewrite /holds/has_chain; move=>n st; elim: N=>[|n' Hi].
     by rewrite um_findPt; case=><-.
 Qed.
 
+Lemma block_in_blocksFor b w p :
+  msg p = BlockMsg b -> p \in inFlightMsgs w ->
+  {subset [:: b] <= blocksFor (dst p) w}.
+Proof.
+move=>E iF z; rewrite inE=>/eqP=>?; subst z.
+rewrite /blocksFor; apply/mapP; exists p=>//; last by rewrite /msg_block E. 
+by rewrite mem_filter eqxx.
+Qed.
+
 Lemma Inv_step w w' q :
   Inv w -> system_step w w' q -> Inv w'.
 Proof.
@@ -279,7 +291,8 @@ case: Iw=>_ [GStabW|GSyncW].
 
   (* ... the original node still retains it *)
   + case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
-    rewrite/holds/localState/has_chain=>st'; case X: (can_n == dst p); move/eqP in X;
+    rewrite/holds/localState/has_chain=>st';
+    case X: (can_n == dst p); move/eqP in X;
     (* All cases except BlockMsg *)
     do? [subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP;
       by [move/eqP |
@@ -294,16 +307,13 @@ case: Iw=>_ [GStabW|GSyncW].
     (* BlockMsg *)
     rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; last by move/eqP.
     move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
-    rewrite -X in Fw; move=><- _; specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
+    rewrite -X in Fw; move=><- _; move: (HHold st1 Fw); rewrite/has_chain eq_sym.
     (* Specialize HInFlight for just BlockMsg b *)
     specialize (HInFlight can_n [:: b]).
-
-    apply/eqP; case: HInFlight.
-    * by move: (procMsg_block_btExtend st1 b (ts q))=>->.
-    * move=>Con. contradict Con.
-      rewrite/has_chain in HHold; move/eqP in HHold; rewrite -HHold.
-      by apply btExtend_not_worse.
-
+    move/eqP=>?; subst can_n can_bc.
+    move/HInFlight: (block_in_blocksFor Msg iF)=>/(_ _ Fw)[]/=.
+    * by move: (procMsg_block_btExtend st1 b (ts q))=>->->.
+    * by move/btExtend_not_worse.
  (* ... it's still the largest *)
   + case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     (* All cases except BlockMsg *)
@@ -315,22 +325,24 @@ case: Iw=>_ [GStabW|GSyncW].
       (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
       move=>Eq [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
       rewrite /has_chain Msg P=><-;
-      rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)
-    ].
+      rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)].
     (* BlockMsg *)
     * move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
       rewrite -X in Fw; move=><- _;
       specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
       (* Specialize HInFlight for just BlockMsg b *)
-      specialize (HInFlight can_n [:: b]).
-
-      by move/eqP=>->; move: (procMsg_block_btExtend st1 b (ts q))=>->.
-    * move=>Dst; subst n'; specialize (HGt (dst p) bc' st1 Fw).
-      move=>[] Eq; subst stPm; have: (dst p = dst p) by []=>Obvs;
-      move: (HInFlight p b (dst p) (btChain (blockTree st1)) iF Msg Obvs st1 Fw)=>H.
-      clear Obvs; rewrite/has_chain; move/eqP=><-.
-      by rewrite [procMsg _ _ _] surjective_pairing in P; case: P=><- _;
-         move: (procMsg_block_btExtend st1 b (ts q))=>->.
+      move/eqP=>?; subst bc' can_n.
+      move/HInFlight: (block_in_blocksFor Msg iF)=>/(_ _ Fw)=>/=; case.
+    * by move=>->; left; move: (procMsg_block_btExtend st1 b (ts q)). 
+    * by move=>Gt; right; rewrite (procMsg_block_btExtend st1 b (ts q)).
+    move=>Dst; specialize (HGt (dst p) bc' st1 Fw).
+    move=>[] Eq; subst stPm; subst n'=>Hc.
+    move: (HInFlight (dst p) [::b] (block_in_blocksFor Msg iF) _ Fw).
+    case=>[->|/=G];[left| right]=>/=.
+    * rewrite -(procMsg_block_btExtend st1 b (ts q)) P/=.
+      by move/eqP: Hc=>->.
+    * rewrite -(procMsg_block_btExtend st1 b (ts q)) P/= in G.
+      by move/eqP: Hc=>?; subst bc'.
 
 (* the canonical chain can only change throught a MintT transition *)
 (* TODO: refactor it into a lemma *)
