@@ -201,15 +201,29 @@ Qed.
 * For simplicity, we assume all nodes are directly connected.
 * This could be changed to incorporate a more realistic broadcast setting.
 *)
-Definition available (b : Block) n w :=
+Definition is_available_rel (b : Block) n w :=
   exists (p : Packet),
     p \in inFlightMsgs w /\
     [\/ exists (peer : nid) (sh : seq Hash),
-         msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh,
+         msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh |
        exists (hash : Hash),
          msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash /\
-         holds (dst p ) w (fun st => b \in blockTree st) |
-       msg p = BlockMsg b /\ dst p = n].
+         holds (dst p ) w (fun st => b \in blockTree st)
+    ].
+
+Definition available n w : seq Hash :=
+  let invs :=
+    flatten [seq msg_hashes (msg p) |
+      p <- inFlightMsgs w & dst p == n && (msg_type (msg p) == MInv)] in
+  let gds :=
+    flatten [seq msg_hashes (msg p) |
+      p <- inFlightMsgs w & src p == n && (msg_type (msg p) == MGetData)] in
+  undup (invs ++ gds).
+
+Definition is_available (b : Block) n w := hashB b \in available n w.
+
+Definition blocksFor n' w :=
+  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
 
 Definition largest_chain (w : World) (bc : Blockchain) :=
    forall (n' : nid) (bc' : Blockchain),
@@ -219,9 +233,6 @@ Definition GStable w :=
   inFlightMsgs w = [::] /\
   exists (bc : Blockchain), forall (n : nid),
     holds n w (has_chain bc).
-
-Definition blocksFor n' w :=
-  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
 
 Definition GSyncing w :=
   exists (bc : Blockchain) (n : nid),
@@ -238,7 +249,7 @@ Definition GSyncing w :=
 
    (* All blocks (in any BlockTree) are available to every node *)
    forall n',
-     holds n' w (fun st => (~exists b, available b n' w) -> has_chain bc st)]. 
+     holds n' w (fun st => (~exists b, available b n' w) -> has_chain bc st)].
 
 Definition Inv (w : World) :=
   Coh w /\ [\/ GStable w | GSyncing w].
@@ -275,7 +286,7 @@ Lemma block_in_blocksFor b w p :
   {subset [:: b] <= blocksFor (dst p) w}.
 Proof.
 move=>E iF z; rewrite inE=>/eqP=>?; subst z.
-rewrite /blocksFor; apply/mapP; exists p=>//; last by rewrite /msg_block E. 
+rewrite /blocksFor; apply/mapP; exists p=>//; last by rewrite /msg_block E.
 by rewrite mem_filter eqxx.
 Qed.
 
@@ -319,7 +330,7 @@ case: Iw=>_ [GStabW|GSyncW].
     move/HInFlight : (Fw)=>[|]/=.
     * have X: b \in (blocksFor (dst p) w).
       - apply/mapP; exists p; last by rewrite /msg_block Msg.
-        by rewrite mem_filter eqxx. 
+        by rewrite mem_filter eqxx.
       have Y : btExtend (blockTree st1) b =
                foldl btExtend (blockTree st1) [::b] by [].
       rewrite Y; clear Y.
@@ -336,7 +347,7 @@ case: Iw=>_ [GStabW|GSyncW].
     * rewrite -(procMsg_block_btExtend st1 b (ts q)).
       (* Provable out of properties of byExtend, which is monotone. *)
       admit.
-      
+
     * by move: (procMsg_block_btExtend st1 b (ts q))=>->->.
     * by move/btExtend_not_worse.
  (* ... it's still the largest *)
@@ -358,7 +369,7 @@ case: Iw=>_ [GStabW|GSyncW].
       (* Specialize HInFlight for just BlockMsg b *)
       move/eqP=>?; subst bc' can_n.
       move/HInFlight: (block_in_blocksFor Msg iF)=>/(_ _ Fw)=>/=; case.
-    * by move=>->; left; move: (procMsg_block_btExtend st1 b (ts q)). 
+    * by move=>->; left; move: (procMsg_block_btExtend st1 b (ts q)).
     * by move=>Gt; right; rewrite (procMsg_block_btExtend st1 b (ts q)).
     move=>Dst; specialize (HGt (dst p) bc' st1 Fw).
     move=>[] Eq; subst stPm; subst n'=>Hc.

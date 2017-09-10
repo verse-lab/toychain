@@ -21,10 +21,61 @@ Inductive Message :=
   | InvMsg of nid & seq Hash
   | GetDataMsg of nid & Hash.
 
+Inductive MessageType :=
+  | MNull
+  | MAddr
+  | MConnect
+  | MBlock
+  | MTx
+  | MInv
+  | MGetData.
+
+Module MsgTypeEq.
+Definition eq_msg_type a b :=
+  match a, b with
+  | MNull, MNull => true
+  | MAddr, MAddr => true
+  | MConnect, MConnect => true
+  | MBlock, MBlock => true
+  | MTx, MTx => true
+  | MInv, MInv => true
+  | MGetData, MGetData => true
+  | _, _ => false
+  end.
+
+Lemma eq_msg_typeP : Equality.axiom eq_msg_type.
+Proof.
+move=>a b; case: a; case: b; rewrite /eq_msg_type/=;
+by [constructor 1 | constructor 2].
+Qed.
+
+Canonical MsgType_eqMixin := Eval hnf in EqMixin eq_msg_typeP.
+Canonical MsgType_eqType := Eval hnf in EqType MessageType MsgType_eqMixin.
+End MsgTypeEq.
+Export MsgTypeEq.
+
+Definition msg_type (msg : Message) : MessageType :=
+  match msg with
+  | NullMsg => MNull
+  | AddrMsg _ _ => MAddr
+  | ConnectMsg _ => MConnect
+  | BlockMsg _ => MBlock
+  | TxMsg _ => MTx
+  | InvMsg _ _ => MInv
+  | GetDataMsg _ _ => MGetData
+  end.
+
 Definition msg_block (msg : Message) : Block :=
   match msg with
   | BlockMsg b => b
   | _ => GenesisBlock
+  end.
+
+Definition msg_hashes (msg : Message) : seq Hash :=
+  match msg with
+  | InvMsg _ sh => sh
+  | GetDataMsg _ h => [:: h]
+  | _ => [:: hashB GenesisBlock]
   end.
 
 Inductive InternalTransition :=
