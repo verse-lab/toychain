@@ -242,7 +242,21 @@ move/mapP; case=>p0; rewrite mem_filter; rewrite/available_rel.
   by move/eqP in H1.
   by move: H6; rewrite H5 /msg_hashes Msg mem_seq1; move/eqP.
 (* available b n w = false *)
-move/flattenP.
+move/flattenP. apply impliesPn; constructor.
+case=>p [] iF; case.
+- move=>[pr] [sh] [H1] [H2] H3. exists sh; last done.
+  rewrite mem_cat; apply/orP. left.
+  apply/mapP. exists p. rewrite mem_filter; apply/andP; split; last done.
+  apply/andP; split; by [move/eqP in H2 | rewrite/msg_type H1].
+  by rewrite /msg_hashes H1.
+- move=>[hash] [H1] [H2] H3. exists [:: hash]; last first.
+  by rewrite mem_seq1; move/eqP in H3.
+  rewrite mem_cat; apply/orP. right.
+  apply/mapP. exists p. rewrite mem_filter; apply/andP; split; last done.
+  apply/andP; split.
+    apply/andP; split; by [move/eqP in H2 | rewrite/msg_type H1].
+    by rewrite/msg_from H1 mem_seq1.
+  by rewrite /msg_hashes H1.
 Qed.
 
 Definition blocksFor n' w :=
