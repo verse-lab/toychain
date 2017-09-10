@@ -65,6 +65,14 @@ Definition msg_type (msg : Message) : MessageType :=
   | GetDataMsg _ _ => MGetData
   end.
 
+Definition msg_from (msg : Message) : seq nid :=
+  match msg with
+  | AddrMsg x _ => [:: x]
+  | InvMsg x _ => [:: x]
+  | GetDataMsg x _ => [:: x]
+  | _ => [::]
+  end.
+
 Definition msg_block (msg : Message) : Block :=
   match msg with
   | BlockMsg b => b
@@ -75,7 +83,7 @@ Definition msg_hashes (msg : Message) : seq Hash :=
   match msg with
   | InvMsg _ sh => sh
   | GetDataMsg _ h => [:: h]
-  | _ => [:: hashB GenesisBlock]
+  | _ => [::]
   end.
 
 Inductive InternalTransition :=
@@ -308,7 +316,7 @@ Proof.
 case: m=>[|p prs|p|b|t|p sh|p h];
 do? by[rewrite/procMsg; destruct s1=>/=]; last first.
 - rewrite -procMsg_non_block_nc_blockTree=>//.
-case: s1=>id ps bt' tp/= z. 
+case: s1=>id ps bt' tp/= z.
 (* TODO: implement btExtend!!! *)
 admit.
 Admitted.

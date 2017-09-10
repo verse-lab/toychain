@@ -201,26 +201,49 @@ Qed.
 * For simplicity, we assume all nodes are directly connected.
 * This could be changed to incorporate a more realistic broadcast setting.
 *)
-Definition is_available_rel (b : Block) n w :=
+Definition available_rel (b : Block) (n : nid) (w : World) :=
   exists (p : Packet),
     p \in inFlightMsgs w /\
     [\/ exists (peer : nid) (sh : seq Hash),
          msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh |
        exists (hash : Hash),
-         msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash /\
-         holds (dst p ) w (fun st => b \in blockTree st)
+         msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash
     ].
 
-Definition available n w : seq Hash :=
+Definition all_available (n : nid) (w : World) : seq Hash :=
   let invs :=
     flatten [seq msg_hashes (msg p) |
-      p <- inFlightMsgs w & dst p == n && (msg_type (msg p) == MInv)] in
+      p <- inFlightMsgs w & (dst p == n) && (msg_type (msg p) == MInv)] in
   let gds :=
-    flatten [seq msg_hashes (msg p) |
-      p <- inFlightMsgs w & src p == n && (msg_type (msg p) == MGetData)] in
+    flatten [seq msg_hashes (msg p) |p <- inFlightMsgs w &
+      (src p == n) && (msg_type (msg p) == MGetData) && (n \in msg_from (msg p))] in
   undup (invs ++ gds).
 
-Definition is_available (b : Block) n w := hashB b \in available n w.
+Definition available b n w := hashB b \in all_available n w.
+
+Lemma availableP b n w :
+  reflect (available_rel b n w) (available b n w).
+Proof.
+case A: (available b n w); [constructor 1 | constructor 2]; move: A;
+rewrite/available/all_available mem_undup -flatten_cat.
+move/flattenP; case=>h0; rewrite mem_cat; move/orP; case;
+move/mapP; case=>p0; rewrite mem_filter; rewrite/available_rel.
+- move/andP=>[]/andP[] H1 H2 H3 H4 H5;
+  exists p0; split; first done.
+  case Msg: (msg p0)=>[|||||pr sh|]; do? by contradict H2; rewrite/msg_type Msg.
+  left. exists pr, sh. split; first done. split; first by move/eqP in H1.
+  by move: H5; rewrite H4 /msg_hashes Msg.
+- move/andP=>[]/andP[]/andP[] H1 H2 H3 H4 H5 H6;
+  exists p0; split; first done.
+  case Msg: (msg p0)=>[||||||pr h]; do? by contradict H2; rewrite/msg_type Msg.
+  right. exists h. split.
+  by move: H3; rewrite /msg_from Msg mem_seq1; move/eqP=><-.
+  split.
+  by move/eqP in H1.
+  by move: H6; rewrite H5 /msg_hashes Msg mem_seq1; move/eqP.
+(* available b n w = false *)
+move/flattenP.
+Qed.
 
 Definition blocksFor n' w :=
   [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
