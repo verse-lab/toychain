@@ -103,6 +103,12 @@ Definition valid_block b : bool :=
 Definition btExtend (bt : BlockTree) (b : Block) :=
   if #b \in dom bt then bt else #b \\-> b \+ bt.
 
+Lemma btExtendV bt b : valid bt = valid (btExtend bt b).
+Proof.
+rewrite /btExtend; case: ifP=>//N.
+by rewrite gen_validPtUn/= N andbC.
+Qed.
+
 (* Baisc property commutativity of additions *)
 
 Lemma btExtend_dom bt b :
@@ -113,16 +119,26 @@ case:ifP=>C//=D.
 by rewrite domUn inE andbC/= gen_validPtUn/= V D/= C orbC.
 Qed.
 
- Lemma byExtend_in bt b :
+ Lemma btExtend_in bt b :
   valid bt -> hashB b \in dom (btExtend bt b).
 Proof.
 move=>V; rewrite /btExtend/=; case: ifP=>//= N.
 by rewrite domUn inE um_domPt !inE eqxx andbC/= gen_validPtUn/= V N.
 Qed.
 
-Lemma byExtend_idemp bt b :
+Lemma btExtend_idemp bt b :
   valid bt -> btExtend bt b = btExtend (btExtend bt b) b.
-Proof. by move=>V; rewrite {2}/btExtend byExtend_in. Qed.
+Proof. by move=>V; rewrite {2}/btExtend btExtend_in. Qed.
+
+(* Just a reformulation *)
+Lemma btExtend_preserve (bt : BlockTree) (ob b : Block) :
+  valid bt ->
+  hashB ob \in (dom bt) -> hashB ob \in dom (btExtend bt b).
+Proof. by move=>V/(btExtend_dom b V). Qed.
+
+Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : Block):
+  hashB b \in dom bt -> bt = (btExtend bt b).
+Proof. by rewrite /btExtend=>->. Qed.
 
 Lemma btExtend_comm bt b1 b2 :
   valid bt ->
@@ -151,67 +167,132 @@ Section BlockTreeProperties.
 
 Variable bt: BlockTree.
 
-Notation bm := (bmap bt).
-Notation tps := (tops bt).
 
 (* b is the previous of b' in bt: 
 .... b <-- b' ....
 *)
 Definition next_of b : pred Block :=
-  [pred b' | (hashB b == prevBlockHash b') && (hashB b' \in dom bm)].
+  [pred b' | (hashB b == prevBlockHash b') && (hashB b' \in dom bt)].
 
 (* All paths/chains should start with the GenesisBlock *)
-Fixpoint compute_chain' (b : Block) (n : nat) : Blockchain :=
-  if n is n'.+1
-  then match find (prevBlockHash b) bm with
-       | None => [:: b]
-       | Some prev => rcons (compute_chain' prev n') prev
-       end
+Fixpoint compute_chain' b (remaining : seq Hash) (n : nat) : Blockchain :=
+  (* Preventing cycles in chains *)
+  if (hashB b) \in remaining
+  then
+    let rest := seq.rem (hashB b) remaining in
+    (* Supporting primitive inductions *)
+    if n is n'.+1 then
+      match find (prevBlockHash b) bt with
+      (* No parent *)
+      | None => [:: b]
+      (* Build chain prefix recursively *)
+      | Some prev => rcons (compute_chain' prev rest n') prev
+      end
+    else [::]
   else [::].
 
-Definition compute_chain b := compute_chain' b (size (keys_of bm)).  
+(* Compute chain from the block *)
+Definition compute_chain b :=
+  compute_chain' b (keys_of bt) (size (keys_of bt)).
 
-(* Genesis block is in the beginning *)
-(* Are these basic conditions? *)
-Definition valid_chain bc : Prop :=
-  [/\
-   (* Evey chain is a path in bt.bm starting from GenesisBlock *)
-   path next_of GenesisBlock bc,
-   (* Every block in the chain is also in bm *)
-   forall b, b \in bc -> find (hashB b) bm = Some b &
-   (* Every block/hash in the chain is unique *)                      
-   uniq (map hashB bc)].
+(* TODO: prove the properties of compute_chain's result bc:
 
-Definition valid_bt : Prop :=
-  [/\
-   (* The map has a genesis block *)
-   find (hashB GenesisBlock) bm = Some (GenesisBlock),
-   (* Every key in bm is a hash *)
-   forall h b, find h bm = Some b -> h = hashB b,
-   (* A chain from every block is a valid one *)
-   forall h b, find h bm = Some b -> valid_chain (compute_chain b) &
-   (* Tops are indeed on top *)                                    
-   forall b, b \in tps ->
-     forall h' b', find h' bm = Some b' -> prevBlockHash b' != hashB b].
+1. It has no block repetitions;
+2. It has all blocks from the bt;
+3. path next_of GenesisBlock bc
+4. Anything else?
 
-(* TODO: provide "getter" lemmas to extract specific conjuncts *)
+ *)
+(* Definition valid_chain bc : Prop := *)
+(*   [/\ *)
+(*    (* Evey chain is a path in bt.bm starting from GenesisBlock *) *)
+(*    path next_of GenesisBlock bc, *)
+(*    (* Every block in the chain is also in bm *) *)
+(*    forall b, b \in bc -> find (hashB b) bm = Some b & *)
+(*    (* Every block/hash in the chain is unique *)                  *)
+(*    uniq (map hashB bc)]. *)
+
+
+(* Total get_block function *)
+Definition get_block k : Block :=
+  if find k bt is Some b then b else GenesisBlock.
+
+(* Collect all blocks *)
+Definition all_blocks := undup [seq get_block k | k <- keys_of bt].
+
+Definition is_block_in b := exists k, find k bt = Some b.
+
+(* A certificate for all_blocks *)
+Lemma all_blocksP b : reflect (is_block_in b) (b \in all_blocks).
+Proof.
+case B : (b \in all_blocks); [constructor 1|constructor 2].
+- move: B; rewrite /all_blocks mem_undup; case/mapP=>k Ik->{b}.
+  rewrite keys_dom in Ik; move/gen_eta: Ik=>[b]/=[E H].
+  by exists k; rewrite /get_block E.
+case=>k F; move/negP: B=>B; apply: B.
+rewrite /all_blocks mem_undup; apply/mapP.
+exists k; last by rewrite /get_block F.
+by rewrite keys_dom; move/find_some: F.
+Qed.  
+
+(* All chains from the given tree *)
+Definition good_chain (bc : Blockchain) :=
+  if bc is GenesisBlock :: _ then true else false.
+
+Definition all_chains := [seq compute_chain b | b <- all_blocks].
+
+(* Get the blockchain *)
+Definition take_better_bc bc2 bc1 := if (good_chain bc2) && (bc2 > bc1) then bc2 else bc1.
 
 Definition btChain : Blockchain :=
-  let all_top_chains := [seq compute_chain top | top <- tps] in
-  foldl (fun bc1 bc2 => if bc2 > bc1 then bc2 else bc1)
-        [::] all_top_chains.
+  foldr take_better_bc [:: GenesisBlock] all_chains. 
 
 End BlockTreeProperties.
 
-(* Facts about BlockTree manipulations *)
 
-Lemma btExtend_valid bt b :
-  let dm := (dom (bmap bt)) in 
-  valid_bt bt -> (hashB b) \notin dm ->
-  prevBlockHash b \in dm -> valid_bt (btExtend bt b).
+(**********************************************************)
+
+Section BtChainProperties.
+
+Lemma btExtend_blocks (bt : BlockTree) (b : Block) : valid bt ->
+  {subset all_blocks bt <= all_blocks (btExtend bt b)}.
 Proof.
-move=>/=V H1 H2; rewrite /btExtend; split=>//.
+move=>V z/all_blocksP=>[[k]F]; apply/all_blocksP.
+exists k; rewrite/btExtend; case:ifP=>// N.
+rewrite findUnR ?N/=; last by rewrite gen_validPtUn/= V N.
+by move/find_some: (F)=>->.
+Qed.
+
+(* Chains from blocks are only growing as BT is extended *)
+Lemma btExtend_chain_grows bt a b :
+  compute_chain (btExtend bt b) a >= compute_chain bt b.
+Proof.
 Admitted.
+
+(* TODO: Show that the set of chains will only grow as we add new blocks *)
+
+(* TODO: Show that the goodness is preserved *)
+
+(* Lemma btExtend_chains (bt : BlockTree) (b : Block) : valid bt -> *)
+(*   {subset all_good_chains bt <= all_good_chains (btExtend bt b)}. *)
+(* Proof. *)
+(* move=>V z. *)
+(* suff X: {subset all_chains bt <= all_chains (btExtend bt b)}. *)
+(* - by move: (X z)=>{X}X; rewrite/all_good_chains !mem_filter; case/andP=>->. *)
+(* move=>{z}z; case/mapP=>k/(btExtend_blocks b V) H E; apply/mapP. *)
+(* exists k=>//. subst z. *)
+
+
+(* Monotonicity of BT => Monotonicity of btChain *)
+Lemma btExtend_sameOrBetter bt b : btChain (btExtend bt b) >= btChain bt.
+Proof.
+rewrite /btChain.
+case B : (#b \in dom bt);rewrite /btExtend B; first by left. 
+Admitted.
+
+End BtChainProperties.
+
+
 
 (**************************
  *  TxPool implementation *
