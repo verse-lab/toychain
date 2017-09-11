@@ -218,7 +218,7 @@ Definition get_block k : Block :=
   if find k bt is Some b then b else GenesisBlock.
 
 (* Collect all blocks *)
-Definition all_blocks := undup [seq get_block k | k <- keys_of bt].
+Definition all_blocks := [seq get_block k | k <- keys_of bt].
 
 Definition is_block_in b := exists k, find k bt = Some b.
 
@@ -226,11 +226,11 @@ Definition is_block_in b := exists k, find k bt = Some b.
 Lemma all_blocksP b : reflect (is_block_in b) (b \in all_blocks).
 Proof.
 case B : (b \in all_blocks); [constructor 1|constructor 2].
-- move: B; rewrite /all_blocks mem_undup; case/mapP=>k Ik->{b}.
+- move: B; rewrite /all_blocks; case/mapP=>k Ik->{b}.
   rewrite keys_dom in Ik; move/gen_eta: Ik=>[b]/=[E H].
   by exists k; rewrite /get_block E.
 case=>k F; move/negP: B=>B; apply: B.
-rewrite /all_blocks mem_undup; apply/mapP.
+rewrite /all_blocks; apply/mapP.
 exists k; last by rewrite /get_block F.
 by rewrite keys_dom; move/find_some: F.
 Qed.  
