@@ -3,6 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
+Require Import SeqFacts.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -221,21 +222,57 @@ by move=>->; right.
 by move=>H1 H2; move: (CFR_trans H1 H2); right.
 Qed.
 
+Lemma btExtend_not_worse :
+  forall (bt : BlockTree) (b : Block),
+    ~ (btChain bt > btChain (btExtend bt b)).
+Proof.
+move=>bt b; move: (btExtend_sameOrBetter bt b); case.
+by move=>->; apply: (CFR_nrefl).
+move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
+by move: (CFR_nrefl (CFR_trans H X)).
+Qed.
+
+Lemma btExtend_fold_not_worse :
+  forall (bt : BlockTree) (bs : seq Block),
+    ~ (btChain bt > btChain (foldl btExtend bt bs)).
+Proof.
+move=>bt bs; case: (btExtend_fold_sameOrBetter bt bs).
+by move=><-; apply: CFR_nrefl.
+by apply: CFR_excl.
+Qed.
+
+Lemma btExtend_seq_same :
+  forall (bt : BlockTree) (b : Block) (bs : seq Block),
+    b \in bs -> btChain bt = btChain (foldl btExtend bt bs) ->
+    btChain bt = btChain (btExtend bt b).
+Proof.
+move=>bt b bs H1.
+move: (in_seq H1)=>[bf] [af] H2; rewrite H2.
+move=>H; clear H1 H2.
+move: (btExtend_fold_sameOrBetter bt [:: b])=>H1.
+case: H1; first by move/eqP; rewrite eq_sym=>/eqP.
+rewrite -cat1s in H.
+by move=>/=Con; rewrite H in Con; clear H; contradict Con;
+   rewrite foldl_cat btExtend_fold_comm foldl_cat /= -foldl_cat;
+   apply btExtend_fold_not_worse.
+Qed.
+
+Lemma btExtend_seq_sameOrBetter :
+  forall (bt : BlockTree) (b : Block) (bs : seq Block),
+    b \in bs -> btChain bt >= btChain (foldl btExtend bt bs) ->
+    btChain bt >= btChain (btExtend bt b).
+Proof.
+move=>bt b bs H1; case.
+by move=>H2; left; apply (btExtend_seq_same H1 H2).
+by move=>Con; contradict Con; apply btExtend_fold_not_worse.
+Qed.
+
 Axiom btExtend_withNew_mem :
   forall (bt : BlockTree) (b : Block),
     let bc := btChain bt in
     let: bc' := btChain (btExtend bt b) in
     b \notin bc ->
     bc != bc' = (b \in bc').
-
-Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
-    ~ (btChain bt > btChain (btExtend bt b)).
-Proof.
-move: (btExtend_sameOrBetter bt b); case.
-by move=>->; apply: (CFR_nrefl).
-move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
-by move: (CFR_nrefl (CFR_trans H X)).
-Qed.
 
 Axiom tpExtend_validAndConsistent :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),

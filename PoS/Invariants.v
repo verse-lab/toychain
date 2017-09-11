@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap.
-Require Import Blockchain Protocol Semantics States BlockchainProperties.
+Require Import Blockchain Protocol Semantics States BlockchainProperties SeqFacts.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -12,21 +12,12 @@ Unset Printing Implicit Defensive.
 (*        Some useful facts about lists            *)
 (***************************************************)
 
-Lemma rem_neq {T: eqType} (x y :T) (ls : seq T) :
-  x != y -> x \in ls -> x \in seq.rem y ls.
-Proof.
-move=>N; elim: ls=>//h ls Hi.
-rewrite inE; case/orP=>//=.
-- by move/eqP=>Z; subst h; move/negbTE: N=>->; rewrite inE eqxx.
-by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.
-Qed.
-
 Lemma in_rem_msg p0 p ms w :
   p0 \in inFlightMsgs w -> p0 <> p ->
   p0 \in ms ++ seq.rem p (let (_, inFlightMsgs, _) := w in inFlightMsgs).
 Proof.
 move=>iF0 E; rewrite mem_cat orbC; apply/orP; left.
-case: (w) iF0=>ls ifM cM/= Hi.
+case: (w) iF0=>_ ifM _/= Hi.
 suff N : (p0 != p) by rewrite (rem_neq N Hi).
 by apply/negP=>/eqP Z; subst p0.
 Qed.
@@ -38,15 +29,6 @@ Proof.
 elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
 - by subst b0; rewrite eqxx.
 by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
-Qed.
-
-Lemma in_seq {T : eqType} (x : T) (xs : seq T) :
-  x \in xs -> exists fs ls, xs = fs ++ x :: ls.
-Proof.
-move=>H. elim: xs H; first done.
-move=>h t Hi; rewrite in_cons; move/orP; case.
-by move/eqP=>->; exists [::], t.
-by move=>H; move: (Hi H); move=>[fs] [ls]=>->; exists (h :: fs), ls.
 Qed.
 
 (***************************************************)
@@ -271,6 +253,15 @@ Qed.
 Definition blocksFor n' w :=
   [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
 
+Lemma b_in_blocksFor p b w :
+    p \in inFlightMsgs w -> (msg p = BlockMsg b) -> b \in blocksFor (dst p) w.
+Proof.
+move=>iF Msg.
+rewrite/blocksFor; apply/mapP; exists p.
+by rewrite mem_filter eqxx.
+by rewrite/msg_block Msg.
+Qed.
+
 Definition largest_chain (w : World) (bc : Blockchain) :=
    forall (n' : nid) (bc' : Blockchain),
     holds n' w (fun st => has_chain bc' st -> bc >= bc').
@@ -328,14 +319,17 @@ rewrite /holds/has_chain; move=>n st; elim: N=>[|n' Hi].
     by rewrite um_findPt; case=><-.
 Qed.
 
-Lemma block_in_blocksFor b w p :
-  msg p = BlockMsg b -> p \in inFlightMsgs w ->
-  {subset [:: b] <= blocksFor (dst p) w}.
-Proof.
-move=>E iF z; rewrite inE=>/eqP=>?; subst z.
-rewrite /blocksFor; apply/mapP; exists p=>//; last by rewrite /msg_block E.
-by rewrite mem_filter eqxx.
-Qed.
+Ltac NBlockMsg_dest q st1 p b Msg H :=
+(have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
+      move=>Eq [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H).
+
+Ltac BlockMsg_dest w q can_n can_bc st1 p iF Fw P Msg b X HHold HInFlight :=
+    move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P;
+    rewrite -X in Fw; move=><- _; move: (HHold st1 Fw); rewrite/has_chain eq_sym;
+    specialize (HInFlight can_n); move/eqP=>?; subst can_n can_bc;
+    rewrite (procMsg_block_btExtend st1 b (ts q));
+    move/HInFlight : (Fw)=>[|]/=;
+    move: (b_in_blocksFor iF Msg)=>X.
 
 Lemma Inv_step w w' q :
   Inv w -> system_step w w' q -> Inv w'.
@@ -358,43 +352,17 @@ case: Iw=>_ [GStabW|GSyncW].
     (* All cases except BlockMsg *)
     do? [subst can_n; rewrite findU (proj1 Cw)=>/=; case: ifP;
       by [move/eqP |
-        (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
-        move=>_ [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
-        rewrite Msg P=><-; apply (HHold st1 Fw)
-      ]
-    ];
+        NBlockMsg_dest q st1 p b Msg H; rewrite Msg P=><-; apply (HHold st1 Fw)
+    ]];
     do? [rewrite findU (proj1 Cw)=>/=; case: ifP=>/=;
       by [move/eqP | move=>_ Fc; move: (HHold st' Fc)]
     ].
     (* BlockMsg *)
     rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; last by move/eqP.
-    move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
-    rewrite -X in Fw; move=><- _; move: (HHold st1 Fw); rewrite/has_chain eq_sym.
-    (* Specialize HInFlight for just BlockMsg b *)
-    specialize (HInFlight can_n).
-    move/eqP=>?; subst can_n can_bc.
-    rewrite (procMsg_block_btExtend st1 b (ts q)).
-    move/HInFlight : (Fw)=>[|]/=.
-    * have X: b \in (blocksFor (dst p) w).
-      - apply/mapP; exists p; last by rewrite /msg_block Msg.
-        by rewrite mem_filter eqxx.
-      have Y : btExtend (blockTree st1) b =
-               foldl btExtend (blockTree st1) [::b] by [].
-      rewrite Y; clear Y.
-      move: (in_seq X); move=>[bx1] [bx2]->.
-      have W: btChain (foldl btExtend (blockTree st1) [:: b]) >=
-              btChain (blockTree st1).
-      by apply btExtend_sameOrBetter.
-      case: W=>[->|]//W Z; rewrite !Z in W *; clear Z.
-      (* Prove monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
-      (* Then: contradiction out of W *)
-      admit.
-    * rewrite -(procMsg_block_btExtend st1 b (ts q)).
-      (* Provable out of properties of byExtend, which is monotone. *)
-      admit.
+    BlockMsg_dest w q can_n can_bc st1 p iF Fw P Msg b X HHold HInFlight.
+    * by move=>H; move: (btExtend_seq_same X H); move/eqP; rewrite eq_sym.
+    * by move=>Con; contradict Con; apply btExtend_fold_not_worse.
 
-    * by move: (procMsg_block_btExtend st1 b (ts q))=>->->.
-    * by move/btExtend_not_worse.
  (* ... it's still the largest *)
   + case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     (* All cases except BlockMsg *)
@@ -403,27 +371,21 @@ case: Iw=>_ [GStabW|GSyncW].
     rewrite findU (proj1 Cw)=>/=; case: ifP=>/=; move/eqP;
     do? by [
       move=>_ Fc; move: (HGt n' bc' st' Fc) |
-      (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
-      move=>Eq [] <-; move: (procMsg_non_block_nc_btChain st1 (ts q) H);
-      rewrite /has_chain Msg P=><-;
+      NBlockMsg_dest q st1 p b Msg H; rewrite /has_chain Msg P=><-;
       rewrite -Eq in Fw=>Hc; move: (HGt n' bc' st1 Fw Hc)].
     (* BlockMsg *)
-    * move=>_ [] <-; rewrite [procMsg _ _ _] surjective_pairing in P; case: P.
-      rewrite -X in Fw; move=><- _;
-      specialize (HHold st1 Fw); rewrite/has_chain eq_sym.
-      (* Specialize HInFlight for just BlockMsg b *)
-      move/eqP=>?; subst bc' can_n.
-      move/HInFlight: (block_in_blocksFor Msg iF)=>/(_ _ Fw)=>/=; case.
-    * by move=>->; left; move: (procMsg_block_btExtend st1 b (ts q)).
-    * by move=>Gt; right; rewrite (procMsg_block_btExtend st1 b (ts q)).
-    move=>Dst; specialize (HGt (dst p) bc' st1 Fw).
-    move=>[] Eq; subst stPm; subst n'=>Hc.
-    move: (HInFlight (dst p) [::b] (block_in_blocksFor Msg iF) _ Fw).
-    case=>[->|/=G];[left| right]=>/=.
-    * rewrite -(procMsg_block_btExtend st1 b (ts q)) P/=.
-      by move/eqP: Hc=>->.
-    * rewrite -(procMsg_block_btExtend st1 b (ts q)) P/= in G.
-      by move/eqP: Hc=>?; subst bc'.
+    BlockMsg_dest w q can_n can_bc st1 p iF Fw P Msg b X HHold HInFlight.
+    * by move=>H; move: (btExtend_seq_same X H)=><-/eqP->; left.
+    * by move=>Con; contradict Con; apply btExtend_fold_not_worse.
+
+    move=>Dst [] Eq; subst stPm; subst n'=>Hc.
+    rewrite/has_chain in Hc; move/eqP in Hc; subst bc'.
+    rewrite [procMsg _ _ _] surjective_pairing in P; case: P; move=><- _.
+    rewrite (procMsg_block_btExtend st1 b (ts q)); clear X.
+    move: (b_in_blocksFor iF Msg)=>X.
+    specialize (HInFlight (dst p) _ Fw); simpl in HInFlight.
+    case: (btExtend_fold_sameOrBetter (blockTree st1) (blocksFor (dst p) w)).
+    * move=>->.
 
 (* the canonical chain can only change throught a MintT transition *)
 (* TODO: refactor it into a lemma *)
