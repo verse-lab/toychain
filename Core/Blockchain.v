@@ -153,6 +153,22 @@ Axiom btChain_extend :
     prevBlockHash extension == hashB (bcLast bc) ->
     btChain (btExtend bt b) = rcons bc extension.
 
+Axiom btExtend_comm :
+  forall (bt : BlockTree) (b1 b2 : Block),
+    btExtend (btExtend bt b1) b2 = btExtend (btExtend bt b2) b1.
+
+Lemma btExtend_fold_comm :
+  forall (bt : BlockTree) (bs bs' : seq Block),
+    foldl btExtend (foldl btExtend bt bs) bs' =
+    foldl btExtend (foldl btExtend bt bs') bs.
+Proof.
+move=>bt bs bs'.
+elim/last_ind: bs'=>[|xs x Hi]/=; first done.
+rewrite -cats1 !foldl_cat Hi=>/=; clear Hi.
+elim/last_ind: bs=>[|ys y Hi]/=; first done.
+by rewrite -cats1 !foldl_cat -Hi/=; apply btExtend_comm.
+Qed.
+
 Axiom btExtend_preserve :
   forall (bt : BlockTree) (ob b : Block),
     let: bt' := btExtend bt b in
@@ -169,6 +185,42 @@ Axiom btExtend_withNew_sameOrBetter :
     b \notin bt ->
       b \in btChain bt' = (btChain bt' > btChain bt).
 
+Axiom btExtend_sameOrBetter :
+  forall (bt : BlockTree) (b : Block),
+    btChain (btExtend bt b) >= btChain bt.
+
+Lemma btExtend_fold_sameOrBetter:
+  forall (bt :BlockTree) (bs : seq Block),
+    btChain (foldl btExtend bt bs) >= btChain bt.
+Proof.
+move=>bt bs; elim/last_ind: bs=>[|xs x Hi]/=; first by left.
+rewrite -cats1 foldl_cat /=.
+(have: (btChain (btExtend (foldl btExtend bt xs) x)
+       >= btChain (foldl btExtend bt xs)) by apply btExtend_sameOrBetter)=>H.
+case: Hi; case: H.
+by move=>->->; left.
+by move=>H1 H2; rewrite H2 in H1; right.
+by move=>->; right.
+by move=>H1 H2; move: (CFR_trans H1 H2); right.
+Qed.
+
+(* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
+Lemma btExtend_monotone_btChain :
+  forall (bs ext : seq Block) (bt : BlockTree),
+    btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
+Proof.
+move=>bs ext bt; elim/last_ind: ext=>[|xs x H]/=.
+by rewrite foldl_cat; left.
+rewrite -cats1.
+(* Behold this monstrosity, thankfully handled by rewrite !foldl_cat *)
+move: (btExtend_fold_sameOrBetter (foldl btExtend bt (bs ++ xs)) [:: x])=>H'.
+case: H; case: H'; rewrite !foldl_cat.
+by move=>->->; left.
+by move=>H1 H2; rewrite H2 in H1; right.
+by move=>->; right.
+by move=>H1 H2; move: (CFR_trans H1 H2); right.
+Qed.
+
 Axiom btExtend_withNew_mem :
   forall (bt : BlockTree) (b : Block),
     let bc := btChain bt in
@@ -179,15 +231,11 @@ Axiom btExtend_withNew_mem :
 Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
     ~ (btChain bt > btChain (btExtend bt b)).
 Proof.
-case H: (b \in bt).
-by move: (btExtend_withDup_noEffect H)=><-; apply: CFR_nrefl.
-have: (btChain (btExtend bt b) > btChain bt).
-move/negP/negP in H; move: (btExtend_withNew_sameOrBetter H)=><-.
-move: (btExtend_withNew_mem (btChain_mem H))=><-.
-(* This is essentially a new axiom; it's probably time to just write
-    a blocktree implementation and prove these facts about it.
- *)
-Admitted.
+move: (btExtend_sameOrBetter bt b); case.
+by move=>->; apply: (CFR_nrefl).
+move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
+by move: (CFR_nrefl (CFR_trans H X)).
+Qed.
 
 Axiom tpExtend_validAndConsistent :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),

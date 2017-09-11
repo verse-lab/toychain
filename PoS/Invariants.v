@@ -40,6 +40,15 @@ elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
 by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
 Qed.
 
+Lemma in_seq {T : eqType} (x : T) (xs : seq T) :
+  x \in xs -> exists fs ls, xs = fs ++ x :: ls.
+Proof.
+move=>H. elim: xs H; first done.
+move=>h t Hi; rewrite in_cons; move/orP; case.
+by move/eqP=>->; exists [::], t.
+by move=>H; move: (Hi H); move=>[fs] [ls]=>->; exists (h :: fs), ls.
+Qed.
+
 (***************************************************)
 
 (* Invariants of the execution regarding the blockchain *)
@@ -286,13 +295,14 @@ Definition GSyncing w :=
 
    (* All blocks (in any BlockTree) are available to every node *)
    forall n',
-     holds n' w (fun st => (~exists b, available b n' w) -> has_chain bc st)].
+     holds n' w (fun st =>
+      (~exists b, available b n' w) /\ blocksFor n' w == [::] -> has_chain bc st)].
 
 Definition Inv (w : World) :=
   Coh w /\ [\/ GStable w | GSyncing w].
 
 Lemma Eventual_Consensus w n :
-  Inv w -> (~exists b, available b n w) ->
+  Inv w -> (~exists b, available b n w) /\ blocksFor n w == [::] ->
   holds n w (fun st => exists bc, (has_chain bc st) /\ largest_chain w bc).
 Proof.
 case=>C; case=>[H|[bc][can_n][H1 H2 H3 H4]] Na st Fw.
@@ -371,12 +381,10 @@ case: Iw=>_ [GStabW|GSyncW].
       have Y : btExtend (blockTree st1) b =
                foldl btExtend (blockTree st1) [::b] by [].
       rewrite Y; clear Y.
-      have Z: exists bx1 bx2, (blocksFor (dst p) w) = bx1 ++ b :: bx2.
-      (* Proof by induction on (blocksFor (dst p) w) *)
-      admit.
-      case: Z=>bx1[bx2]->.
+      move: (in_seq X); move=>[bx1] [bx2]->.
       have W: btChain (foldl btExtend (blockTree st1) [:: b]) >=
-              btChain (blockTree st1). admit.
+              btChain (blockTree st1).
+      by apply btExtend_sameOrBetter.
       case: W=>[->|]//W Z; rewrite !Z in W *; clear Z.
       (* Prove monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
       (* Then: contradiction out of W *)
