@@ -195,6 +195,12 @@ Fixpoint compute_chain' b (remaining : seq Hash) (n : nat) : Blockchain :=
 Definition compute_chain b :=
   compute_chain' b (keys_of bt) (size (keys_of bt)).
 
+(* TODO: Perhaps, it's worthwhile to reformulate compute_chain b in
+terms of path, uniq, prevHash not defined/cyclic etc, to reason about
+paths rather then these things. *)
+
+
+
 (* TODO: prove the properties of compute_chain's result bc:
 
 1. It has no block repetitions;
@@ -263,10 +269,19 @@ rewrite findUnR ?N/=; last by rewrite gen_validPtUn/= V N.
 by move/find_some: (F)=>->.
 Qed.
 
+Lemma btExtend_chain_prefix bt a b :
+  exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b .
+Proof.
+case B: (#a \in dom bt); rewrite /btExtend B; first by exists [::].
+Admitted.                                                              
+
+
 (* Chains from blocks are only growing as BT is extended *)
 Lemma btExtend_chain_grows bt a b :
-  compute_chain (btExtend bt b) a >= compute_chain bt b.
+  compute_chain (btExtend bt a) b >= compute_chain bt b.
 Proof.
+(* First show it's longer *)
+(* Scond, show it doesn't suddenly become "bad" *)
 Admitted.
 
 (* TODO: Show that the set of chains will only grow as we add new blocks *)
