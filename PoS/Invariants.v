@@ -378,14 +378,17 @@ case: Iw=>_ [GStabW|GSyncW].
     * by move=>H; move: (btExtend_seq_same X H)=><-/eqP->; left.
     * by move=>Con; contradict Con; apply btExtend_fold_not_worse.
 
+    (* TODO: Make this shorter! *)
     move=>Dst [] Eq; subst stPm; subst n'=>Hc.
     rewrite/has_chain in Hc; move/eqP in Hc; subst bc'.
     rewrite [procMsg _ _ _] surjective_pairing in P; case: P; move=><- _.
     rewrite (procMsg_block_btExtend st1 b (ts q)); clear X.
     move: (b_in_blocksFor iF Msg)=>X.
     specialize (HInFlight (dst p) _ Fw); simpl in HInFlight.
-    case: (btExtend_fold_sameOrBetter (blockTree st1) (blocksFor (dst p) w)).
-    * move=>->.
+    specialize (HGt (dst p) (btChain (blockTree st1)) _ Fw).
+    rewrite/has_chain eqxx in HGt.
+    (have: (is_true true) by done)=>Obvs; specialize (HGt Obvs); clear Obvs.
+    by move: (btExtend_seq_sameOrBetter_fref X HGt HInFlight).
 
 (* the canonical chain can only change throught a MintT transition *)
 (* TODO: refactor it into a lemma *)

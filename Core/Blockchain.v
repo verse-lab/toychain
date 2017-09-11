@@ -267,6 +267,42 @@ by move=>H2; left; apply (btExtend_seq_same H1 H2).
 by move=>Con; contradict Con; apply btExtend_fold_not_worse.
 Qed.
 
+Lemma btExtend_seq_sameOrBetter_fref :
+  forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
+    b \in bs -> bc >= btChain bt ->
+    bc >= btChain (foldl btExtend bt bs) ->
+    bc >= btChain (btExtend bt b).
+Proof.
+move=> bc bt b bs H HGt HGt'.
+move: (in_seq H)=>[bf] [af] H'; rewrite H' in HGt'; clear H H'.
+move: (btExtend_sameOrBetter bt b)=>H.
+move: (btExtend_fold_sameOrBetter bt (bf ++ b :: af)).
+rewrite -cat1s foldl_cat btExtend_fold_comm foldl_cat /= -foldl_cat in HGt' *.
+move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
+- by left; rewrite h1 h3.
+- by rewrite h3 in h2; rewrite h2 in h0; contradict h0; apply: CFR_nrefl.
+- by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
+- by rewrite -h2 h3 in h0; contradict h0; apply: CFR_nrefl.
+- by left; apply/eqP; rewrite eq_sym; rewrite -h3 in h1; apply/eqP.
+- by rewrite -h3 in h1; rewrite -h1 in h2;
+  contradict h2; apply btExtend_fold_not_worse.
+- by rewrite -h3 in h0; rewrite h0 in h2; contradict h2; apply: CFR_nrefl.
+- by rewrite h3 in h2; move: (CFR_trans h0 h2)=>C;
+  contradict C; apply: CFR_nrefl.
+- by right; rewrite h1.
+- by right; rewrite h1.
+- by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
+- by subst bc; apply btExtend_fold_sameOrBetter.
+- by right; rewrite -h1 in h3.
+- by right; rewrite -h1 in h3.
+- rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
+have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
+        >= btChain (btExtend bt b)) by apply: btExtend_fold_sameOrBetter.
+case=>[|H].
+by move=><-; right.
+by right; move: (CFR_trans h2 H).
+Qed.
+
 Axiom btExtend_withNew_mem :
   forall (bt : BlockTree) (b : Block),
     let bc := btChain bt in
