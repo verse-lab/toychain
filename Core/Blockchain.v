@@ -87,23 +87,60 @@ Export TxEq.
  *****************************)
 
 (* Also keeps orphan blocks *)
-Record BlockTree :=
-  BT { (* define as implicit conversions*)
-      bmap :> union_map Hash Block;
-      tops :> seq Block}.
+Definition BlockTree := union_map Hash Block.
 
 Definition btHasBlock (bt : BlockTree) (b : Block) :=
-  hashB b \in dom (bmap bt).
+  hashB b \in dom bt.
+
+Notation "# bt" := (hashB bt) (at level 20).
+Notation "## bt" := (hashB bt \\-> tt) (at level 70).
+
+Definition valid_block b : bool :=
+   prevBlockHash b != #b.
 
 (* How can we assert there are no cycles? *)
 (* You only add "fresh blocks" *)
 Definition btExtend (bt : BlockTree) (b : Block) :=
-  let new_bm   := (bmap bt) \+ (hashB b \\-> b) in
-  let prhash   := prevBlockHash b in
-  (* Remove top that is no longer on top :) *)
-  let rm_top   := filter (fun c => hashB c == prhash) (tops bt) in
-  let new_tops := b :: rm_top in
-  BT new_bm new_tops.
+  if #b \in dom bt then bt else #b \\-> b \+ bt.
+
+(* Baisc property commutativity of additions *)
+
+Lemma btExtend_dom bt b :
+  valid bt -> {subset dom bt <= dom (btExtend bt b)}.
+Proof.
+move=>V z; rewrite /btExtend.
+case:ifP=>C//=D.
+by rewrite domUn inE andbC/= gen_validPtUn/= V D/= C orbC.
+Qed.
+
+ Lemma byExtend_in bt b :
+  valid bt -> hashB b \in dom (btExtend bt b).
+Proof.
+move=>V; rewrite /btExtend/=; case: ifP=>//= N.
+by rewrite domUn inE um_domPt !inE eqxx andbC/= gen_validPtUn/= V N.
+Qed.
+
+Lemma byExtend_idemp bt b :
+  valid bt -> btExtend bt b = btExtend (btExtend bt b) b.
+Proof. by move=>V; rewrite {2}/btExtend byExtend_in. Qed.
+
+Lemma btExtend_comm bt b1 b2 :
+  valid bt ->
+  btExtend (btExtend bt b1) b2 = btExtend (btExtend bt b2) b1.
+Proof.
+move=>V.
+case C1 : (hashB b1 \in dom bt).
+- by rewrite ![btExtend _ b1]/btExtend C1 (btExtend_dom b2 V C1).  
+case C2 : (hashB b2 \in dom bt).
+- by rewrite ![btExtend _ b2]/btExtend C2 (btExtend_dom b1 V C2).
+case B: (hashB b1 == hashB b2); first by move/eqP/hashB_inj: B=>B; subst b2.
+have D1: hashB b2 \in dom (btExtend bt b1) = false.
+- by rewrite /btExtend C1/= domUn !inE C2/= um_domPt inE B andbC/=.
+have D2: hashB b1 \in dom (btExtend bt b2) = false.
+- by rewrite /btExtend C2/= domUn !inE C1/= um_domPt inE eq_sym B andbC/=.
+rewrite /btExtend D1 D2 C1 C2/= !joinA.
+by rewrite -!(joinC bt) (joinC (# b2 \\-> b2)).
+Qed.
 
 (* How to show this terminates?
  * Sylvain suggested removing top from bt before passing it
