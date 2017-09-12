@@ -83,6 +83,28 @@ End TxEq.
 Export TxEq.
 
 
+Axiom VAF_inj :
+  forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
+    VAF v ts bc1 -> VAF v' ts bc2 -> v == v' /\ bc1 == bc2.
+
+Axiom CFR_ext :
+  forall (bc : Blockchain) (b : Block) (ext : seq Block),
+    bc ++ (b :: ext) > bc.
+
+Axiom CFR_nrefl :
+  forall (bc : Blockchain), bc > bc -> False.
+
+Axiom CFR_trans :
+  forall (A B C : Blockchain),
+    A > B -> B > C -> A > C.
+
+Lemma CFR_excl :
+  forall (bc bc' : Blockchain),
+    bc > bc' -> bc' > bc -> False.
+Proof.
+by move=>bc bc' H1 H2; move: (CFR_trans H1 H2); apply CFR_nrefl.
+Qed.
+
 (*****************************
  *  BlockTree implementation *
  *****************************)
@@ -90,11 +112,14 @@ Export TxEq.
 (* Also keeps orphan blocks *)
 Definition BlockTree := union_map Hash Block.
 
-Definition btHasBlock (bt : BlockTree) (b : Block) :=
-  hashB b \in dom bt.
+Notation "# b" := (hashB b) (at level 20).
+Notation "## b" := (hashB b \\-> tt) (at level 80).
 
-Notation "# bt" := (hashB bt) (at level 20).
-Notation "## bt" := (hashB bt \\-> tt) (at level 70).
+Definition btHasBlock (bt : BlockTree) (b : Block) :=
+  #b \in dom bt.
+
+Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
+Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 
 Definition valid_block b : bool :=
    prevBlockHash b != #b.
@@ -110,6 +135,12 @@ rewrite /btExtend; case: ifP=>//N.
 by rewrite gen_validPtUn/= N andbC.
 Qed.
 
+Lemma btExtendV_fold bt bs : valid bt = valid (foldl btExtend bt bs).
+Proof.
+elim/last_ind: bs=>[|xs x Hi]; first done.
+by rewrite -cats1 foldl_cat /= Hi; apply btExtendV.
+Qed.
+
 (* Baisc property commutativity of additions *)
 
 Lemma btExtend_dom bt b :
@@ -120,7 +151,7 @@ case:ifP=>C//=D.
 by rewrite domUn inE andbC/= gen_validPtUn/= V D/= C orbC.
 Qed.
 
- Lemma btExtend_in bt b :
+Lemma btExtend_in bt b :
   valid bt -> hashB b \in dom (btExtend bt b).
 Proof.
 move=>V; rewrite /btExtend/=; case: ifP=>//= N.
@@ -158,11 +189,6 @@ have D2: hashB b1 \in dom (btExtend bt b2) = false.
 rewrite /btExtend D1 D2 C1 C2/= !joinA.
 by rewrite -!(joinC bt) (joinC (# b2 \\-> b2)).
 Qed.
-
-(* How to show this terminates?
- * Sylvain suggested removing top from bt before passing it
- *  into the recursive call. Not sure if it will work.
- *)
 
 Section BlockTreeProperties.
 
@@ -306,98 +332,40 @@ rewrite /btChain.
 case B : (#b \in dom bt);rewrite /btExtend B; first by left. 
 Admitted.
 
-End BtChainProperties.
-
-
-
-(**************************
- *  TxPool implementation *
- **************************)
-Definition TxPool := seq Transaction.
-
-(* Transaction is valid and consistent with the given chain. *)
-Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
-
-Axiom VAF_inj :
-  forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
-    VAF v ts bc1 -> VAF v' ts bc2 -> v == v' /\ bc1 == bc2.
-
-Axiom CFR_ext :
-  forall (bc : Blockchain) (b : Block) (ext : seq Block),
-    bc ++ (b :: ext) > bc.
-
-Axiom CFR_nrefl :
-  forall (bc : Blockchain), bc > bc -> False.
-
-Axiom CFR_trans :
-  forall (A B C : Blockchain),
-    A > B -> B > C -> A > C.
-
-Lemma CFR_excl :
-  forall (bc bc' : Blockchain),
-    bc > bc' -> bc' > bc -> False.
+Lemma btChain_mem :
+  forall (bt : BlockTree) (b : Block),
+    b ∉ bt -> b \notin btChain bt.
 Proof.
-by move=>bc bc' H1 H2; move: (CFR_trans H1 H2); apply CFR_nrefl.
-Qed.
+Admitted.
 
-Axiom btChain_mem :
+Lemma btChain_mem2 :
   forall (bt : BlockTree) (b : Block),
-    b \notin bt -> b \notin btChain bt.
+    b \in btChain bt -> b ∈ bt.
+Proof.
+Admitted.
 
-Axiom btChain_mem2 :
-  forall (bt : BlockTree) (b : Block),
-    b \in btChain bt -> b \in bt.
-
-Axiom btChain_seq :
-  forall (bt : BlockTree) (bc : Blockchain),
-    btChain bt = bc ->
-    forall (b : Block),
-      b != GenesisBlock ->
-      b \in bc == (prevBlockHash b == hashB (bcPrev b bc)).
-
-Axiom btChain_extend :
+Lemma btChain_extend :
   forall (bt : BlockTree) (b extension : Block),
     let bc := (btChain bt) in
     b \notin bc ->
     prevBlockHash extension == hashB (bcLast bc) ->
     btChain (btExtend bt b) = rcons bc extension.
-
-Axiom btExtend_comm :
-  forall (bt : BlockTree) (b1 b2 : Block),
-    btExtend (btExtend bt b1) b2 = btExtend (btExtend bt b2) b1.
+Proof.
+Admitted.
 
 Lemma btExtend_fold_comm :
   forall (bt : BlockTree) (bs bs' : seq Block),
+    valid bt ->
     foldl btExtend (foldl btExtend bt bs) bs' =
     foldl btExtend (foldl btExtend bt bs') bs.
 Proof.
-move=>bt bs bs'.
+move=>bt bs bs' V.
 elim/last_ind: bs'=>[|xs x Hi]/=; first done.
 rewrite -cats1 !foldl_cat Hi=>/=; clear Hi.
 elim/last_ind: bs=>[|ys y Hi]/=; first done.
-by rewrite -cats1 !foldl_cat -Hi/=; apply btExtend_comm.
+rewrite -cats1 !foldl_cat -Hi /=; apply btExtend_comm. 
+by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-.
 Qed.
-
-Axiom btExtend_preserve :
-  forall (bt : BlockTree) (ob b : Block),
-    let: bt' := btExtend bt b in
-    ob \in bt -> ob \in bt'.
-
-Axiom btExtend_withDup_noEffect :
-  forall (bt : BlockTree) (b : Block),
-    let: bt' := btExtend bt b in
-    b \in bt -> bt = bt'.
-
-(* TODO: explain *)
-Axiom btExtend_withNew_sameOrBetter :
-  forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
-    b \notin bt ->
-      b \in btChain bt' = (btChain bt' > btChain bt).
-
-Axiom btExtend_sameOrBetter :
-  forall (bt : BlockTree) (b : Block),
-    btChain (btExtend bt b) >= btChain bt.
 
 Lemma btExtend_fold_sameOrBetter:
   forall (bt :BlockTree) (bs : seq Block),
@@ -452,44 +420,49 @@ Qed.
 
 Lemma btExtend_seq_same :
   forall (bt : BlockTree) (b : Block) (bs : seq Block),
+    valid bt ->
     b \in bs -> btChain bt = btChain (foldl btExtend bt bs) ->
     btChain bt = btChain (btExtend bt b).
 Proof.
-move=>bt b bs H1.
+move=>bt b bs V H1.
 move: (in_seq H1)=>[bf] [af] H2; rewrite H2.
 move=>H; clear H1 H2.
 move: (btExtend_fold_sameOrBetter bt [:: b])=>H1.
 case: H1; first by move/eqP; rewrite eq_sym=>/eqP.
 rewrite -cat1s in H.
-by move=>/=Con; rewrite H in Con; clear H; contradict Con;
-   rewrite foldl_cat btExtend_fold_comm foldl_cat /= -foldl_cat;
-   apply btExtend_fold_not_worse.
+move=>/=Con; rewrite H in Con; clear H; contradict Con.
+rewrite foldl_cat btExtend_fold_comm. rewrite foldl_cat /= - foldl_cat.
+by apply btExtend_fold_not_worse.
+by [].
 Qed.
 
 Lemma btExtend_seq_sameOrBetter :
   forall (bt : BlockTree) (b : Block) (bs : seq Block),
+    valid bt->
     b \in bs -> btChain bt >= btChain (foldl btExtend bt bs) ->
     btChain bt >= btChain (btExtend bt b).
 Proof.
-move=>bt b bs H1; case.
-by move=>H2; left; apply (btExtend_seq_same H1 H2).
+move=>bt b bs V H1; case.
+by move=>H2; left; apply (btExtend_seq_same V H1 H2).
 by move=>Con; contradict Con; apply btExtend_fold_not_worse.
 Qed.
 
 Lemma btExtend_seq_sameOrBetter_fref :
   forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
+    valid bt ->
     b \in bs -> bc >= btChain bt ->
     bc >= btChain (foldl btExtend bt bs) ->
     bc >= btChain (btExtend bt b).
 Proof.
-move=> bc bt b bs H HGt HGt'.
+move=> bc bt b bs V H HGt HGt'.
 move: (in_seq H)=>[bf] [af] H'; rewrite H' in HGt'; clear H H'.
 move: (btExtend_sameOrBetter bt b)=>H.
 move: (btExtend_fold_sameOrBetter bt (bf ++ b :: af)).
-rewrite -cat1s foldl_cat btExtend_fold_comm foldl_cat /= -foldl_cat in HGt' *.
+rewrite -cat1s foldl_cat btExtend_fold_comm in HGt' *.
+rewrite foldl_cat /= -foldl_cat in HGt' *.
 move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
 - by left; rewrite h1 h3.
-- by rewrite h3 in h2; rewrite h2 in h0; contradict h0; apply: CFR_nrefl.
+- rewrite h3 in h2; rewrite h2 in h0; contradict h0; apply: CFR_nrefl.
 - by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
 - by rewrite -h2 h3 in h0; contradict h0; apply: CFR_nrefl.
 - by left; apply/eqP; rewrite eq_sym; rewrite -h3 in h1; apply/eqP.
@@ -510,7 +483,15 @@ have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
 case=>[|H].
 by move=><-; right.
 by right; move: (CFR_trans h2 H).
+by [].
 Qed.
+
+(* TODO: explain *)
+Axiom btExtend_withNew_sameOrBetter :
+  forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
+    b ∉ bt ->
+      b \in btChain bt' = (btChain bt' > btChain bt).
+
 
 Axiom btExtend_withNew_mem :
   forall (bt : BlockTree) (b : Block),
@@ -519,6 +500,18 @@ Axiom btExtend_withNew_mem :
     b \notin bc ->
     bc != bc' = (b \in bc').
 
+End BtChainProperties.
+
+(**************************
+ *  TxPool implementation *
+ **************************)
+Definition TxPool := seq Transaction.
+
+(* Transaction is valid and consistent with the given chain. *)
+Parameter txValid : Transaction -> Blockchain -> bool.
+Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
+
+(* Axioms and other properties *)
 Axiom tpExtend_validAndConsistent :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
     tx \in (tpExtend pool bt tx) -> (txValid tx (btChain bt)).
@@ -526,34 +519,3 @@ Axiom tpExtend_validAndConsistent :
 Axiom tpExtend_withDup_noEffect :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
     tx \in pool -> (tpExtend pool bt tx) = pool.
-
-(* Caller must ensure bc' is longer *)
-Fixpoint prefix_diff (bc bc' : Blockchain) :=
-  match bc, bc' with
-  | x :: xs, y :: ys => if x == y then prefix_diff xs ys else y :: ys
-  | _, ys => ys
-  end.
-
-(* Caller must ensure bc' is longer *)
-Definition bc_diff (bc bc' : Blockchain) := [seq b <- bc' | b \notin bc].
-
-(* Facts *)
-Lemma bc_succ_mem b bc:
-  forall (sb : Block),
-    (bcSucc b bc = Some sb) ->
-    (b \in bc) = true /\ (sb \in bc) = true.
-Proof.
-elim: bc=>[|h t Hi]/=; do? by [].
-move=> sb. specialize (Hi sb). case E: (h == b); last first.
-case: {1}t.
-- move=>Ex. move: (Hi Ex). elim. move=> bbc sbbc. clear Hi Ex. split.
-  by rewrite in_cons bbc; apply Bool.orb_true_r.
-  by rewrite in_cons sbbc; apply Bool.orb_true_r.
-- move=>_ _ Ex. move: (Hi Ex). elim. move=> bbc sbbc. clear Hi Ex. split.
-  by rewrite in_cons bbc; apply Bool.orb_true_r.
-  by rewrite in_cons sbbc; apply Bool.orb_true_r.
-case: t Hi; do? by [].
-move=> succ tail Hi eq. case: eq=>eq. rewrite -eq in Hi. split.
- + by rewrite in_cons; move/eqP in E; rewrite E eq_refl; apply Bool.orb_true_l.
- + by rewrite eq; rewrite !in_cons; rewrite eqxx=>/=; apply Bool.orb_true_r.
-Qed.
