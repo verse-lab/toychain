@@ -12,8 +12,8 @@ Heaps/prelude.v
 Heaps/spcm.v
 Heaps/unionmap.v
 Misc/SeqFacts.v
-Core/Blockchain.v
 Core/BlockchainProperties.v
+Core/Blockchain.v
 PoS/Semantics.v
 PoS/States.v
 PoS/Protocol.v

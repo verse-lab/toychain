@@ -3,7 +3,6 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding. 
-Require Import Blockchain.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -69,12 +68,6 @@ Proof.
 move=>[x][xs]eq [y][ys]eq'. rewrite eq' eq. clear eq eq'.
 rewrite/is_strict_prefix. eexists x, (xs ++ y :: ys).
 by rewrite -catA.
-Qed.
-
-Lemma bc_spre_gt bc bc' :
-  [bc <<< bc'] -> bc' > bc.
-Proof.
-by case=>h; case=>t=>eq; rewrite eq; apply CFR_ext.
 Qed.
 
 Lemma bc_spre_pre {T :eqType} (bc bc' : seq T) :
@@ -211,13 +204,13 @@ rewrite -rcons_cat=>/eqP; rewrite eqseq_rcons; move/andP=>[/eqP Z]/eqP Z'.
 by subst x b; apply: H2; exists zs.
 Qed.
 
-Inductive bc_rel (bc bc' : Blockchain) : bool-> bool-> bool-> bool-> Set :=
+Inductive bc_rel {T : eqType} (bc bc' : seq T) : bool-> bool-> bool-> bool-> Set :=
 | CmpBcEq of bc == bc' : bc_rel bc bc' true false false false
 | CmpBcFork of fork bc bc' : bc_rel bc bc' false true false false
 | CmpBcPre12 of sprefixb bc bc' : bc_rel bc bc' false false true false
 | CmpBcPre21 of sprefixb bc' bc: bc_rel bc bc' false false false true.
 
-Lemma bc_relP (bc bc' : Blockchain) :
+Lemma bc_relP {T : eqType} (bc bc' : seq T) :
   bc_rel bc bc' (bc == bc') (fork bc bc') (sprefixb bc bc') (sprefixb bc' bc).
 Proof.
 case Eq: (bc == bc'); case F: (fork bc bc');
@@ -233,13 +226,5 @@ do? by [
 - by contradict F; move/norP=>[] _=>/norP; elim=>C; rewrite S21 in C.
 - by contradict F; rewrite/fork Eq S12 S21.
 Qed.
-
-Axiom btChain_fork :
-  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
-  let: bc' := btChain (btExtend bt b) in
-    btChain bt = bc ->
-    b \notin bc ->
-    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
-    fork bc bc'.
 
 End Forks.

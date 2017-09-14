@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
-Require Import SeqFacts.
+Require Import SeqFacts BlockchainProperties.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -49,8 +49,12 @@ Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (CFR_gt A B).
 Notation "A >= B" := (A = B \/ A > B).
 
+Definition subchain (bc1 bc2 : Blockchain) :=
+  exists p q, bc2 = p ++ bc1 ++ q.
+
 (* Axioms *)
 (* Is it realistic? *)
+Axiom CFR_subchain : forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 Axiom hashB_inj : injective hashB.
 Axiom hashT_inj : injective hashT.
 Axiom hashBT_noCollisions :
@@ -122,12 +126,29 @@ Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
 Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 
 Definition valid_block b : bool :=
-   prevBlockHash b != #b.
+  prevBlockHash b != #b.
+
+Definition validH (bt : BlockTree) :=
+  forall h b, find h bt = Some b -> h = hashB b.
+
+Lemma validH_free bt (b : Block) :
+  validH bt -> validH (free (# b) bt).
+Proof. by move=>Vh h c; rewrite findF;case: ifP=>//_ /Vh. Qed.
 
 (* How can we assert there are no cycles? *)
 (* You only add "fresh blocks" *)
 Definition btExtend (bt : BlockTree) (b : Block) :=
   if #b \in dom bt then bt else #b \\-> b \+ bt.
+
+Lemma btExtendH bt b : valid bt -> validH bt -> validH (btExtend bt b).
+Proof.
+move=>V H z c; rewrite /btExtend.
+case: ifP=>X; first by move/H.
+rewrite findUnL ?gen_validPtUn ?V ?X//.
+case: ifP=>Y; last by move/H.
+rewrite um_domPt inE in Y; move/eqP: Y=>Y; subst z.
+by rewrite um_findPt; case=>->.
+Qed.
 
 Lemma btExtendV bt b : valid bt = valid (btExtend bt b).
 Proof.
@@ -192,17 +213,14 @@ Qed.
 
 Section BlockTreeProperties.
 
-Variable bt: BlockTree.
-
-
 (* b is the previous of b' in bt: 
 .... b <-- b' ....
 *)
-Definition next_of b : pred Block :=
+Definition next_of (bt : BlockTree) b : pred Block :=
   [pred b' | (hashB b == prevBlockHash b') && (hashB b' \in dom bt)].
 
 (* All paths/chains should start with the GenesisBlock *)
-Fixpoint compute_chain' b (remaining : seq Hash) (n : nat) : Blockchain :=
+Fixpoint compute_chain' (bt : BlockTree) b remaining n : Blockchain :=
   (* Preventing cycles in chains *)
   if (hashB b) \in remaining
   then
@@ -213,14 +231,14 @@ Fixpoint compute_chain' b (remaining : seq Hash) (n : nat) : Blockchain :=
       (* No parent *)
       | None => [:: b]
       (* Build chain prefix recursively *)
-      | Some prev => rcons (compute_chain' prev rest n') prev
+      | Some prev => rcons (nosimpl (compute_chain' (free (hashB b) bt) prev rest n')) b
       end
     else [::]
   else [::].
 
 (* Compute chain from the block *)
-Definition compute_chain b :=
-  compute_chain' b (keys_of bt) (size (keys_of bt)).
+Definition compute_chain bt b :=
+  compute_chain' bt b (keys_of bt) (size (keys_of bt)).
 
 (* TODO: Perhaps, it's worthwhile to reformulate compute_chain b in
 terms of path, uniq, prevHash not defined/cyclic etc, to reason about
@@ -247,18 +265,18 @@ paths rather then these things. *)
 
 
 (* Total get_block function *)
-Definition get_block k : Block :=
+Definition get_block (bt : BlockTree) k : Block :=
   if find k bt is Some b then b else GenesisBlock.
 
 (* Collect all blocks *)
-Definition all_blocks := [seq get_block k | k <- keys_of bt].
+Definition all_blocks (bt : BlockTree) := [seq get_block bt k | k <- keys_of bt].
 
-Definition is_block_in b := exists k, find k bt = Some b.
+Definition is_block_in (bt : BlockTree) b := exists k, find k bt = Some b.
 
 (* A certificate for all_blocks *)
-Lemma all_blocksP b : reflect (is_block_in b) (b \in all_blocks).
+Lemma all_blocksP bt b : reflect (is_block_in bt b) (b \in all_blocks bt).
 Proof.
-case B : (b \in all_blocks); [constructor 1|constructor 2].
+case B : (b \in all_blocks bt); [constructor 1|constructor 2].
 - move: B; rewrite /all_blocks; case/mapP=>k Ik->{b}.
   rewrite keys_dom in Ik; move/gen_eta: Ik=>[b]/=[E H].
   by exists k; rewrite /get_block E.
@@ -272,13 +290,13 @@ Qed.
 Definition good_chain (bc : Blockchain) :=
   if bc is GenesisBlock :: _ then true else false.
 
-Definition all_chains := [seq compute_chain b | b <- all_blocks].
+Definition all_chains bt := [seq compute_chain bt b | b <- all_blocks bt].
 
 (* Get the blockchain *)
 Definition take_better_bc bc2 bc1 := if (good_chain bc2) && (bc2 > bc1) then bc2 else bc1.
 
-Definition btChain : Blockchain :=
-  foldr take_better_bc [:: GenesisBlock] all_chains. 
+Definition btChain bt : Blockchain :=
+  foldr take_better_bc [:: GenesisBlock] (all_chains bt). 
 
 End BlockTreeProperties.
 
@@ -296,24 +314,122 @@ rewrite findUnR ?N/=; last by rewrite gen_validPtUn/= V N.
 by move/find_some: (F)=>->.
 Qed.
 
+Lemma compute_chain_no_block' bt (pb : Block) (hs : seq Hash) n :
+  # pb \notin hs -> compute_chain' bt pb hs n = [::].
+Proof. by case: n=>//=[|?]; move/negbTE=>->. Qed.
+
+Lemma size_free n h (bt : BlockTree):
+  valid bt -> n.+1 = size (keys_of bt) ->
+  h \in keys_of bt -> n = size (keys_of (free h bt)).
+Proof.
+move=>V S K; rewrite keys_dom in K.
+case: (gen_eta K)=>b[F]E; rewrite E in S V.
+rewrite (keysUn_size V) um_keysPt/= addnC addn1 in S.
+by case: S.
+Qed.
+
+Lemma compute_chain_equiv  bt (pb : Block) (hs1 hs2 : seq Hash) n :
+  uniq hs1 -> uniq hs2 -> hs1 =i hs2 ->
+  compute_chain' bt pb hs1 n = compute_chain' bt pb hs2 n. 
+Proof.
+elim: n pb bt hs1 hs2=>//=[|n Hi] pb bt hs1 hs2 U1 U2 D; rewrite -D//.
+case: ifP=>//G; case: (find (prevBlockHash pb) bt)=>[v|]=>//.
+suff X: seq.rem (# pb) hs1 =i seq.rem (# pb) hs2.
+- by rewrite (Hi v (free (# pb) bt) (seq.rem (# pb) hs1)
+             (seq.rem (# pb) hs2) (rem_uniq _ U1) (rem_uniq _ U2) X).
+by move=>z; rewrite (mem_rem_uniq _ U2) (mem_rem_uniq _ U1) !inE D.
+Qed.
+
+Lemma keys_rem1 (bt : BlockTree) h1 h2 a :
+  valid (h1 \\-> a \+ bt) -> (h2 == h1) = false ->
+  seq.rem h2 (keys_of (h1 \\-> a \+ bt)) =i keys_of (h1 \\-> a \+ free h2 bt).
+Proof.
+move=>V N z.
+have X: h1 \\-> a \+ free h2 bt = free h2 (h1 \\-> a \+ bt) by rewrite um_freePtUn2// N.
+rewrite X keys_dom domF !inE.
+case B: (z == h2).
+- by move/eqP:B=>B; subst h2; rewrite rem_filter ?(keys_uniq _)// mem_filter/= eqxx.
+move/negbT: (B)=>B'. 
+case C: (z \in keys_of (h1 \\-> a \+ bt)).
+- by rewrite (rem_neq B' C) eq_sym -keys_dom; move/negbTE:B'=>->.
+by rewrite eq_sym B -keys_dom C; apply/negP=>/mem_rem=>E; rewrite E in C. 
+Qed.
+
+Lemma keys_rem2 h (bt : BlockTree) : seq.rem h (keys_of bt) =i keys_of (free h bt).
+Proof.
+move=>z; case B: (z == h).
+- move/eqP:B=>B; subst h.
+  rewrite (rem_filter _ (@keys_uniq _ _ _ bt)) /predC1 mem_filter !keys_dom domF/=.
+  by rewrite inE eqxx.
+move/negbT: (B)=>B'; rewrite keys_dom domF inE eq_sym B -keys_dom.
+case C: (z \in keys_of bt); first by rewrite (rem_neq B' C).
+by apply/negP=>/mem_rem=>E; rewrite E in C. 
+Qed.
+
 Lemma btExtend_chain_prefix bt a b :
+  valid bt -> validH bt ->
   exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b .
 Proof.
+(* TODO: This existential is sooper-annoying. Can we have a better
+   proof principle for this? *)
+move=>V Vh.
 case B: (#a \in dom bt); rewrite /btExtend B; first by exists [::].
-Admitted.                                                              
-
+rewrite /compute_chain.
+(* Massaging the goal, for doing the induction on the size of (keys_of bt). *)
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+rewrite keysUn_size ?gen_validPtUn ?V ?B// um_keysPt-!Es-En [_ + _] addnC addn1.
+elim: n b bt V Vh B hs Es En=>[|n Hi] b bt V Vh B hs Es En.
+- rewrite {1}/compute_chain'; move/esym/size0nil: En=>->.
+  by move: (compute_chain' _ _ _ 1)=>c/=; exists c; rewrite cats0.
+have V': valid (# a \\-> a \+ bt) by rewrite gen_validPtUn V B.
+rewrite {2}/compute_chain' -!/compute_chain'.
+case: ifP=>Bb; last first.
+- exists [::]; rewrite compute_chain_no_block'//. 
+  apply/negbT/negP=>I1; move/negP:Bb=>Bb; apply: Bb; subst hs.
+  by rewrite !keys_dom in I1 *; rewrite domUn inE V' I1 orbC.
+rewrite {1}/compute_chain' -!/compute_chain'.
+case: ifP=>X; last first.
+- by eexists (match _ with | Some prev => rcons _ b | None => [:: b] end); rewrite cats0. 
+rewrite !findUnR ?gen_validPtUn ?V ?B//.
+case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last first. 
++ move=>->_; case D2: (prevBlockHash b \in dom (# a \\-> a));
+  case: dom_find (D2)=>//; last by move=>->_; exists [::].
+  move=>pb->/=. 
+  rewrite um_domPt inE in D2; move/eqP:D2=>D2; rewrite !D2 in B V' *.
+  rewrite um_freePt2//eqxx -um_ptsU=> E _; move:(um_cancelPt E)=>{E B}E; subst a.
+  by eexists _; rewrite -cats1.  
+move=>pb Hf; rewrite updF Hf eqxx -(Vh _ _ Hf)=>Eb _.
+have Bn' : # b == # a = false by apply/negbTE/negP=>/eqP=>E; rewrite -E -keys_dom -Es X in B.
+rewrite (um_freePtUn2 (#b) V') !Bn' !(Vh _ _ Hf).
+(*** How should we fold this over-eager rewriting ***)
+subst hs.
+(* It's time to unleash the induction hypothesis! *)
+have H1: valid (free (# b) bt) by rewrite validF. 
+have H2: validH (free (# b) bt) by apply: validH_free. 
+have H3: (# a \in dom (free (# b) bt)) = false by rewrite domF inE Bn' B.
+have H4: n = size (keys_of (free (# b) bt)) by apply: size_free.
+case: (Hi pb (free (# b) bt) H1 H2 H3 (keys_of (free (# b) bt)) (erefl _) H4)=>q E.
+exists q; rewrite -rcons_cat; congr (rcons _ b).
+(* Final rewriting of with the unique lists *)
+rewrite (compute_chain_equiv _ _ _ _ _ (keys_rem2 (#b) bt))
+        ?(keys_uniq _) ?(rem_uniq _ (keys_uniq bt))// E.
+by rewrite -(compute_chain_equiv _ _ _ _ _ (keys_rem1 V' Bn'))
+           ?(keys_uniq _) ?(rem_uniq _ (keys_uniq _)).
+Qed.
 
 (* Chains from blocks are only growing as BT is extended *)
 Lemma btExtend_chain_grows bt a b :
+  valid bt -> validH bt ->
   compute_chain (btExtend bt a) b >= compute_chain bt b.
 Proof.
-(* First show it's longer *)
-(* Scond, show it doesn't suddenly become "bad" *)
-Admitted.
+move=>V H; apply: CFR_subchain.
+by case: (btExtend_chain_prefix a b V H)=>p<-; exists p, [::]; rewrite cats0.
+Qed.
 
-(* TODO: Show that the set of chains will only grow as we add new blocks *)
-
-(* TODO: Show that the goodness is preserved *)
+(* TODO: Show that the goodness of chains is preserved *)
 
 (* Lemma btExtend_chains (bt : BlockTree) (b : Block) : valid bt -> *)
 (*   {subset all_good_chains bt <= all_good_chains (btExtend bt b)}. *)
@@ -486,6 +602,10 @@ by right; move: (CFR_trans h2 H).
 by [].
 Qed.
 
+Lemma bc_spre_gt bc bc' :
+  [bc <<< bc'] -> bc' > bc.
+Proof. by case=>h; case=>t=>eq; rewrite eq; apply CFR_ext. Qed.
+
 (* TODO: explain *)
 Axiom btExtend_withNew_sameOrBetter :
   forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
@@ -499,6 +619,15 @@ Axiom btExtend_withNew_mem :
     let: bc' := btChain (btExtend bt b) in
     b \notin bc ->
     bc != bc' = (b \in bc').
+
+Axiom btChain_fork :
+  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
+  let: bc' := btChain (btExtend bt b) in
+    btChain bt = bc ->
+    b \notin bc ->
+    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
+    fork bc bc'.
+
 
 End BtChainProperties.
 
@@ -519,3 +648,4 @@ Axiom tpExtend_validAndConsistent :
 Axiom tpExtend_withDup_noEffect :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
     tx \in pool -> (tpExtend pool bt tx) = pool.
+
