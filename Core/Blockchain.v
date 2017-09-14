@@ -440,6 +440,20 @@ Qed.
 (* move=>{z}z; case/mapP=>k/(btExtend_blocks b V) H E; apply/mapP. *)
 (* exists k=>//. subst z. *)
 
+(*
+Strategy:
+
+- Show that the keys in the old and the new one are off by one (from
+  the properties of union maps);
+
+- "Aling" the corresponding segments and show that the maximum can
+  only grow due to the lemma above;
+
+- Also will have to show that for each new "champion chain", its
+  prefix must have been a good chain already there.
+
+*)
+
 
 (* Monotonicity of BT => Monotonicity of btChain *)
 Lemma btExtend_sameOrBetter bt b : btChain (btExtend bt b) >= btChain bt.
