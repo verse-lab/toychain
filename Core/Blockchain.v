@@ -502,12 +502,12 @@ case B : (#b \in dom bt);rewrite /btExtend B; first by left.
 Admitted.
 
 Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
-    b \in btChain bt -> btHasBlock bt b.
+    b \in btChain bt -> b ∈ bt.
 Proof.
 Admitted.
 
 Lemma btChain_mem (bt : BlockTree) (b : Block) :
-    ~~(btHasBlock bt b) -> b \notin btChain bt.
+   b ∉ bt -> b \notin btChain bt.
 Proof.
 by move/negP=>B; apply/negP=>H; apply: B; apply: btChain_mem2.
 Qed.
