@@ -366,6 +366,45 @@ case C: (z \in keys_of bt); first by rewrite (rem_neq B' C).
 by apply/negP=>/mem_rem=>E; rewrite E in C. 
 Qed.
 
+Lemma compute_chain_notin' bt (b b' : Block) (hs : seq Hash) n :
+  valid bt -> (# b) \notin hs -> b \notin compute_chain' bt b' hs n.
+Proof.
+elim: n b b' bt hs=>[|n Hi] b b' bt hs V B/=; first by case:ifP.  
+case: ifP=>//B'.
+case D1: (prevBlockHash b' \in dom bt); case: dom_find (D1)=>//; last first.
+- by move=>->_; rewrite inE; apply/negbT/negP=>/eqP Z; subst b; rewrite B' in B.
+move=>pb->_ _; rewrite -cats1 mem_cat !inE; apply/negP=>/orP[]; last first.
+- by move/eqP=>Z; subst b'; rewrite B' in B.
+apply/negP; apply: (Hi b pb (free (# b') bt) (seq.rem (# b') hs)).
+- by rewrite validF V.  
+by apply/negP=>/mem_rem; apply/negP.
+Qed.
+
+(* The computed chain has no cycles *)
+Lemma compute_chain_uniq bt b :
+  valid bt -> uniq (compute_chain bt b).
+Proof.
+move=>V; rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n b bt V hs Es En=>[|n Hi] b bt V hs Es En/=; first by case:ifP.  
+case: ifP=>//B.
+case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//;last by move=>->. 
+move=>pb->Eb _; rewrite rcons_uniq; subst hs.
+have H1: valid (free (# b) bt) by rewrite validF. 
+have H3: n = size (keys_of (free (# b) bt)) by apply: size_free.
+move: (Hi pb _ H1 _ (erefl _) H3)=>U.
+rewrite -(compute_chain_equiv (free (# b) bt) pb n (rem_uniq _ (keys_uniq _))
+          (keys_uniq (free (# b) bt)) (keys_rem2 _ _)) in U.
+rewrite U andbC=>/={U}.
+have X : (#b) \notin seq.rem (# b) (keys_of bt).
+- elim: (keys_of bt) (keys_uniq bt)=>//=h t Gi/andP[]N/Gi{Gi}G.
+  by case:ifP; [by move/eqP=><-| by rewrite inE eq_sym=>->].
+by apply: (compute_chain_notin' _ _ _ X).  
+Qed.
+      
 Lemma btExtend_chain_prefix bt a b :
   valid bt -> validH bt ->
   exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b .
@@ -462,14 +501,12 @@ rewrite /btChain.
 case B : (#b \in dom bt);rewrite /btExtend B; first by left. 
 Admitted.
 
-Lemma btChain_mem :
-  forall (bt : BlockTree) (b : Block),
+Lemma btChain_mem (bt : BlockTree) (b : Block) :
     b ∉ bt -> b \notin btChain bt.
 Proof.
 Admitted.
 
-Lemma btChain_mem2 :
-  forall (bt : BlockTree) (b : Block),
+Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
     b \in btChain bt -> b ∈ bt.
 Proof.
 Admitted.
