@@ -251,13 +251,13 @@ case=>p [] iF; case.
 Qed.
 
 Definition blocksFor n' w :=
-  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
+  undup [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'].
 
 Lemma b_in_blocksFor p b w :
     p \in inFlightMsgs w -> (msg p = BlockMsg b) -> b \in blocksFor (dst p) w.
 Proof.
 move=>iF Msg.
-rewrite/blocksFor; apply/mapP; exists p.
+rewrite/blocksFor mem_undup; apply/mapP; exists p.
 by rewrite mem_filter eqxx.
 by rewrite/msg_block Msg.
 Qed.
@@ -284,7 +284,7 @@ Definition GSyncing w :=
       holds n' w (fun st =>
          bc >= btChain (foldl btExtend (blockTree st) (blocksFor n' w))) &
 
-   (* All blocks (in any BlockTree) are available to every node *)
+   (* If you've received all blocks, you have the canonical chain *)
    forall n',
      holds n' w (fun st =>
       (~exists b, available b n' w) /\ blocksFor n' w == [::] -> has_chain bc st)].
@@ -339,7 +339,7 @@ case: S=>[|p st1 [c1 c2 c3] _ iF Fw|proc t st1 [c1 c2 c3] _ Fw];
   first by elim=>_ <-; move: Iw=>[].
 case: Iw=>_ [GStabW|GSyncW].
 - by case GStabW=>noPackets; contradict iF; rewrite noPackets.
-- case GSyncW=>can_bc [can_n] [] HHold HGt HInFlight HDiffAv.
+- case GSyncW=>can_bc [can_n] [] HHold HGt HInFlight HDiff.
   case P: (procMsg _ _ _)=>[stPm ms]; move=>->; right.
   (* The canonical chain is guaranteed to remain the same for any msg:
    *  - for non-block messages, this holds by procMsg_non_block_nc_btChain
@@ -394,7 +394,28 @@ case: Iw=>_ [GStabW|GSyncW].
     move: (c3 (dst p) _ Fw)=>V.
     by move: (btExtend_seq_sameOrBetter_fref V X HGt HInFlight).
 
+  (* ... no surprise blocks in the packet soup *)
+  (* Only two kinds of messages impact blocksFor X:
+     1) BlockMsg b -> removed when it is delivered to X
+     2) GetDataMsg X #b -> when delivered to Y, might send a new BlockMsg b to X
+
+     For all other kinds of messages:
+      forall n, blocksFor n w = blocksFor n w'
+
+     For (1), applying a subset of blocksFor gives bc <= than applying all
+     For (2), b is not magical (how do we know this?)
+      - Y has it & Y's bc <= can_bc
+      - need to use conjunct 4 to relate this to X's state
+        i.e. b comes from a process that "conserves" overall information
+        * b moves from available to blocksFor
+        * ISSUE: C4 doesn't say that applying diffInFlight induces
+            can_bc, just that the local bc becomes can_bc when diffInFlight = 0
+   *)
+   + case Msg: (msg p)=>[|||b|||pr h]; rewrite Msg in P; move=>n' st'.
+     rewrite/largest_chain in HGt.
+
+
 (* the canonical chain can only change throught a MintT transition *)
 (* TODO: refactor it into a lemma *)
 - admit.
-Admitted.
+Admitted
