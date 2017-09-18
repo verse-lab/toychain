@@ -231,7 +231,8 @@ Fixpoint compute_chain' (bt : BlockTree) b remaining n : Blockchain :=
       (* No parent *)
       | None => [:: b]
       (* Build chain prefix recursively *)
-      | Some prev => rcons (nosimpl (compute_chain' (free (hashB b) bt) prev rest n')) b
+      | Some prev =>
+        rcons (nosimpl (compute_chain' (free (hashB b) bt) prev rest n')) b
       end
     else [::]
   else [::].
