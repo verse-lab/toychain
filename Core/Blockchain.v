@@ -29,7 +29,6 @@ Record Block :=
   }.
 
 Parameter GenesisBlock : Block.
-
 Parameter hashB : Block -> Hash.
 Definition eq_block b b' := hashB b == hashB b'.
 
@@ -122,11 +121,18 @@ Notation "## b" := (hashB b \\-> tt) (at level 80).
 Definition btHasBlock (bt : BlockTree) (b : Block) :=
   #b \in dom bt.
 
+(* Genesis block's predecessor is itself *)
+Hypothesis init_hash : (prevBlockHash GenesisBlock) = #GenesisBlock.
+
 Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
 Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 
 Definition valid_block b : bool :=
   prevBlockHash b != #b.
+
+(* TODO: Make this a part of BT validity, in addition to validH! *)
+Definition has_init_block (bt : BlockTree) :=
+  find (# GenesisBlock) bt = Some GenesisBlock.
 
 Definition validH (bt : BlockTree) :=
   forall h b, find h bt = Some b -> h = hashB b.
@@ -405,6 +411,30 @@ have X : (#b) \notin seq.rem (# b) (keys_of bt).
   by case:ifP; [by move/eqP=><-| by rewrite inE eq_sym=>->].
 by apply: (compute_chain_notin' _ _ _ X).  
 Qed.
+
+(* Every block in a blockchain is also in the BlockTree *)
+Lemma block_in_chain bt b0 b :
+  valid bt ->
+  b \in compute_chain bt b0 -> b ∈ bt.
+Proof.
+move=>V; rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n b0 bt hs Es En V=>[|n Hi] b0 bt hs Es En V/=; first by case:ifP.  
+case: ifP=>//B.
+case D1: (prevBlockHash b0 \in dom bt); case: dom_find (D1)=>//; last first.
+- by move=>->_; rewrite inE/==>/eqP Z; subst b0 hs; rewrite /btHasBlock -keys_dom.
+move=>pb->Eb _; rewrite mem_rcons; subst hs.
+have H1: valid (free (# b0) bt) by rewrite validF. 
+have H3: n = size (keys_of (free (# b0) bt)) by apply: size_free=>//.
+move: (Hi pb _ _ (erefl _) H3 H1)=>H.
+rewrite inE=>/orP[]=>[/eqP Z|]; first by subst b0; rewrite /btHasBlock -keys_dom.
+rewrite -(compute_chain_equiv (free (# b0) bt) pb n (rem_uniq _ (keys_uniq _))
+          (keys_uniq (free (# b0) bt)) (keys_rem2 _ _)) in H.
+by move/H; rewrite /btHasBlock; rewrite domF !inE; case:ifP. 
+Qed.
       
 Lemma btExtend_chain_prefix bt a b :
   valid bt -> validH bt ->
@@ -492,19 +522,59 @@ Strategy:
 - Also will have to show that for each new "champion chain", its
   prefix must have been a good chain already there.
 
-*)
+ *)
 
-
-(* Monotonicity of BT => Monotonicity of btChain *)
-Lemma btExtend_sameOrBetter bt b : btChain (btExtend bt b) >= btChain bt.
+Lemma init_chain bt :
+  compute_chain bt GenesisBlock = [:: GenesisBlock].
 Proof.
-rewrite /btChain.
-case B : (#b \in dom bt);rewrite /btExtend B; first by left. 
+(* TODO: the proof is trivial, but boring out of init_hash *)
 Admitted.
 
+Lemma all_chains_init bt : 
+  has_init_block bt -> [:: GenesisBlock] \in all_chains bt.
+Proof.
+move=>H; rewrite /all_chains; apply/mapP.
+exists GenesisBlock; last by rewrite init_chain.
+by apply/mapP; exists (# GenesisBlock); 
+[by rewrite keys_dom; move/find_some: H|by rewrite /get_block H].
+Qed.
+
+(* Important lemma: btChain indeed delivers a chain in bt *)
+Lemma btChain_in_bt bt :
+  has_init_block bt ->
+  btChain bt \in all_chains bt.
+Proof.
+rewrite /btChain=>H; move: (all_chains_init H)=>Ha.
+move:(all_chains bt) Ha=>acs.
+elim: acs=>//=bc rest Hi Ha.
+case/orP: Ha=>G. 
+- move/eqP:G=>G; subst bc; rewrite /take_better_bc/=.
+  case: ifP=>X; first by rewrite inE eqxx.
+  rewrite -/take_better_bc; clear Hi X H.
+  elim: rest=>//=; rewrite ?inE ?eqxx//.
+  move=> bc rest Hi/=; rewrite {1}/take_better_bc.
+  case:ifP=>_; first by rewrite !inE eqxx orbC.
+  by rewrite !inE in Hi *; case/orP: Hi=>->//; rewrite ![_||true]orbC.
+move/Hi: G=>{Hi}; rewrite inE.
+move: (foldr take_better_bc [:: GenesisBlock] rest)=>l.  
+rewrite /take_better_bc/=.
+case: ifP=>_; first by rewrite eqxx.
+elim: rest=>//=; rewrite ?inE ?eqxx//.
+move=> bc' rest Hi/=. rewrite inE=>/orP[].
+- by move=>/eqP=>Z; subst bc'; rewrite eqxx orbC.
+by case/Hi/orP=>->//; rewrite ![_||true]orbC.
+Qed.
+
+  
 Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
     b \in btChain bt -> b ∈ bt.
 Proof.
+(* TODO: refactor obligations *)
+have V: valid bt by admit.
+have H: has_init_block bt by admit.
+move: (btChain_in_bt H); move: (btChain bt)=>bc H2 H1; clear H.
+case/mapP:H2=>b0 _ Z; subst bc.
+by apply: (@block_in_chain _ b0).
 Admitted.
 
 Lemma btChain_mem (bt : BlockTree) (b : Block) :
@@ -512,6 +582,13 @@ Lemma btChain_mem (bt : BlockTree) (b : Block) :
 Proof.
 by move/negP=>B; apply/negP=>H; apply: B; apply: btChain_mem2.
 Qed.
+
+(* Monotonicity of BT => Monotonicity of btChain *)
+Lemma btExtend_sameOrBetter bt b : btChain (btExtend bt b) >= btChain bt.
+Proof.
+rewrite /btChain.
+case B : (#b \in dom bt); rewrite /btExtend B; first by left. 
+Admitted.
 
 Lemma btChain_extend :
   forall (bt : BlockTree) (b extension : Block),
