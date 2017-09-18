@@ -30,9 +30,13 @@ Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
 Definition Coh (w : World) :=
   [/\ valid (localState w),
      forall (n : nid),
-       holds n w (fun st => id st == n) &
+       holds n w (fun st => id st == n),
      forall (n : nid),
-       holds n w (fun st => valid (blockTree st))
+       holds n w (fun st => valid (blockTree st)),
+     forall (n : nid),
+       holds n w (fun st => validH (blockTree st)) &
+     forall (n : nid),
+       holds n w (fun st => has_init_block (blockTree st))
   ].
 
 Record Qualifier := Q { ts: Timestamp; allowed: nid; }.
@@ -79,28 +83,79 @@ Variable N : nat.
 
 Definition initWorld := mkW (initState N) [::] [::].
 
+Ltac InitState_induction :=
+move=>n st; elim: N=>//=[|n' Hi];
+do? [by move/find_some; rewrite dom0 inE];
+do? [
+  rewrite findUnL; last by [
+    case: validUn; rewrite ?um_validPt ?valid_initState//;
+    move=>k; rewrite um_domPt !inE=>/eqP <-;
+    rewrite dom_initState mem_iota addnC addn1 ltnn andbC
+  ]
+];
+case: ifP=>//; rewrite um_domPt inE=>/eqP<-.
+
+Ltac Coh_step_case n d H F :=
+  case B: (n == d);
+  do? [by move=>F; move: (H n _ F) |
+    case: ifP; last done
+  ]; move=>_ [] <-.
+
 Lemma Coh_init : Coh initWorld.
 Proof.
-rewrite /initWorld/initState/localState/=; split.
+rewrite /initWorld/initState/localState/=; split;
+do? InitState_induction; do? [rewrite um_findPt; case=><-].
 - by apply: valid_initState.
-(* id_constant *)
-move=>n st; elim: N=>//=[|n' Hi].
-  by move/find_some; rewrite dom0 inE.
-rewrite findUnL; last first.
-- case: validUn; rewrite ?um_validPt ?valid_initState//.
-  move=>k; rewrite um_domPt !inE=>/eqP Z; subst k.
-  by rewrite dom_initState mem_iota addnC addn1 ltnn andbC.
-case: ifP=>//; rewrite um_domPt inE=>/eqP<-.
-by rewrite um_findPt; case=><-; rewrite/Init/id.
-(* bt_valid *)
-move=>n st; elim: N=>//=[|n' Hi].
-  by move/find_some; rewrite dom0 inE.
-rewrite findUnL; last first.
-- case: validUn; rewrite ?um_validPt ?valid_initState//.
-  move=>k; rewrite um_domPt !inE=>/eqP Z; subst k.
-  by rewrite dom_initState mem_iota addnC addn1 ltnn andbC.
-case: ifP=>//; rewrite um_domPt inE=>/eqP<-.
-by rewrite um_findPt; case=><-; rewrite /Init/blockTree gen_validPt.
+- by rewrite/Init/id.
+- by rewrite /Init/blockTree gen_validPt.
+- by rewrite/Init/validH/blockTree=>h b H;
+     move: (um_findPt_inv H); elim=>->->.
+- by rewrite/Init/has_init_block/blockTree um_findPt.
+Qed.
+
+Lemma Coh_step w w' q:
+  system_step w w' q -> Coh w'.
+Proof.
+move=>S; (have: system_step w w' q by done)=>S'.
+case: S'.
+(* Idle *)
+by case=>Cw <-.
+(* Deliver *)
+- move=> p st [H1 H2 H3 H4 H5] _ iF sF; case P: (procMsg _ _ _)=>[st' ms].
+  move=>->; split;
+    do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
+  + rewrite /localState validU=>/=; apply H1.
+  + Coh_step_case n (dst p) H2 F; move/eqP: (H2 (dst p) _ sF)=>Id.
+    move: (procMsg_id_constant st (msg p) (ts q)).
+    by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
+  + Coh_step_case n (dst p) H3 F; move: (H3 (dst p) _ sF)=>V.
+    by move: (procMsg_valid (msg p) (ts q) V); rewrite P.
+  + Coh_step_case n (dst p) H4 F;
+    move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
+    rewrite [procMsg _ _ _] surjective_pairing in P; case: P=><- _;
+    by apply procMsg_validH.
+  + Coh_step_case n (dst p) H5 F.
+    move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
+    rewrite [procMsg _ _ _] surjective_pairing in P; case: P=><- _;
+    by move: (H5 (dst p) _ sF); apply procMsg_has_init_block.
+(* Intern *)
+- move=> proc t st [H1 H2 H3 H4 H5] _ sF. case P: (procInt _ _ _)=>[st' ms].
+  move=>->; split;
+    do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
+  + rewrite /localState validU=>/=; apply H1.
+  + Coh_step_case n proc H2 F; move/eqP: (H2 proc _ sF)=>Id.
+    move: (procInt_id_constant st t (ts q)).
+    by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
+  + Coh_step_case n proc H3 F; move: (H3 proc _ sF)=>V.
+    by move: (procInt_valid st t (ts q)); rewrite P/==><-.
+  + Coh_step_case n proc H4 F;
+    move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
+    rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _;
+    by apply procInt_validH.
+  + Coh_step_case n proc H5 F.
+    move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
+    rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _;
+    by move: (H5 proc _ sF); apply procInt_has_init_block.
 Qed.
 
 (* Stepping does not remove or add nodes *)
@@ -186,49 +241,6 @@ Lemma no_change_has_held (w w' : World) (n : nid) q st cond:
 Proof.
 move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
-Qed.
-
-Lemma Coh_step w w' q:
-  system_step w w' q -> Coh w'.
-Proof.
-move=>S; (have: system_step w w' q by done)=>S'.
-case: S'.
-(* Idle *)
-by case=>Cw <-.
-(* Deliver *)
-- move=> p st [H1 H2 H3] _ iF sF. case P: (procMsg _ _ _)=>[st' ms].
-  move=>->; split.
-  + rewrite /localState validU=>/=; apply H1.
-  + rewrite /holds/localState; move=> n stN; rewrite findU=>/=.
-    case B: (n == dst p); last first.
-    by move=>F; move: (H2 n _ F).
-    case: ifP; last by move=> _ con; contradict con.
-    move=>_ [] <-; move/eqP: (H2 (dst p) _ sF)=>Id.
-    move: (procMsg_id_constant st (msg p) (ts q)).
-    by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
-  + rewrite /holds/localState; move=> n stN; rewrite findU=>/=.
-    case B: (n == dst p); last first.
-    by move=>F; move: (H3 n _ F).
-    case: ifP; last by move=> _ con; contradict con.
-    move=>_ [] <-; move: (H3 (dst p) _ sF)=>V.
-    by move: (procMsg_bt_valid (msg p) (ts q) V); rewrite P.
-(* Intern *)
-- move=> proc t st [H1 H2 H3] _ sF. case P: (procInt _ _ _)=>[st' ms].
-  move=>->; split.
-  + rewrite /localState validU=>/=; apply H1.
-  + rewrite /holds/localState; move=>n stN; rewrite findU=>/=.
-    case B: (n == proc); last first.
-    by move=>F; move: (H2 n _ F).
-    case: ifP; last by move=> _ con; contradict con.
-    move=>_ [] <-; move/eqP: (H2 proc _ sF)=>Id.
-    move: (procInt_id_constant st t (ts q)).
-    by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
-  + rewrite /holds/localState; move=> n stN; rewrite findU=>/=.
-    case B: (n == proc); last first.
-    by move=>F; move: (H3 n _ F).
-    case: ifP; last by move=> _ con; contradict con.
-    move=>_ [] <-; move/eqP in B; rewrite -B in sF; move: (H3 n _ sF)=>V.
-    by move: (procInt_bt_valid st t (ts q)); rewrite P/==><-.
 Qed.
 
 End Semantics.

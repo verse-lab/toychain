@@ -156,6 +156,18 @@ rewrite um_domPt inE in Y; move/eqP: Y=>Y; subst z.
 by rewrite um_findPt; case=>->.
 Qed.
 
+Lemma btExtendIB bt b :
+  valid bt -> validH bt -> has_init_block bt ->
+  has_init_block (btExtend bt b).
+Proof.
+move=>V H; rewrite /btExtend/has_init_block=>Ib.
+case: ifP=>X; first done.
+rewrite findUnL ?gen_validPtUn ?V ?X//.
+case: ifP=>Y; last done.
+rewrite um_domPt inE in Y; move/eqP: Y=>Y.
+by specialize (hashB_inj Y)=><-; rewrite Y um_findPt.
+Qed.
+
 Lemma btExtendV bt b : valid bt = valid (btExtend bt b).
 Proof.
 rewrite /btExtend; case: ifP=>//N.
