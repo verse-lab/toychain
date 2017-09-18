@@ -659,6 +659,15 @@ Lemma bc_spre_gt bc bc' :
   [bc <<< bc'] -> bc' > bc.
 Proof. by case=>h; case=>t=>eq; rewrite eq; apply CFR_ext. Qed.
 
+Lemma ohead_hash b0 (bt : seq Block) :
+  b0 \in bt ->
+  ohead [seq b <- bt | hashB b == hashB b0] = Some b0.
+Proof.
+elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
+- by subst b0; rewrite eqxx.
+by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
+Qed.
+
 (* TODO: explain *)
 Axiom btExtend_withNew_sameOrBetter :
   forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in

@@ -9,6 +9,17 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(*******************************************************************)
+(* Global Invariant 2: Clique consensus. *)
+
+(* Under assumption of a clique network topology (every node is
+connected to every other node), ensures that any node's local
+blockchain will become _exactly_ the "canonical" blokchain, once all
+blocks towars it "in flight" are received and used to extend the local
+block tree.  *)
+(*******************************************************************)
+
+
 Definition GSyncing_clique w :=
   exists (bc : Blockchain) (n : nid),
   [/\ holds n w (has_chain bc),

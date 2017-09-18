@@ -9,6 +9,16 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(*******************************************************************)
+(* Global Invariant 1: Blockchain Cost Monotonicity. *)
+
+(* Under assumption of a clique network topology (every node is
+connected to every other node), ensures that any node's local
+blockchain is no more expensive than the "canonical" blokchain, even
+if all blocks "in flight" are received and used to extend the local
+block tree.  *)
+(*******************************************************************)
+
 Definition GSyncing_size w :=
   exists (bc : Blockchain) (n : nid),
   [/\ holds n w (has_chain bc),

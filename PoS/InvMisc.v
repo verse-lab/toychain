@@ -8,30 +8,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(***************************************************)
-(*        Some useful facts about lists            *)
-(***************************************************)
-
-Lemma in_rem_msg p0 p ms w :
-  p0 \in inFlightMsgs w -> p0 <> p ->
-  p0 \in ms ++ seq.rem p (let (_, inFlightMsgs, _) := w in inFlightMsgs).
-Proof.
-move=>iF0 E; rewrite mem_cat orbC; apply/orP; left.
-case: (w) iF0=>_ ifM _/= Hi.
-suff N : (p0 != p) by rewrite (rem_neq N Hi).
-by apply/negP=>/eqP Z; subst p0.
-Qed.
-
-Lemma ohead_hash b0 bt:
-  b0 \in bt ->
-  ohead [seq b <- bt | hashB b == hashB b0] = Some b0.
-Proof.
-elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
-- by subst b0; rewrite eqxx.
-by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
-Qed.
-
-(***************************************************)
+(*******************************************************************)
+(* Miscellaneous definitions for blockchain system invariants.     *)
+(*******************************************************************)
 
 (* Invariants of the execution regarding the blockchain *)
 (* Properties *)

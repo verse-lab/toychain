@@ -11,6 +11,15 @@ Unset Printing Implicit Defensive.
 
 Section InvAvailable.
 
+(**********************************************************************)
+(* Global Invariant 3: Local Eventual Consensus. *)
+
+(* Every immediate peer n' of a to-date canonical blockchain, once all
+   available and in-flight blocks are applied, get exactly the 
+   canonical blockchain as well.                                      *)
+(**********************************************************************)
+
+
 (* TODO: instantiate *)
 Variable available_blocks : forall (n : nid) (w : World), seq Block.
 

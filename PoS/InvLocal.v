@@ -9,8 +9,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* TODO: More complicated -- the "rollback" is no more than a contstant;
- *)
+(**********************************************************************)
+(* Local Invariant: Blockchain Growth. *)
+
+(* Every node n's local blockchain cost doesnt decrease as the system
+   evolves.  *)
+(**********************************************************************)
+
 
 Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
   n \in dom (localState w) ->
@@ -136,3 +141,8 @@ move/um_eta: D';case; case=>id ps bt t [][->]_.
 by exists (btChain (blockTree {|
     id := id; peers := ps; blockTree := bt; txPool := t |}))=>st[]<-.
 Qed.
+
+
+(* TODO: Prove more complicated scenario a la Kiayias et al: the
+"rollback" is no more than a contstant number of septs; *)
+

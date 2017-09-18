@@ -29,3 +29,13 @@ by move/eqP=>->; exists [::], t.
 by move=>H; move: (Hi H); move=>[fs] [ls]=>->; exists (h :: fs), ls.
 Qed.
 
+Lemma in_rem_msg {T: eqType} p0 p ms (hs : seq T) :
+  p0 \in hs -> p0 <> p ->
+  p0 \in ms ++ seq.rem p hs.
+Proof.
+move=>iF0 E; rewrite mem_cat orbC; apply/orP; left.
+suff N : (p0 != p) by rewrite (rem_neq N iF0).
+by apply/negP=>/eqP Z; subst p0.
+Qed.
+
+
