@@ -17,4 +17,8 @@ Core/Blockchain.v
 PoS/Semantics.v
 PoS/States.v
 PoS/Protocol.v
-PoS/Invariants.v
+PoS/InvMisc.v
+PoS/InvLocal.v
+PoS/InvBlockchainSize.v
+PoS/InvCliqueTopology.v
+PoS/InvAvailable.v
