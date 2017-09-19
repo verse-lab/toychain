@@ -606,20 +606,26 @@ Proof.
 by move/negP=>B; apply/negP=>H; apply: B; apply: btChain_mem2.
 Qed.
 
+Definition bc_fun bt := fun x =>
+   [eta take_better_bc (([eta compute_chain bt] \o
+   [eta get_block bt]) x)].
+
 (* Monotonicity of BT => Monotonicity of btChain *)
-Lemma btExtend_sameOrBetter bt b : btChain (btExtend bt b) >= btChain bt.
+Lemma btExtend_sameOrBetter bt b :
+  valid (btExtend bt b) ->
+  btChain (btExtend bt b) >= btChain bt.
 Proof.
 rewrite /btChain.
-case B : (#b \in dom bt); rewrite /btExtend B; first by left. 
-Admitted.
+case B : (#b \in dom bt); rewrite /btExtend B; first by left.
+move=>V; rewrite /all_chains/all_blocks -!seq.map_comp/=.
+case: (keys_insert V)=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
+rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)).
+rewrite !foldr_cat.
 
-Lemma btChain_extend :
-  forall (bt : BlockTree) (b extension : Block),
-    let bc := (btChain bt) in
-    b \notin bc ->
-    prevBlockHash extension == hashB (bcLast bc) ->
-    btChain (btExtend bt b) = rcons bc extension.
-Proof.
+(* TODO: now prove facts that bc_fun is monotone, and this 
+   monotonicity is preserved by foldr. *)
+have X1: (foldr (bc_fun (# b \\-> b \+ bt)) [:: GenesisBlock] ks2) >=
+         (foldr (bc_fun bt) [:: GenesisBlock] ks2).
 Admitted.
 
 Lemma btExtend_fold_comm :
@@ -782,11 +788,19 @@ by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
 Qed.
 
 (* TODO: explain *)
+Lemma btChain_extend :
+  forall (bt : BlockTree) (b extension : Block),
+    let bc := (btChain bt) in
+    b \notin bc ->
+    prevBlockHash extension == hashB (bcLast bc) ->
+    btChain (btExtend bt b) = rcons bc extension.
+Proof.
+Admitted.
+
 Axiom btExtend_withNew_sameOrBetter :
   forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
     b ∉ bt ->
       b \in btChain bt' = (btChain bt' > btChain bt).
-
 
 Axiom btExtend_withNew_mem :
   forall (bt : BlockTree) (b : Block),
