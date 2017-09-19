@@ -601,13 +601,16 @@ Definition bc_fun bt := fun x =>
 
 (* Monotonicity of BT => Monotonicity of btChain *)
 Lemma btExtend_sameOrBetter bt b :
-  valid (btExtend bt b) ->
+  valid bt ->
   btChain (btExtend bt b) >= btChain bt.
 Proof.
 rewrite /btChain.
 case B : (#b \in dom bt); rewrite /btExtend B; first by left.
-move=>V; rewrite /all_chains/all_blocks -!seq.map_comp/=.
-case: (keys_insert V)=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
+move=>V; have V': valid (# b \\-> b \+ bt).
+- case: validUn; rewrite ?V ?um_validPt//.
+  by move=>k; rewrite um_domPt inE=>/eqP<-; rewrite B.
+rewrite /all_chains/all_blocks -!seq.map_comp/=.
+case: (keys_insert V')=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
 rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)).
 rewrite !foldr_cat.
 
@@ -631,20 +634,23 @@ rewrite -cats1 !foldl_cat -Hi /=; apply btExtend_comm.
 by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-.
 Qed.
 
-Lemma btExtend_fold_sameOrBetter:
-  forall (bt :BlockTree) (bs : seq Block),
+Lemma btExtend_fold_sameOrBetter (bt :BlockTree) (bs : seq Block) :
     btChain (foldl btExtend bt bs) >= btChain bt.
 Proof.
-move=>bt bs; elim/last_ind: bs=>[|xs x Hi]/=; first by left.
+elim/last_ind: bs=>[|xs x Hi]/=; first by left.
 rewrite -cats1 foldl_cat /=.
-(have: (btChain (btExtend (foldl btExtend bt xs) x)
-       >= btChain (foldl btExtend bt xs)) by apply btExtend_sameOrBetter)=>H.
+have H: (btChain (btExtend (foldl btExtend bt xs) x)
+         >= btChain (foldl btExtend bt xs)).
+  - have V: valid (foldl btExtend bt xs) by admit.
+    (* TODO: requires global assumption and a trivial foldl-extension
+    of validity *)
+    by apply btExtend_sameOrBetter. 
 case: Hi; case: H.
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
 by move=>->; right.
 by move=>H1 H2; move: (CFR_trans H1 H2); right.
-Qed.
+Admitted.
 
 (* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
 Lemma btExtend_monotone_btChain :
@@ -663,15 +669,16 @@ by move=>->; right.
 by move=>H1 H2; move: (CFR_trans H1 H2); right.
 Qed.
 
-Lemma btExtend_not_worse :
-  forall (bt : BlockTree) (b : Block),
+Lemma btExtend_not_worse (bt : BlockTree) (b : Block): 
     ~ (btChain bt > btChain (btExtend bt b)).
 Proof.
-move=>bt b; move: (btExtend_sameOrBetter bt b); case.
+(* TODO: add into assumptions *)
+have V: valid bt by admit.
+move: (btExtend_sameOrBetter b V); case.
 by move=>->; apply: (CFR_nrefl).
 move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
 by move: (CFR_nrefl (CFR_trans H X)).
-Qed.
+Admitted.
 
 Lemma btExtend_fold_not_worse :
   forall (bt : BlockTree) (bs : seq Block),
@@ -720,7 +727,7 @@ Lemma btExtend_seq_sameOrBetter_fref :
 Proof.
 move=> bc bt b bs V H HGt HGt'.
 move: (in_seq H)=>[bf] [af] H'; rewrite H' in HGt'; clear H H'.
-move: (btExtend_sameOrBetter bt b)=>H.
+move: (btExtend_sameOrBetter b V)=>H.
 move: (btExtend_fold_sameOrBetter bt (bf ++ b :: af)).
 rewrite -cat1s foldl_cat btExtend_fold_comm in HGt' *.
 rewrite foldl_cat /= -foldl_cat in HGt' *.
