@@ -579,20 +579,21 @@ Qed.
 
   
 Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
-    b \in btChain bt -> b ∈ bt.
+  valid bt -> has_init_block bt ->
+  b \in btChain bt -> b ∈ bt.
 Proof.
-(* TODO: refactor obligations *)
-have V: valid bt by admit.
-have H: has_init_block bt by admit.
+move=>V H.
 move: (btChain_in_bt H); move: (btChain bt)=>bc H2 H1; clear H.
 case/mapP:H2=>b0 _ Z; subst bc.
 by apply: (@block_in_chain _ b0).
-Admitted.
+Qed.
 
 Lemma btChain_mem (bt : BlockTree) (b : Block) :
-   b ∉ bt -> b \notin btChain bt.
+  valid bt -> has_init_block bt ->
+  b ∉ bt -> b \notin btChain bt.
 Proof.
-by move/negP=>B; apply/negP=>H; apply: B; apply: btChain_mem2.
+move=>V H.
+by move/negP=>B; apply/negP=>G; apply: B; apply: (btChain_mem2 V H).
 Qed.
 
 Definition bc_fun bt := fun x =>
@@ -634,34 +635,38 @@ rewrite -cats1 !foldl_cat -Hi /=; apply btExtend_comm.
 by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-.
 Qed.
 
+
 Lemma btExtend_fold_sameOrBetter (bt :BlockTree) (bs : seq Block) :
-    btChain (foldl btExtend bt bs) >= btChain bt.
+  valid bt ->
+  btChain (foldl btExtend bt bs) >= btChain bt.
 Proof.
+move=>V.
 elim/last_ind: bs=>[|xs x Hi]/=; first by left.
 rewrite -cats1 foldl_cat /=.
 have H: (btChain (btExtend (foldl btExtend bt xs) x)
          >= btChain (foldl btExtend bt xs)).
-  - have V: valid (foldl btExtend bt xs) by admit.
+  - have V': valid (foldl btExtend bt xs) by rewrite -btExtendV_fold V.
     (* TODO: requires global assumption and a trivial foldl-extension
     of validity *)
-    by apply btExtend_sameOrBetter. 
+    by apply: (btExtend_sameOrBetter _ V'). 
 case: Hi; case: H.
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
 by move=>->; right.
 by move=>H1 H2; move: (CFR_trans H1 H2); right.
-Admitted.
+Qed.
 
 (* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
-Lemma btExtend_monotone_btChain :
-  forall (bs ext : seq Block) (bt : BlockTree),
-    btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
+Lemma btExtend_monotone_btChain (bs ext : seq Block) (bt : BlockTree) :
+  valid bt ->
+  btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
 Proof.
-move=>bs ext bt; elim/last_ind: ext=>[|xs x H]/=.
+move=>V; elim/last_ind: ext=>[|xs x H]/=.
 by rewrite foldl_cat; left.
 rewrite -cats1.
 (* Behold this monstrosity, thankfully handled by rewrite !foldl_cat *)
-move: (btExtend_fold_sameOrBetter (foldl btExtend bt (bs ++ xs)) [:: x])=>H'.
+have V': valid (foldl btExtend bt (bs ++ xs)) by rewrite -btExtendV_fold V. 
+move: (btExtend_fold_sameOrBetter [:: x] V')=>H'.
 case: H; case: H'; rewrite !foldl_cat.
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
@@ -670,21 +675,21 @@ by move=>H1 H2; move: (CFR_trans H1 H2); right.
 Qed.
 
 Lemma btExtend_not_worse (bt : BlockTree) (b : Block): 
-    ~ (btChain bt > btChain (btExtend bt b)).
+  valid bt ->
+  ~ (btChain bt > btChain (btExtend bt b)).
 Proof.
-(* TODO: add into assumptions *)
-have V: valid bt by admit.
+move=>V.
 move: (btExtend_sameOrBetter b V); case.
 by move=>->; apply: (CFR_nrefl).
 move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
 by move: (CFR_nrefl (CFR_trans H X)).
-Admitted.
+Qed.
 
-Lemma btExtend_fold_not_worse :
-  forall (bt : BlockTree) (bs : seq Block),
-    ~ (btChain bt > btChain (foldl btExtend bt bs)).
+Lemma btExtend_fold_not_worse (bt : BlockTree) (bs : seq Block) :
+  valid bt ->
+  ~ (btChain bt > btChain (foldl btExtend bt bs)).
 Proof.
-move=>bt bs; case: (btExtend_fold_sameOrBetter bt bs).
+move=>V; case: (btExtend_fold_sameOrBetter bs V).
 by move=><-; apply: CFR_nrefl.
 by apply: CFR_excl.
 Qed.
@@ -698,13 +703,13 @@ Proof.
 move=>bt b bs V H1.
 move: (in_seq H1)=>[bf] [af] H2; rewrite H2.
 move=>H; clear H1 H2.
-move: (btExtend_fold_sameOrBetter bt [:: b])=>H1.
+move: (btExtend_fold_sameOrBetter [:: b] V)=>H1.
 case: H1; first by move/eqP; rewrite eq_sym=>/eqP.
 rewrite -cat1s in H.
 move=>/=Con; rewrite H in Con; clear H; contradict Con.
-rewrite foldl_cat btExtend_fold_comm. rewrite foldl_cat /= - foldl_cat.
-by apply btExtend_fold_not_worse.
-by [].
+rewrite foldl_cat btExtend_fold_comm ?V//.
+rewrite foldl_cat /= - foldl_cat.
+by apply (btExtend_fold_not_worse); rewrite -btExtendV V. 
 Qed.
 
 Lemma btExtend_seq_sameOrBetter :
@@ -728,34 +733,34 @@ Proof.
 move=> bc bt b bs V H HGt HGt'.
 move: (in_seq H)=>[bf] [af] H'; rewrite H' in HGt'; clear H H'.
 move: (btExtend_sameOrBetter b V)=>H.
-move: (btExtend_fold_sameOrBetter bt (bf ++ b :: af)).
+move: (btExtend_fold_sameOrBetter (bf ++ b :: af) V).
 rewrite -cat1s foldl_cat btExtend_fold_comm in HGt' *.
 rewrite foldl_cat /= -foldl_cat in HGt' *.
 move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
 - by left; rewrite h1 h3.
 - rewrite h3 in h2; rewrite h2 in h0; contradict h0; apply: CFR_nrefl.
-- by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
+- by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse; rewrite -btExtendV V.
 - by rewrite -h2 h3 in h0; contradict h0; apply: CFR_nrefl.
 - by left; apply/eqP; rewrite eq_sym; rewrite -h3 in h1; apply/eqP.
 - by rewrite -h3 in h1; rewrite -h1 in h2;
-  contradict h2; apply btExtend_fold_not_worse.
+  contradict h2; apply btExtend_fold_not_worse; rewrite -btExtendV V.
 - by rewrite -h3 in h0; rewrite h0 in h2; contradict h2; apply: CFR_nrefl.
 - by rewrite h3 in h2; move: (CFR_trans h0 h2)=>C;
   contradict C; apply: CFR_nrefl.
 - by right; rewrite h1.
 - by right; rewrite h1.
-- by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
-- by subst bc; apply btExtend_fold_sameOrBetter.
+- by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse; rewrite -btExtendV V.
+- by subst bc; apply btExtend_fold_sameOrBetter; rewrite -btExtendV V.
 - by right; rewrite -h1 in h3.
 - by right; rewrite -h1 in h3.
 - rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
-have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
-        >= btChain (btExtend bt b)) by apply: btExtend_fold_sameOrBetter.
-case=>[|H].
-by move=><-; right.
-by right; move: (CFR_trans h2 H).
+- (by rewrite -?btExtendV ?V).
+right.
+elim/last_ind : (af ++ bf) h2=>//x xs Hi G; apply: Hi.
+rewrite -cats1/= foldl_cat/= in G.
+- admit. (* This is super-tedious. Please, finish it. *)
 by [].
-Qed.
+Admitted.
 
 Lemma bc_spre_gt bc bc' :
   [bc <<< bc'] -> bc' > bc.
