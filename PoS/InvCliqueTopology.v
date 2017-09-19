@@ -30,17 +30,6 @@ Definition GSyncing_clique w :=
    (* Clique topology *)
    forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
 
-   (*
-   (* Conservation of blocks in clique topology *)
-   [/\ forall n1, holds n1 w (fun st => forall b, b ∈ (blockTree st) ->
-        forall n2, holds n2 w (fun st' => b ∈ (blockTree st') \/ b \in blocksFor n2 w)) &
-
-        forall p, p \in inFlightMsgs w -> forall b, msg p = BlockMsg b ->
-          exists n' st', find n' (localState w) = Some st' /\
-                    holds n' w (fun st => b ∈ (blockTree st))
-   ] &
-   *)
-
    (* Applying blocks in flight will induce either the canonical
       chain or a smaller one. *)
    forall n',
@@ -154,63 +143,3 @@ case: Iw=>_ [GStabW|GSyncW].
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       destruct st=>/=; case: ifP.
       move=>_.
-
-   (*
-   (* conservation of blocks *)
-   split.
-   + rewrite!/holds!/localState=>n1 st1; rewrite findU c1 /=; case: ifP.
-     * move/eqP=>Eq [Eq']; subst n1 stPm.
-       move=>b iB1 n2 st2; rewrite findU c1 /=; case: ifP.
-        - by move/eqP=>Eq [Eq']; subst n2 st2; left.
-        - move=>X; simplw w=>-> _ F2.
-          case Msg: (msg p)=>[|||mb|||]; rewrite Msg in P;
-          rewrite [procMsg _ _ _] surjective_pairing in P; case: P=>P1 P2;
-          (* non-block msg => blockTree st1 = blockTree st *)
-          do? [
-            NBlockMsg_dest_bt q st p b' Msg H; rewrite Msg P1=>Eq;
-            rewrite -Eq in iB1; case: (HCon1 (dst p) _ F b iB1 n2 _ F2)=>[|biF]
-          ]; do? [by left]; do? [
-            right; rewrite/blocksFor/inFlightMsgs mem_undup; simplw w=>_ ->;
-            rewrite/blocksFor mem_undup in biF; move:biF; move/mapP=>[p'] H1 H2;
-            apply/mapP; exists p'; last done
-          ]; do? [
-            move: H1; rewrite mem_filter; move/andP=>[Dst] iF';
-            rewrite mem_filter in_rem_msg;
-            by [|rewrite Dst|
-                rewrite eq_sym in Dst; move/eqP in Dst; rewrite Dst in X;
-                move/eqP; move/eqP=>Eq'; subst p'; contradict X; rewrite eqxx
-            ]
-          ].
-          (* BlockMsg mb => blocktree st1 = btExtend (blockTree st) mb *)
-          move: (procMsg_block_btExtend_bt st mb (ts q)); rewrite P1=>Eq.
-          (* Is b something n1 just received (i.e. mb) or something it had? *)
-          rewrite Eq in iB1. move: (c3 (dst p) _ F)=>V.
-          Check btExtend_in_either.
-          have: (b = mb). admit. move=>E. subst mb.
-          move: (HCon2 p iF b Msg)=>[N] [St] [H1] H2.
-          specialize (H2 _ H1); simpl in H2.
-          move: (HCon1 N _ H1 b H2 n2 _ F2).
-
-
-
-          case Have: (mb ∈ (blockTree st)).
-          + move: (btExtend_withDup_noEffect Have)=>Eq'.
-            rewrite -Eq' in Eq; clear Eq'.
-            (* TODO: refactor to avoid duplication *)
-            rewrite Eq in iB1; case: (HCon1 (dst p) _ F b iB1 n2 _ F2)=>[|biF].
-            by left.
-            right; rewrite/blocksFor/inFlightMsgs mem_undup; simplw w=>_ ->;
-            rewrite/blocksFor mem_undup in biF; move:biF; move/mapP=>[p'] H1 H2;
-            apply/mapP; exists p'; last done.
-            move: H1; rewrite mem_filter; move/andP=>[Dst] iF';
-                rewrite mem_filter in_rem_msg;
-                by [|rewrite Dst|
-                    rewrite eq_sym in Dst; move/eqP in Dst; rewrite Dst in X;
-                    move/eqP; move/eqP=>Eq'; subst p'; contradict X; rewrite eqxx
-            ].
-          + case Eq': (b == mb).
-            move/eqP in Eq'; subst b.
-            move: (HCon2 p iF mb Msg)=>[N] [St] [H1] H2.
-            specialize (H2 _ H1); simpl in H2.
-            case: (HCon1 N _ H1 mb H2 n2 _ F2).
-    *)
