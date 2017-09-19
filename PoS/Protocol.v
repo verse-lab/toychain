@@ -277,7 +277,7 @@ Proof.
 case=> n1 p1 b1 t1 [] =>//; simpl; case hP: (genProof _)=>ts //; case vP: (VAF _)=>//.
 Qed.
 
-Lemma procMsg_bt_valid :
+Lemma procMsg_valid :
    forall (s1 : State) (m : Message) (ts : Timestamp),
     valid (blockTree s1) -> valid (blockTree (procMsg s1 m ts).1).
 Proof.
@@ -286,7 +286,7 @@ case Msg: m=>[|||b|||];
 destruct s1; rewrite/procMsg/=; by [|move: (btExtendV blockTree0 b)=><-].
 Qed.
 
-Lemma procInt_bt_valid :
+Lemma procInt_valid :
   forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
     valid (blockTree s1) = valid (blockTree (procInt s1 t ts).1).
 Proof.
@@ -294,14 +294,58 @@ move=>s1 t ts.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: (genProof _); last done.
 move=>Pf; case: (VAF _ _ _); last done.
-rewrite/blockTree/=.
-by move: (btExtendV blockTree0
-{| height := height (last GenesisBlock (btChain blockTree0)) + 1;
-    prevBlockHash := # last GenesisBlock (btChain blockTree0);
-    txs := [seq t0 <- txPool0 | txValid t0 (btChain blockTree0)];
-    proof := Pf
-|}).
+by rewrite/blockTree/=; apply btExtendV.
 Qed.
+
+Lemma procMsg_validH :
+   forall (s1 : State) (m : Message) (ts : Timestamp),
+     valid (blockTree s1) -> validH (blockTree s1) ->
+     validH (blockTree (procMsg s1 m ts).1).
+Proof.
+move=> s1 m ts.
+case Msg: m=>[|||b|||];
+destruct s1; rewrite/procMsg/=; do? by [].
+by move=>v vh; apply btExtendH.
+Qed.
+
+Lemma procInt_validH :
+   forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
+     valid (blockTree s1) -> validH (blockTree s1) ->
+     validH (blockTree (procInt s1 t ts).1).
+Proof.
+move=>s1 t ts v vh.
+case Int: t; destruct s1; rewrite/procInt/=; first by [].
+case: (genProof _); last done.
+move=>Pf; case: (VAF _ _ _); last done.
+by rewrite/blockTree/=; apply btExtendH.
+Qed.
+
+Lemma procMsg_has_init_block:
+   forall (s1 : State) (m : Message) (ts : Timestamp),
+     valid (blockTree s1) -> validH (blockTree s1) ->
+     has_init_block (blockTree s1) ->
+     has_init_block (blockTree (procMsg s1 m ts).1).
+Proof.
+move=> s1 m ts.
+case Msg: m=>[|||b|||];
+destruct s1; rewrite/procMsg/=; do? by [].
+by apply btExtendIB.
+Qed.
+
+Lemma procInt_has_init_block :
+   forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
+     valid (blockTree s1) -> validH (blockTree s1) ->
+     has_init_block (blockTree s1) ->
+     has_init_block (blockTree (procInt s1 t ts).1).
+Proof.
+move=>s1 t ts v vh.
+case Int: t; destruct s1; rewrite/procInt/=; first by [].
+case: (genProof _); last done.
+move=>Pf; case: (VAF _ _ _); last done.
+by apply btExtendIB.
+Qed.
+
+
 
 Lemma procMsg_peers_uniq :
   forall (s1 : State) (m : Message) (ts : Timestamp), let: s2 := (procMsg s1 m ts).1 in
@@ -452,8 +496,8 @@ Proof.
 move=> s1 s2.
 case.
 - by move=> ->.
-- by move=> m ts ->; apply procMsg_bt_valid.
-- by move=> t ts ->; move: (procInt_bt_valid s1 t ts)=><-.
+- by move=> m ts ->; apply procMsg_valid.
+- by move=> t ts ->; move: (procInt_valid s1 t ts)=><-.
 Qed.
 
 Lemma peers_uniq :
