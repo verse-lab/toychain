@@ -394,14 +394,14 @@ move=>s1 b ts biT; destruct s1=>/=; rewrite/blockTree in biT.
 by apply (btExtend_withDup_noEffect biT).
 Qed.
 
-Lemma procMsg_known_block_nc_btChain :
-  forall (s1 : State) (b : Block) (ts : Timestamp),
-    let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
-    let: bc := btChain (blockTree s1) in
-    b \in bc -> bc = btChain (blockTree s2).
+Lemma procMsg_known_block_nc_btChain (s1 : State) (b : Block) (ts : Timestamp) :
+  let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
+  let: bc := btChain (blockTree s1) in
+  valid (blockTree s1) -> has_init_block (blockTree s1) ->
+  b \in bc -> bc = btChain (blockTree s2).
 Proof.
-move=>s1 b ts biC.
-by move: (procMsg_known_block_nc_blockTree ts (btChain_mem2 biC))=><-.
+move=>V H biC.
+by move: (procMsg_known_block_nc_blockTree ts (btChain_mem2 V H biC))=><-.
 Qed.
 
 Lemma procMsg_block_btExtend_bt :
@@ -416,33 +416,35 @@ Lemma procMsg_block_btExtend_btChain :
   btChain (blockTree s2) = btChain (btExtend (blockTree s1) b).
 Proof. by move=>s1 b ts; destruct s1. Qed.
 
-Lemma procMsg_bc_prefix_or_fork bc bc':
-  forall (s1 : State) (m : Message) (ts : Timestamp),
-    let: s2 := (procMsg s1 m ts).1 in
-    btChain (blockTree s1) = bc  ->
-    btChain (blockTree s2) = bc' ->
-    bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
+Lemma procMsg_bc_prefix_or_fork bc bc' (s1 : State) (m : Message) (ts : Timestamp):
+  let: s2 := (procMsg s1 m ts).1 in
+  valid (blockTree s1) ->
+  has_init_block (blockTree s1) ->
+  btChain (blockTree s1) = bc  ->
+  btChain (blockTree s2) = bc' ->
+  bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
-move=>s1; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc hbc'.
-- case: s1 hbc =>/= _ _ bt _ hbc; case B: (b ∈ bt).
+move=>V H; move: m ts; case =>[|p prs|p|b|t|p sh|p h] ts hbc; do? local_bc_no_change s1 hbc hbc'.
+- case: s1 hbc V H =>/= _ _ bt _ hbc V H; case B: (b ∈ bt).
   + move: (btExtend_withDup_noEffect B)=><-<-.
     by rewrite hbc; left.
 
   move=>hbc'; rewrite -hbc -hbc'.
   (* Extension – note that b is not necessarily the last block in bc' *)
   case E: (prevBlockHash (bcLast bc') == hashB (bcLast bc)).
-  + right. split; move/negbT/btChain_mem: B; rewrite hbc=>B;
+  + right. split; move/negbT/btChain_mem: B; rewrite hbc=>/(_ V H) B;
     rewrite -hbc in B E; move: (btChain_extend B E)=>->; rewrite -cats1 hbc.
     by left; exists (bcLast bc'), [::].
     by apply CFR_ext.
 
   (* Fork *)
-  + right. move: (B)=>B'. move/negbT in B.
-    move/negbT/btChain_mem in B'. rewrite hbc in B'. rewrite -hbc' in E.
-    move/negbT in E. specialize (btChain_fork hbc B' E)=> F. split. right.
+  + right; move: (B)=>B'; move/negbT in B.
+    move/negbT/btChain_mem in B'; rewrite hbc in B'; rewrite -hbc' in E.
+    move:(B' V H)=>{B'}B'.
+    move/negbT in E; specialize (btChain_fork hbc B' E)=> F; split. right.
     by rewrite -hbc in F; apply F.
-    move: (btExtend_withNew_sameOrBetter B)=><-. rewrite -hbc in B'.
-    move: (btExtend_withNew_mem B')=><-. rewrite hbc' in F.
+    move: (btExtend_withNew_sameOrBetter B)=><-; rewrite -hbc in B'.
+    move: (btExtend_withNew_mem B')=><-; rewrite hbc' in F.
     by rewrite hbc hbc'; move: (bc_fork_neq F).
 Qed.
 
@@ -472,7 +474,7 @@ set B :=
      proof := pf
   |}.
 (*TODO: this is a trivial statement, but we might need a new axiom *)
-assert (B \notin (btChain blockTree0)) by admit.
+assert (B \notin (btChain blockTree0)). by admit.
 assert (prevBlockHash B == hashB (bcLast (btChain blockTree0))) by done.
 by move: (btChain_extend H H0)->; exists B, [::]; rewrite cats1.
 Admitted.

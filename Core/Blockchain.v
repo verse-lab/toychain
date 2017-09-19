@@ -10,6 +10,8 @@ Unset Printing Implicit Defensive.
 
 (* A fomalization of a blockchain structure *)
 
+(* TODO: Rename me into something more appropriate, e.g., BlockTrees.v  *)
+
 Definition Address := nat.
 Definition Timestamp := nat.
 Definition Hash := [ordType of nat].
@@ -590,20 +592,21 @@ Qed.
 
   
 Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
-    b \in btChain bt -> b ∈ bt.
+  valid bt -> has_init_block bt ->
+  b \in btChain bt -> b ∈ bt.
 Proof.
-(* TODO: refactor obligations *)
-have V: valid bt by admit.
-have H: has_init_block bt by admit.
+move=>V H.
 move: (btChain_in_bt H); move: (btChain bt)=>bc H2 H1; clear H.
 case/mapP:H2=>b0 _ Z; subst bc.
 by apply: (@block_in_chain _ b0).
-Admitted.
+Qed.
 
 Lemma btChain_mem (bt : BlockTree) (b : Block) :
-   b ∉ bt -> b \notin btChain bt.
+  valid bt -> has_init_block bt ->
+  b ∉ bt -> b \notin btChain bt.
 Proof.
-by move/negP=>B; apply/negP=>H; apply: B; apply: btChain_mem2.
+move=>V H.
+by move/negP=>B; apply/negP=>G; apply: B; apply: (btChain_mem2 V H).
 Qed.
 
 Definition bc_fun bt := fun x =>
@@ -844,4 +847,3 @@ Axiom tpExtend_validAndConsistent :
 Axiom tpExtend_withDup_noEffect :
   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
     tx \in pool -> (tpExtend pool bt tx) = pool.
-
