@@ -25,8 +25,8 @@ Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
   bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
 Proof.
 move=>D H1 S H2; move: (Coh_step S)=>C2.
-case: S=>[[C]Z|p [n' prs bt pool] [c1 c2 c3] _ _ F|
-          proc t s1 [c1 c2 c3] _ F].
+case: S=>[[C]Z|p [n' prs bt pool] [c1 c2 c3] c4 c5 ?? F|
+          proc t s1 [c1 c2 c3] c4 c5 ? F].
 
 (* 0 steps *)
 - by subst w'; rewrite (has_chain_func D H1 H2); left.
@@ -46,7 +46,8 @@ case: S=>[[C]Z|p [n' prs bt pool] [c1 c2 c3] _ _ F|
   set Pm := nosimpl (procMsg _ _ _) in Z; subst w'.
   rewrite /holds/= findU eqxx/= c1 in H2.
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
-  move: (H1 _ F)=>{H1 C2 F}/=H1.
+  move: (H1 _ F)=>{H1 C2}/=H1.
+  move: (c3 _ _ F) (c5 _ _ F)=>V H.
   by apply: (@procMsg_bc_prefix_or_fork bc bc'
         {| id := dst p; peers := prs; blockTree := bt; txPool := pool |}
         (msg p) (ts q)); move/eqP: H2; move/eqP: H1.
