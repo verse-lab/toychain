@@ -58,14 +58,15 @@ move=>z; rewrite !inE !keys_dom !domUn !inE V um_domPt inE eq_sym/=.
 by rewrite (validR V)/= um_domPtUn V'/= um_domPt !inE.
 Qed.
 
-Lemma keys_ord_path {K: ordType} {T} (j k : K) (w v : T) m :
-  ord j k -> path ord j (keys_of m) ->
-  valid (j \\-> w \+ (k \\-> v \+ m)) ->
-  path ord j (keys_of (k \\-> v \+ m)).
+Lemma path_ord_sorted {K: ordType} z j (l : seq K) :
+  sorted ord l -> path ord j l -> z \in l -> ord j z.
 Proof.
-have A: antisymmetric ord by move=>???/andP[]H1 H2; move: (nsym H1 H2).  
-move=>O P V.
-Admitted.
+elim: l z=>//h l Hi z/=P/andP[O _].
+rewrite inE; case/orP; first by move/eqP=>->.
+move=>I; apply: Hi=>//; first by apply:(path_sorted P).
+clear I z; case: l O P=>//=x xs O/andP[O' ->]; rewrite andbC/=.
+by apply: (@trans K _ _ _ O O').
+Qed.
 
 Lemma keys_ord2 {K: ordType} {T} (j k : K) (w v : T) m:
   valid (k \\-> v \+ (j \\-> w \+ m)) ->
@@ -76,7 +77,10 @@ Proof.
 have A: antisymmetric ord by move=>???/andP[]H1 H2; move: (nsym H1 H2).  
 case: ifP=>X V P; rewrite joinCA in V.
 - apply: (eq_sorted (@trans K) (A K))=>//=; first by apply: keys_sorted.
-  + by apply: (keys_ord_path X P V). 
+  + rewrite path_min_sorted ?(keys_sorted _)//.
+    move=>z; rewrite keys_dom domUn inE (validR V) um_domPt inE -keys_dom/=.
+    case/orP; first by move/eqP=><-.
+    by move/(path_ord_sorted (keys_sorted m) P).
   apply: uniq_perm_eq=>/=; rewrite ?keys_uniq ?[_&&true]andbC//=.  
   + by case: validUn V=>//_ _/(_ j);
        rewrite um_domPt inE eqxx keys_dom=>/(_ is_true_true).  
@@ -114,30 +118,3 @@ rewrite (keys_ord1 V' P) E1 (keys_ord2 V P) !E1 E2.
 case: ifP=>_; first by exists (j :: ks1), ks2. 
 by exists [::], (j :: ks1 ++ ks2). 
 Qed.
-
-
-  
-
-  
-rewrite !pcmE /= !umE. rewrite /UMC.from/=.
-rewrite /UM.union/=.
-case: validUn (V)=>//V1 V2 Dn _.
-case D1: (UMDef.from (k \\-> v))=>[|w1 Ap1].
-- by rewrite /valid/=/UMC.defined/=UMDef.defE D1 in V1. 
-case D2: (UMDef.from m)=>[|w2 Ap2].
-- by rewrite /valid/=/UMC.defined/=UMDef.defE D2 in V2. 
-have D: disj w1 w2.
-- apply/allP=>z; move: (Dn z).
-  by rewrite -!keys_dom/keys_of/=!UMDef.keys_ofE D1 D2/==>{Dn}Dn.
-rewrite D; clear D.
-Search _ (UM.Def _).
-
-Search _ (disj _ _) (supp _).
-
-rewrite D. 
-
-  
-  
-  Search _ (UMDef.defined _).
-  
-Search _ (valid (_ \+ _)).
