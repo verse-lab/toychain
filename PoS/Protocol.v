@@ -345,8 +345,6 @@ move=>Pf; case: (VAF _ _ _); last done.
 by apply btExtendIB.
 Qed.
 
-
-
 Lemma procMsg_peers_uniq :
   forall (s1 : State) (m : Message) (ts : Timestamp), let: s2 := (procMsg s1 m ts).1 in
     uniq (peers s1) -> uniq (peers s2).
@@ -406,7 +404,13 @@ move=>s1 b ts biC.
 by move: (procMsg_known_block_nc_blockTree ts (btChain_mem2 biC))=><-.
 Qed.
 
-Lemma procMsg_block_btExtend :
+Lemma procMsg_block_btExtend_bt :
+  forall (s1 : State) (b : Block) (ts: Timestamp),
+  let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
+  blockTree s2 = btExtend (blockTree s1) b.
+Proof. by move=>s1 b ts; destruct s1. Qed.
+
+Lemma procMsg_block_btExtend_btChain :
   forall (s1 : State) (b : Block) (ts: Timestamp),
   let: s2 := (procMsg s1 (BlockMsg b) ts).1 in
   btChain (blockTree s2) = btChain (btExtend (blockTree s1) b).

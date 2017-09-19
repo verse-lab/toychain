@@ -197,6 +197,17 @@ move=>V; rewrite /btExtend/=; case: ifP=>//= N.
 by rewrite domUn inE um_domPt !inE eqxx andbC/= gen_validPtUn/= V N.
 Qed.
 
+Lemma btExtend_in_either bt b b' :
+  valid bt ->  b ∈ btExtend bt b' -> b ∈ bt \/ b == b'.
+Proof.
+move=>V; rewrite /btExtend/=; case: ifP=>//= N.
+by left.
+rewrite/btHasBlock domUn inE um_domPt gen_validPtUn V N /=;
+move/orP; case.
+by rewrite inE=>/eqP Eq; move: (hashB_inj Eq)=>->; right.
+by left.
+Qed.
+
 Lemma btExtend_idemp bt b :
   valid bt -> btExtend bt b = btExtend (btExtend bt b) b.
 Proof. by move=>V; rewrite {2}/btExtend btExtend_in. Qed.
@@ -742,6 +753,19 @@ case=>[|H].
 by move=><-; right.
 by right; move: (CFR_trans h2 H).
 by [].
+Qed.
+
+(* Trivial sub-case of the original lemma; for convenience *)
+Lemma btExtend_seq_sameOrBetter_fref' :
+  forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
+    valid bt ->
+    b \in bs -> bc >= btChain bt ->
+    bc = btChain (foldl btExtend bt bs) ->
+    bc >= btChain (btExtend bt b).
+Proof.
+move=>bc bt b bs V iB Gt Eq.
+(have: (bc >= btChain (foldl btExtend bt bs)) by left)=>GEq; clear Eq.
+by move: (btExtend_seq_sameOrBetter_fref V iB Gt GEq).
 Qed.
 
 Lemma bc_spre_gt bc bc' :

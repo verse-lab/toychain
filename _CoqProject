@@ -18,7 +18,7 @@ PoS/Semantics.v
 PoS/States.v
 PoS/Protocol.v
 PoS/InvMisc.v
+PoS/InvCliqueTopology.v
 PoS/InvLocal.v
 PoS/InvBlockchainSize.v
-PoS/InvCliqueTopology.v
 PoS/InvAvailable.v
