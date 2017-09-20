@@ -228,8 +228,9 @@ case: Iw=>_ [GStabW|GSyncW].
         set bt := (foldl btExtend (blockTree st')
                   [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n']).
         rewrite X-/bt; clear X=>E; move: (HSat _ E n' _ F')=>{HSat}HSat.
-        (* Now need to repeat this trick ofr all blocks in 
-           [seq msg_block (msg p0) | p0 <- ms & dst p0 == n']. *)
+        (* Now need to repeat this trick for all blocks in 
+           [seq msg_block (msg p0) | p0 <- ms & dst p0 == n'],
+           which are all should serve well for HSat. *)
 
         admit.
 
