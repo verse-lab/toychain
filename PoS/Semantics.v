@@ -49,9 +49,9 @@ Inductive system_step (w w' : World) (q : Qualifier) : Prop :=
       Coh w & (dst p) = allowed q &
       p \in inFlightMsgs w &
       find (dst p) (localState w) = Some st &
-      let: (st', ms) := procMsg st (msg p) (ts q) in
+      let: (st', ms) := procMsg st (src p) (msg p) (ts q) in
       w' = mkW (upd (dst p) st' (localState w))
-               (ms ++ seq.rem p (inFlightMsgs w))
+               (seq.rem p (inFlightMsgs w) ++ ms)
                (rcons (consumedMsgs w) p)
 
 | Intern (proc : nid) (t : InternalTransition) (st : State) of
@@ -126,17 +126,17 @@ by case=>Cw <-.
     do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
   + rewrite /localState validU=>/=; apply H1.
   + Coh_step_case n (dst p) H2 F; move/eqP: (H2 (dst p) _ sF)=>Id.
-    move: (procMsg_id_constant st (msg p) (ts q)).
+    move: (procMsg_id_constant st (src p) (msg p) (ts q)).
     by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
   + Coh_step_case n (dst p) H3 F; move: (H3 (dst p) _ sF)=>V.
-    by move: (procMsg_valid (msg p) (ts q) V); rewrite P.
+    by move: (procMsg_valid (src p) (msg p) (ts q) V); rewrite P.
   + Coh_step_case n (dst p) H4 F;
     move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
-    rewrite [procMsg _ _ _] surjective_pairing in P; case: P=><- _;
+    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
     by apply procMsg_validH.
   + Coh_step_case n (dst p) H5 F.
     move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
-    rewrite [procMsg _ _ _] surjective_pairing in P; case: P=><- _;
+    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
     by move: (H5 (dst p) _ sF); apply procMsg_has_init_block.
 (* Intern *)
 - move=> proc t st [H1 H2 H3 H4 H5] _ sF. case P: (procInt _ _ _)=>[st' ms].
@@ -164,7 +164,7 @@ Lemma step_nodes w w' q :
   dom (localState w) =i dom (localState w').
 Proof.
 case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
-- move=>p st1 C iq pf F; case: (procMsg st1 (msg p))=>st2 ms[]->{sm'}Z1 Z2.
+- move=>p st1 C iq pf F; case: (procMsg st1 (src p) (msg p))=>st2 ms[]->{sm'}Z1 Z2.
   subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
   by move/find_some: F->; case: C.
 move=>p t st1 C iq F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
@@ -204,7 +204,7 @@ case.
       case: ifP; last first.
         by move=> _ con; contradict con.
         move=> _ sEq. case: sEq=>stEq. rewrite stEq in P.
-        by constructor 2 with (msg p) (ts q); rewrite P.
+        by constructor 2 with (src p) (msg p) (ts q); rewrite P.
 (* Intern *)
 - move=> proc t old_st cW _ osF.
   case P: (procInt _ _ _). case: w'. move=> sm' f' c'. case.

@@ -40,13 +40,13 @@ by move: (nbc st Sf) (nbc' st Sf)=>/eqP<-/eqP->.
 Qed.
 
 Definition blocksFor n w :=
-  undup [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n].
+  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n].
 
 Lemma b_in_blocksFor p b w :
     p \in inFlightMsgs w -> (msg p = BlockMsg b) -> b \in blocksFor (dst p) w.
 Proof.
 move=>iF Msg.
-rewrite/blocksFor mem_undup; apply/mapP; exists p.
+rewrite/blocksFor; apply/mapP; exists p.
 by rewrite mem_filter eqxx.
 by rewrite/msg_block Msg.
 Qed.
@@ -82,9 +82,9 @@ Definition available_rel (b : Block) (n : nid) (w : World) :=
   exists (p : Packet),
     p \in inFlightMsgs w /\
     [\/ exists (peer : nid) (sh : seq Hash),
-         msg p = InvMsg peer sh /\ dst p = n /\ hashB b \in sh |
+         msg p = InvMsg sh /\ dst p = n /\ hashB b \in sh |
        exists (hash : Hash),
-         msg p = GetDataMsg n hash /\ src p = n /\ hashB b = hash
+         msg p = GetDataMsg hash /\ src p = n /\ hashB b = hash
     ].
 
 Definition block_for_hash n (w : World) (h : Hash) : Block :=

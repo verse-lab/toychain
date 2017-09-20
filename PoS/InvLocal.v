@@ -41,16 +41,16 @@ case: S=>[[C]Z|p [n' prs bt pool] [c1 c2 c3] c4 c5 ?? F|
   + set pms := (procMsg _ _); case: pms=>st' ms Z; subst w'.
     rewrite /holds/= findU N/= in H2.
     by rewrite -(has_chain_func D H1 H2); left.
-  rewrite [procMsg _ _ _]surjective_pairing=>Z;
+  rewrite [procMsg _ _ _ _]surjective_pairing=>Z;
   (* Avoiding premature unfolding. *)
-  set Pm := nosimpl (procMsg _ _ _) in Z; subst w'.
+  set Pm := nosimpl (procMsg _ _ _ _) in Z; subst w'.
   rewrite /holds/= findU eqxx/= c1 in H2.
   move/(H2 Pm.1): (erefl (Some Pm.1))=>{H2} H2.
   move: (H1 _ F)=>{H1 C2}/=H1.
   move: (c3 _ _ F) (c5 _ _ F)=>V H.
   by apply: (@procMsg_bc_prefix_or_fork bc bc'
         {| id := dst p; peers := prs; blockTree := bt; txPool := pool |}
-        (msg p) (ts q)); move/eqP: H2; move/eqP: H1.
+        (src p) (msg p) (ts q)); move/eqP: H2; move/eqP: H1.
 
 (* Internal transition *)
 (* Two sub-cases: proc =? n *)
