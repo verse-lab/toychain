@@ -810,37 +810,6 @@ elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
 by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
 Qed.
 
-(* TODO: explain *)
-Lemma btChain_extend :
-  forall (bt : BlockTree) (b extension : Block),
-    let bc := (btChain bt) in
-    b \notin bc ->
-    prevBlockHash extension == hashB (bcLast bc) ->
-    btChain (btExtend bt b) = rcons bc extension.
-Proof.
-Admitted.
-
-Axiom btExtend_withNew_sameOrBetter :
-  forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
-    b ∉ bt ->
-      b \in btChain bt' = (btChain bt' > btChain bt).
-
-Axiom btExtend_withNew_mem :
-  forall (bt : BlockTree) (b : Block),
-    let bc := btChain bt in
-    let: bc' := btChain (btExtend bt b) in
-    b \notin bc ->
-    bc != bc' = (b \in bc').
-
-Axiom btChain_fork :
-  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
-  let: bc' := btChain (btExtend bt b) in
-    btChain bt = bc ->
-    b \notin bc ->
-    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
-    fork bc bc'.
-
-
 End BtChainProperties.
 
 (**************************
@@ -848,15 +817,15 @@ End BtChainProperties.
  **************************)
 Definition TxPool := seq Transaction.
 
-(* Transaction is valid and consistent with the given chain. *)
+(* (* Transaction is valid and consistent with the given chain. *) *)
 Parameter txValid : Transaction -> Blockchain -> bool.
 Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 
-(* Axioms and other properties *)
-Axiom tpExtend_validAndConsistent :
-  forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
-    tx \in (tpExtend pool bt tx) -> (txValid tx (btChain bt)).
+(* (* Axioms and other properties *) *)
+(* Axiom tpExtend_validAndConsistent : *)
+(*   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction), *)
+(*     tx \in (tpExtend pool bt tx) -> (txValid tx (btChain bt)). *)
 
-Axiom tpExtend_withDup_noEffect :
-  forall (bt : BlockTree) (pool : TxPool) (tx : Transaction),
-    tx \in pool -> (tpExtend pool bt tx) = pool.
+(* Axiom tpExtend_withDup_noEffect : *)
+(*   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction), *)
+(*     tx \in pool -> (tpExtend pool bt tx) = pool. *)

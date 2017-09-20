@@ -9,6 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+
 (**********************************************************************)
 (* Local Invariant: Blockchain Growth. *)
 
@@ -16,6 +17,105 @@ Unset Printing Implicit Defensive.
    evolves.  *)
 (**********************************************************************)
 
+
+(* Auxiliary lemmas *)
+
+Lemma btChain_extend :
+  forall (bt : BlockTree) (b extension : Block),
+    let bc := (btChain bt) in
+    b \notin bc ->
+    prevBlockHash extension == hashB (bcLast bc) ->
+    btChain (btExtend bt b) = rcons bc extension.
+Proof.
+Admitted.
+
+Lemma btChain_fork :
+  forall (bt : BlockTree) (bc : Blockchain) (b : Block),
+  let: bc' := btChain (btExtend bt b) in
+    btChain bt = bc ->
+    b \notin bc ->
+    prevBlockHash (bcLast bc') != hashB (bcLast bc) ->
+    fork bc bc'.
+Proof.
+Admitted.
+
+Lemma btExtend_withNew_sameOrBetter :
+  forall (bt : BlockTree) (b : Block), let: bt' := btExtend bt b in
+    b ∉ bt ->
+      b \in btChain bt' = (btChain bt' > btChain bt).
+Proof.
+Admitted.
+
+Lemma btExtend_withNew_mem (bt : BlockTree) (b : Block) :
+    let bc := btChain bt in
+    let: bc' := btChain (btExtend bt b) in
+    b \notin bc ->
+    bc != bc' = (b \in bc').
+Proof.
+move=>/= Nin; apply/Bool.eq_true_iff_eq; split; last first.
+- by move=>In; apply/negbT/negP=>/eqP Z; rewrite Z In in Nin.
+move=>Neq.
+Admitted.
+
+Lemma procMsg_bc_prefix_or_fork bc bc' (s1 : State) from (m : Message) (ts : Timestamp):
+  let: s2 := (procMsg s1 from m ts).1 in
+  valid (blockTree s1) ->
+  has_init_block (blockTree s1) ->
+  btChain (blockTree s1) = bc  ->
+  btChain (blockTree s2) = bc' ->
+  bc = bc' \/ (([bc <<< bc'] \/ fork bc bc') /\ bc' > bc).
+Proof.
+  move=>V H; move: m ts; case =>[|prs||b|t|sh|h] ts hbc;
+    do? local_bc_no_change s1 hbc hbc'.
+- case: s1 hbc V H =>/= _ _ bt _ hbc V H; case B: (b ∈ bt).
+  + move: (btExtend_withDup_noEffect B)=><-<-.
+    by rewrite hbc; left.
+
+  move=>hbc'; rewrite -hbc -hbc'.
+  (* Extension – note that b is not necessarily the last block in bc' *)
+  case E: (prevBlockHash (bcLast bc') == hashB (bcLast bc)).
+  + right. split; move/negbT/btChain_mem: B; rewrite hbc=>/(_ V H) B;
+    rewrite -hbc in B E; move: (btChain_extend B E)=>->; rewrite -cats1 hbc.
+    by left; exists (bcLast bc'), [::].
+    by apply CFR_ext.
+
+  (* Fork *)
+  + right; move: (B)=>B'; move/negbT in B.
+    move/negbT/btChain_mem in B'; rewrite hbc in B'; rewrite -hbc' in E.
+    move:(B' V H)=>{B'}B'.
+    move/negbT in E; specialize (btChain_fork hbc B' E)=> F; split. right.
+    by rewrite -hbc in F; apply F.
+    move: (btExtend_withNew_sameOrBetter B)=><-; rewrite -hbc in B'.
+    move: (btExtend_withNew_mem B')=><-; rewrite hbc' in F.
+    by rewrite hbc hbc'; move: (bc_fork_neq F).
+
+rewrite /procMsg/=; case: s1 V H hbc=>n? bt ?/=V H hbc.
+by case:ifP=>//=_<-; left.
+Qed.
+
+Lemma procInt_bc_same_or_extension :
+  forall (s1 : State) (t : InternalTransition) ts,
+    let s2 := (procInt s1 t ts).1 in
+    let bc := btChain (blockTree s1) in
+    let bc' := btChain (blockTree s2) in
+    bc = bc' \/ [bc <<< bc'].
+Proof.
+move=>s1 t ts=>/=; destruct s1; case t=>/=; first by left.
+case hP: (genProof _)=>[pf|]; last by left.
+case vP: (VAF _)=>/=; last by left. right.
+set B :=
+  {| height := height (last GenesisBlock (btChain blockTree)) + 1;
+     prevBlockHash := hashB (last GenesisBlock (btChain blockTree));
+     txs := [seq t0 <- txPool | txValid t0 (btChain blockTree)];
+     proof := pf
+  |}.
+(*TODO: this is a trivial statement, but we might need a new axiom *)
+assert (B \notin (btChain blockTree)). by admit.
+assert (prevBlockHash B == hashB (bcLast (btChain blockTree))) by done.
+by move: (btChain_extend H H0)->; exists B, [::]; rewrite cats1.
+Admitted.
+
+(* The invariant *)
 
 Lemma local_chain_grows_fork_step (w w' : World) q n bc bc':
   n \in dom (localState w) ->
