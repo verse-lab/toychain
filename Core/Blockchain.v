@@ -158,6 +158,18 @@ rewrite um_domPt inE in Y; move/eqP: Y=>Y; subst z.
 by rewrite um_findPt; case=>->.
 Qed.
 
+Lemma btExtendV bt b : valid bt = valid (btExtend bt b).
+Proof.
+rewrite /btExtend; case: ifP=>//N.
+by rewrite gen_validPtUn/= N andbC.
+Qed.
+
+Lemma btExtendV_fold bt bs : valid bt = valid (foldl btExtend bt bs).
+Proof.
+elim/last_ind: bs=>[|xs x Hi]; first done.
+by rewrite -cats1 foldl_cat /= Hi; apply btExtendV.
+Qed.
+
 Lemma btExtendIB bt b :
   valid bt -> validH bt -> has_init_block bt ->
   has_init_block (btExtend bt b).
@@ -170,16 +182,17 @@ rewrite um_domPt inE in Y; move/eqP: Y=>Y.
 by specialize (hashB_inj Y)=><-; rewrite Y um_findPt.
 Qed.
 
-Lemma btExtendV bt b : valid bt = valid (btExtend bt b).
+Lemma btExtendIB_fold bt bs :
+  valid bt -> validH bt -> has_init_block bt ->
+  has_init_block (foldl btExtend bt bs).
 Proof.
-rewrite /btExtend; case: ifP=>//N.
-by rewrite gen_validPtUn/= N andbC.
-Qed.
-
-Lemma btExtendV_fold bt bs : valid bt = valid (foldl btExtend bt bs).
-Proof.
+move=>V H; rewrite/has_init_block=>iB.
 elim/last_ind: bs=>[|xs x Hi]; first done.
-by rewrite -cats1 foldl_cat /= Hi; apply btExtendV.
+rewrite -cats1 foldl_cat /= {1}/btExtend; case: ifP=>//=.
+move=>X; rewrite um_findPtUn2.
+case: ifP=>// /eqP E.
+by move: (hashB_inj E)=><-.
+by rewrite gen_validPtUn /= X andbC /= -btExtendV_fold.
 Qed.
 
 (* Baisc property commutativity of additions *)

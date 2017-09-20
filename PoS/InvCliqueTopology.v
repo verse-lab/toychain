@@ -22,10 +22,10 @@ block tree.  *)
 Definition saturated_chain w bc :=
   (* For any tree that induces bc *)
   forall bt, bc = btChain bt ->
-    (* For any node in the world *)                        
+    (* For any node in the world *)
     forall (n : nid), holds n w
-    (* For any block in its local BlockTree *)                     
-    (fun st => forall b, find (#b) (blockTree st) = Some b ->
+    (* For any block in its local BlockTree *)
+    (fun st => forall b, b ∈ blockTree st ->
     (* This block is not going to affect the blockchain out of bt *)
     btChain (btExtend bt b) = bc).
 
@@ -36,19 +36,24 @@ Definition GSyncing_clique w :=
    (* The canonical chain is the largest in the network *)
    largest_chain w bc,
 
-   (* Any block tree supporting bc is "saturated" in the world w. In
-      essence, this is the "state" counterpart of the last conjunect
-      (i.e., we have a nice duality state <-> messages). *)
-   saturated_chain w bc,   
-   
    (* Clique topology *)
-   forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
+   forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}),
 
    (* Applying blocks in flight will induce either the canonical
       chain or a smaller one. *)
    forall n',
       holds n' w (fun st =>
-       bc = btChain (foldl btExtend (blockTree st) (blocksFor n' w)))].
+        bc = btChain (foldl btExtend (blockTree st) (blocksFor n' w))) &
+
+   (* Conservation of blocks in clique topology *)
+   [/\ forall n1, holds n1 w (fun st => forall b, b ∈ (blockTree st) ->
+        forall n2, holds n2 w (fun st' => b ∈ (blockTree st') \/ b \in blocksFor n2 w)) &
+
+        forall p, p \in inFlightMsgs w -> forall b, msg p = BlockMsg b ->
+          exists st', find (src p) (localState w) = Some st' /\
+                 holds (src p) w (fun st => b ∈ (blockTree st))
+   ]
+  ].
 
 Definition clique_inv (w : World) :=
   Coh w /\ [\/ GStable w | GSyncing_clique w].
@@ -63,7 +68,7 @@ case=>C; case=>[H|[bc][can_n][H1 H2 H3 H4 H5]] Na st Fw.
   by move: (H n' _ Fw')=>/eqP; rewrite Z=>->; left.
 exists bc; split=>//.
 move/eqP:Na=>Na.
-by rewrite (H5 n _ Fw); rewrite Na/= /has_chain eqxx.
+by rewrite (H4 n _ Fw); rewrite Na/= /has_chain eqxx.
 Qed.
 
 Ltac NBlockMsg_dest_bt q st p b Msg H :=
@@ -88,33 +93,46 @@ have: ((let (localState, _, _) := w in localState) = localState w) by [].
 (*                  Auxiliary Lemmas                     *)
 (*********************************************************)
 
-(* (* procMsg emits no block messages *) *)
-(* Lemma procMsg_no_blocks st p q stPm ms n' : *)
-(*   procMsg st (src p) (msg p) (ts q) = (stPm, ms) -> *)
-(*   all (pred1 GenesisBlock) [seq msg_block (msg p0) | p0 <- ms & dst p0 == n']. *)
-(* Proof. *)
-(* rewrite [procMsg _ _ _ _]surjective_pairing; case=>_{stPm}<-{ms}. *)
-(* case (msg p); rewrite /procMsg/=; case: st=>id ps bt tp/=. *)
-(* - by case: ifP=>//_; apply/allP=>m; rewrite inE=>/eqP->/=; rewrite eqxx.  *)
-(* - move=>pt; apply/allP=>m; rewrite !inE. *)
-(*   move/mapP=>[z]; rewrite mem_filter/emitMany/emitBroadcast=>/andP[_]. *)
-(*   by rewrite mem_cat=>/orP[]/=; move/mapP=>[y]_->->/=; rewrite eqxx. *)
-(* - by apply/allP=>b; case: ifP=>//_; rewrite inE=>/eqP->/=;rewrite eqxx. *)
-(* - move=>c; apply/allP=>b/mapP[z]; rewrite mem_filter=>/andP[_]. *)
-(*   by move/mapP=>[n]_->->/=; rewrite eqxx. *)
-(* - move=>t; apply/allP=>z/mapP[y]; rewrite mem_filter=>/andP[_]. *)
-(*   by move/mapP=>[n]_->->/=; rewrite eqxx. *)
-(* - move=>l; apply/allP=>z/mapP[y]; rewrite mem_filter=>/andP[_]. *)
-(*   by move/mapP=>[m]_->->/=; rewrite eqxx. *)
-(* move=>t; apply/allP=>z/mapP[y]; case:ifP=>X//=. *)
+Lemma procMsg_nGetData_no_blocks st p q stPm ms n' :
+  procMsg st (src p) (msg p) (ts q) = (stPm, ms) ->
+  msg_type (msg p) != MGetData ->
+  all (pred1 GenesisBlock) [seq msg_block (msg p0) | p0 <- ms & dst p0 == n'].
+Proof.
+rewrite [procMsg _ _ _ _]surjective_pairing; case=>_{stPm}<-{ms}.
+case (msg p); rewrite /procMsg/=; case: st=>id ps bt tp GD/=.
+- by case: ifP=>//_; apply/allP=>m; rewrite inE=>/eqP->/=; rewrite eqxx.
+- move=>pt; apply/allP=>m; rewrite !inE.
+  move/mapP=>[z]; rewrite mem_filter/emitMany/emitBroadcast=>/andP[_].
+  by rewrite mem_cat=>/orP[]/=; move/mapP=>[y]_->->/=; rewrite eqxx.
+- by apply/allP=>b; case: ifP=>//_; rewrite inE=>/eqP->/=;rewrite eqxx.
+- move=>c; apply/allP=>b/mapP[z]; rewrite mem_filter=>/andP[_].
+  by move/mapP=>[n]_->->/=; rewrite eqxx.
+- move=>t; apply/allP=>z/mapP[y]; rewrite mem_filter=>/andP[_].
+  by move/mapP=>[n]_->->/=; rewrite eqxx.
+- move=>l; apply/allP=>z/mapP[y]; rewrite mem_filter=>/andP[_].
+  by move/mapP=>[m]_->->/=; rewrite eqxx.
+move=>t; apply/allP=>z/mapP[y]; case:ifP=>X//=.
+Qed.
 (* - by case:ifP=>//_; rewrite inE=>/eqP->->. *)
 (* case: ifP=>//=/eqP Z; rewrite inE=>/eqP->->/=. *)
 (* (* Ok, this is not true, as p might be a GetData request :( *) *)
-(* Admitted.   *)
-  
+(* Admitted. *)
+
+Lemma btExtend_foldG bt bs :
+  has_init_block bt -> all (pred1 GenesisBlock) bs -> (foldl btExtend bt bs) = bt.
+Proof.
+move=>hG; move/all_pred1P=>->; rewrite/nseq/ncons/iter/=.
+elim: (size bs)=>//n Hi/=.
+by rewrite/has_init_block in hG; move: (find_some hG)=>H;
+   move: (btExtend_withDup_noEffect H)=><-.
+Qed.
+
+Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
+  foldl f init [:: val] = f init val.
+Proof. done. Qed.
+
 (*********************************************************)
 
-(* TODO: Now the inductive version. *)
 Lemma clique_inv_step w w' q :
   clique_inv w -> system_step w w' q -> clique_inv w'.
 Proof.
@@ -124,7 +142,7 @@ case: S; first by elim; move=>_ <-; apply Iw.
 move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F;
 case: Iw=>_ [GStabW|GSyncW].
 - by case GStabW=>noPackets; contradict iF; rewrite noPackets.
-- case: GSyncW=>can_bc [can_n] [] HHold HGt HSat HCliq (*[HCon1 HCon2]*) HExt.
+- case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
   move=>P; assert (P' := P).
   move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->; right.
   (* The canonical chain is guaranteed to remain the same for any Msg *)
@@ -155,12 +173,6 @@ case: Iw=>_ [GStabW|GSyncW].
        move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext).
     by move=>_ st' F'; move: (HGt n' bc' st' F').
 
-  (* The block tree is saturated : should stay this way.  Should be
-     easy for this transition, as the local trees don't change. It's
-     going to be tricky for procInt, which generated a new block. Perhaps,
-     it will force us to add a new axiom. *)  
-  + admit.  
-    
   (* clique topology is maintained *)
   + move=>n' st'; rewrite findU c1 /=;
     move: (HCliq (dst p) _ F)=>H1;
@@ -192,51 +204,85 @@ case: Iw=>_ [GStabW|GSyncW].
               = [seq msg_block (msg p0) | p0 <- inFlightMsgs w & dst p0 == n'].
       - elim : (inFlightMsgs w)=>//x xs Hi/=.
         case:ifP=>[/eqP Z|_/=]; first by subst x; rewrite eq_sym NDst.
-        by case: ifP=>///eqP Z; subst n'; rewrite/= Hi.  
-      (* OK, now it's non-trivial, as we need to show that none of the
-         blocks in [seq msg_block (msg p0) | p0 <- ms & dst p0 == n']
-         affects the canonical block chain. This is even trickier, as
-         the block in the response might not be in the can_bc's
-         blocktree, yet it still doesn't affect the canonicity. Can we
-         derive it from canonicity, i.e. HGt? Perhaps, we need to
-         change the definition of largest_chain, so it would account
-         for _all_ the blocks. In other words, none of the blocks out
-         there can "spoil" the largest blockchain, should it be added
-         to its carrier block tree.
+        by case: ifP=>///eqP Z; subst n'; rewrite/= Hi.
 
-         If this turns out to be too tricky, we can just prohibit, in
-         the invariant, to transmit connectivity-related messages.
+      case Msg: (msg p)=>[||||||hash];
+      set old_msgs := [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'];
+      set bt := (foldl btExtend (blockTree st') old_msgs);
+      move: (c3 _ _ F')=>h3; move: (c4 _ _ F')=>h4; move: (c5 _ _ F')=>h5;
+      move: (btExtendIB_fold old_msgs h3 h4 h5)=>hIB; rewrite-/bt in hIB;
+      clear h3 h4 h5;
+      rewrite X-/bt; clear X=>E;
+      do? by [
+        (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
+        move: (procMsg_nGetData_no_blocks n' P notGD)=>allG;
+        move: (btExtend_foldG hIB allG)=>->
+      ].
+      (* procMsg GetDataMsg => BlockMsg in ms *)
+      rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>_ <-.
+      case: st F P'=>id0 peers0 blockTree0 txPool0 F P';
+      rewrite/procMsg Msg /=; case: ifP=>/=;
+      first by case: ifP=>//=;
+        by move: (find_some hIB)=>hG; move: (btExtend_withDup_noEffect hG)=><-.
+      move=>Src; case: ifP=>//=; move=>/eqP En'; subst n'.
+      rewrite/get_block. (* blockTree wrt. the state of (dst p) in w *)
+      case X: (find hash blockTree0)=>[b|];
+      last by move: (find_some hIB)=>hG;
+              move: (btExtend_withDup_noEffect hG)=><-.
+      set st := {| id := id0; peers := peers0;
+                   blockTree := blockTree0; txPool := txPool0 |}.
+      have: b ∈ Protocol.blockTree st.
+      by rewrite/btHasBlock; move: (c4 _ _ F hash b X)=><-; move: (find_some X).
 
-         I suggest to postpone this part of the proof for now to see
-         how others go, and then we decide how to change the invariant
-         regarding the canonical chain.
-        
-         This "can_bc is globally good" seems like a fundamental
-         property, after all. We might need to think how to capture it
-         in the best possible way, and make sure it's maintained. For
-         instance, why one cannot have a block that disrupts the
-         canonical one and makes it better? Perhaps, we need to state
-         the "largest" not in terms of chains, but rather in terms of
-         block trees that are "saturated"?
-         
-         I've added the "saturated" conjunect as a way to remedy this,
-         check it out.  *)
-
-         (* TODO: prove out of HSat, showing that none of messages in
-         ms (produced by procMsg) disrupt the block tree of the
-         canonical one. *)
-        set bt := (foldl btExtend (blockTree st')
-                  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n']).
-        rewrite X-/bt; clear X=>E; move: (HSat _ E n' _ F')=>{HSat}HSat.
-        (* Now need to repeat this trick for all blocks in 
-           [seq msg_block (msg p0) | p0 <- ms & dst p0 == n'],
-           which are all should serve well for HSat. *)
-
-        admit.
+      move=>hB; move: (HCon1 (dst p) _ F b hB (src p) _ F');
+      case=>[|iBF]; subst bt old_msgs.
+      - rewrite -foldl1 btExtend_fold_comm /=.
+        by rewrite/btHasBlock=>hB'; rewrite -(btExtend_withDup_noEffect hB').
+        by move: (c3 _ _ F').
+      - rewrite/blocksFor in iBF; move: (in_seq iBF)=>[fs] [ls]=>Eq.
+        move: (c3 _ _ F')=>V.
+        rewrite Eq -cat1s 2!foldl_cat btExtend_fold_comm /=.
+        (have: valid (foldl btExtend (foldl btExtend (blockTree st') fs) ls)
+        by rewrite -!btExtendV_fold)=>V'.
+        rewrite -(btExtend_idemp b V'); clear V'.
+        rewrite -foldl1 btExtend_fold_comm.
+        by rewrite -foldl_cat cat1s -foldl_cat -Eq.
+        by rewrite -btExtendV_fold.
+        by rewrite -btExtendV_fold.
 
     * move/eqP=>Eq [Eq']; subst n' stPm.
-      case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
-      rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>_ <-;
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
-      destruct st=>/=. 
-      (* Move all non-interesting messages into a lemma *)
+      rewrite filter_cat map_cat foldl_cat btExtend_fold_comm.
+      case Msg: (msg p)=>[|||b|||].
+      (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
+      move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>allG.
+
+   (* conservation of blocks *)
+   split.
+   + rewrite!/holds!/localState=>n1 st1; rewrite findU c1 /=; case: ifP.
+     * move/eqP=>Eq [Eq']; subst n1 stPm.
+       move=>b iB1 n2 st2; rewrite findU c1 /=; case: ifP.
+        - by move/eqP=>Eq [Eq']; subst n2 st2; left.
+        - move=>X; simplw w=>-> _ F2.
+          case Msg: (msg p)=>[|||mb|||]; rewrite Msg in P;
+          rewrite [procMsg _ _ _] surjective_pairing in P; case: P=>P1 P2;
+          (* non-block msg => blockTree st1 = blockTree st *)
+          do? [
+            NBlockMsg_dest_bt q st p b' Msg H; rewrite Msg P1=>Eq;
+            rewrite -Eq in iB1; case: (HCon1 (dst p) _ F b iB1 n2 _ F2)=>[|biF]
+          ]; do? [by left]; do? [
+            right; rewrite/blocksFor/inFlightMsgs mem_undup; simplw w=>_ ->;
+            rewrite/blocksFor mem_undup in biF; move:biF; move/mapP=>[p'] H1 H2;
+            apply/mapP; exists p'; last done
+          ]; do? [
+            move: H1; rewrite mem_filter; move/andP=>[Dst] iF';
+            rewrite mem_filter in_rem_msg;
+            by [|rewrite Dst|
+                rewrite eq_sym in Dst; move/eqP in Dst; rewrite Dst in X;
+                move/eqP; move/eqP=>Eq'; subst p'; contradict X; rewrite eqxx
+            ]
+          ].
+          (* BlockMsg mb => blocktree st1 = btExtend (blockTree st) mb *)
+          move: (procMsg_block_btExtend_bt st mb (ts q)); rewrite P1=>Eq.
+          (* Is b something n1 just received (i.e. mb) or something it had? *)
+          rewrite Eq in iB1. move: (c3 (dst p) _ F)=>V.
