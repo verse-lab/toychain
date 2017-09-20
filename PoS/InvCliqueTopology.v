@@ -255,6 +255,7 @@ case: Iw=>_ [GStabW|GSyncW].
       do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
            move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
            rewrite (btExtend_foldG _ allG)//].
+
       (* All but the last one should be straightforward, so let's focus on it*)
       Focus 7.
       
