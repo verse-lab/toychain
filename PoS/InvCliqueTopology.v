@@ -188,7 +188,14 @@ case: Iw=>_ [GStabW|GSyncW].
          the invariant, to transmit connectivity-related messages.
 
          I suggest to postpone this part of the proof for now to see
-         how others go, and then we decide how to change the invariant regarding the canonical          chain.  *)
+         how others go, and then we decide how to change the invariant
+         regarding the canonical chain.
+        
+         This "can_bc is globally good" seems like a fundamental
+         property, after all. We might need to think how to capture it
+         in the best possible way, and make sure it's maintained. For
+         instance, why one cannot have a block that disrupts the
+         canonical one and makes it better? *)
         admit.
 
     * move/eqP=>Eq [Eq']; subst n' stPm.
