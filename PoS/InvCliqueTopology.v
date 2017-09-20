@@ -19,6 +19,16 @@ blocks towars it "in flight" are received and used to extend the local
 block tree.  *)
 (*******************************************************************)
 
+Definition saturated_chain w bc :=
+  (* For any tree that induces bc *)
+  forall bt, bc = btChain bt ->
+    (* For any node in the world *)                        
+    forall (n : nid), holds n w
+    (* For any block in its local BlockTree *)                     
+    (fun st => forall b, find (#b) (blockTree st) = Some b ->
+    (* This block is not going to affect the blockchain out of bt *)
+    btChain (btExtend bt b) = bc).
+
 Definition GSyncing_clique w :=
   exists (bc : Blockchain) (n : nid),
   [/\ holds n w (has_chain bc),
@@ -26,6 +36,11 @@ Definition GSyncing_clique w :=
    (* The canonical chain is the largest in the network *)
    largest_chain w bc,
 
+   (* Any block tree supporting bc is "saturated" in the world w. In
+      essence, this is the "state" counterpart of the last conjunect
+      (i.e., we have a nice duality state <-> messages). *)
+   saturated_chain w bc,   
+   
    (* Clique topology *)
    forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
 
@@ -42,7 +57,7 @@ Lemma clique_eventual_consensus w n :
   clique_inv w -> blocksFor n w == [::] ->
   holds n w (fun st => exists bc, (has_chain bc st) /\ largest_chain w bc).
 Proof.
-case=>C; case=>[H|[bc][can_n][H1 H2 H3 H5]] Na st Fw.
+case=>C; case=>[H|[bc][can_n][H1 H2 H3 H4 H5]] Na st Fw.
 - case: H=>cE[bc]H; exists bc; split=>//; first by move:(H _ _ Fw).
   move=>n' bc' st' Fw'/eqP Z.
   by move: (H n' _ Fw')=>/eqP; rewrite Z=>->; left.
@@ -109,7 +124,7 @@ case: S; first by elim; move=>_ <-; apply Iw.
 move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F;
 case: Iw=>_ [GStabW|GSyncW].
 - by case GStabW=>noPackets; contradict iF; rewrite noPackets.
-- case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq (*[HCon1 HCon2]*) HExt.
+- case: GSyncW=>can_bc [can_n] [] HHold HGt HSat HCliq (*[HCon1 HCon2]*) HExt.
   move=>P; assert (P' := P).
   move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->; right.
   (* The canonical chain is guaranteed to remain the same for any Msg *)
@@ -140,6 +155,12 @@ case: Iw=>_ [GStabW|GSyncW].
        move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext).
     by move=>_ st' F'; move: (HGt n' bc' st' F').
 
+  (* The block tree is saturated : should stay this way.  Should be
+     easy for this transition, as the local trees don't change. It's
+     going to be tricky for procInt, which generated a new block. Perhaps,
+     it will force us to add a new axiom. *)  
+  + admit.  
+    
   (* clique topology is maintained *)
   + move=>n' st'; rewrite findU c1 /=;
     move: (HCliq (dst p) _ F)=>H1;
@@ -172,7 +193,6 @@ case: Iw=>_ [GStabW|GSyncW].
       - elim : (inFlightMsgs w)=>//x xs Hi/=.
         case:ifP=>[/eqP Z|_/=]; first by subst x; rewrite eq_sym NDst.
         by case: ifP=>///eqP Z; subst n'; rewrite/= Hi.  
-      rewrite X; clear X=>E.
       (* OK, now it's non-trivial, as we need to show that none of the
          blocks in [seq msg_block (msg p0) | p0 <- ms & dst p0 == n']
          affects the canonical block chain. This is even trickier, as
@@ -195,7 +215,22 @@ case: Iw=>_ [GStabW|GSyncW].
          property, after all. We might need to think how to capture it
          in the best possible way, and make sure it's maintained. For
          instance, why one cannot have a block that disrupts the
-         canonical one and makes it better? *)
+         canonical one and makes it better? Perhaps, we need to state
+         the "largest" not in terms of chains, but rather in terms of
+         block trees that are "saturated"?
+         
+         I've added the "saturated" conjunect as a way to remedy this,
+         check it out.  *)
+
+         (* TODO: prove out of HSat, showing that none of messages in
+         ms (produced by procMsg) disrupt the block tree of the
+         canonical one. *)
+        set bt := (foldl btExtend (blockTree st')
+                  [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n']).
+        rewrite X-/bt; clear X=>E; move: (HSat _ E n' _ F')=>{HSat}HSat.
+        (* Now need to repeat this trick ofr all blocks in 
+           [seq msg_block (msg p0) | p0 <- ms & dst p0 == n']. *)
+
         admit.
 
     * move/eqP=>Eq [Eq']; subst n' stPm.
