@@ -116,23 +116,20 @@ case: ma=>[|p||b|t|h|h].
   case B: ((p == p')).
   - by move/eqP:B=><-; constructor 1.
   by constructor 2; case=>Z; subst p'; rewrite eqxx in B.
-
-(* (* TODO: unify this! *) *)
-(* - by simple_tactic mb B. *)
-(* - by simple_tactic mb b b' B. *)
-(* - by simple_tactic mb t t' B. *)
-
-(* - case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2]. *)
-(*   case B: ((p == p') && (h == h')). *)
-(*   - by case/andP: B=>/eqP<-/eqP<-; constructor 1. *)
-(*   by case/Bool.andb_false_elim: B=>B; constructor 2; case; move/eqP: B. *)
-(* (* This is literally copy-pasted from directly above; better way to do this? *) *)
-(* - case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2]. *)
-(*   case B: ((p == p') && (h == h')). *)
-(*   - by case/andP: B=>/eqP<-/eqP<-; constructor 1. *)
-(*   by case/Bool.andb_false_elim: B=>B; constructor 2; case; move/eqP: B. *)
-(* Qed. *)
-Admitted.
+- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2|by constructor 1].
+- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+  case B: (b == b'); [by case/eqP:B=><-; constructor 1|constructor 2].
+  by case=>Z; subst b'; rewrite eqxx in B.
+- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+  case B: (t == t'); [by case/eqP:B=><-; constructor 1|constructor 2].
+  by case=>Z; subst t'; rewrite eqxx in B.
+- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+  case B: (h == h'); [by case/eqP:B=><-; constructor 1|constructor 2].
+  by case=>Z; subst h'; rewrite eqxx in B.
+- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+  case B: (h == h'); [by case/eqP:B=><-; constructor 1|constructor 2].
+  by case=>Z; subst h'; rewrite eqxx in B.
+Qed.
   
 Canonical Msg_eqMixin := Eval hnf in EqMixin eq_msgP.
 Canonical Msg_eqType := Eval hnf in EqType Message Msg_eqMixin.
