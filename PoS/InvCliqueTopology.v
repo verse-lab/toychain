@@ -113,10 +113,6 @@ case (msg p); rewrite /procMsg/=; case: st=>id ps bt tp GD/=.
   by move/mapP=>[m]_->->/=; rewrite eqxx.
 move=>t; apply/allP=>z/mapP[y]; case:ifP=>X//=.
 Qed.
-(* - by case:ifP=>//_; rewrite inE=>/eqP->->. *)
-(* case: ifP=>//=/eqP Z; rewrite inE=>/eqP->->/=. *)
-(* (* Ok, this is not true, as p might be a GetData request :( *) *)
-(* Admitted. *)
 
 Lemma btExtend_foldG bt bs :
   has_init_block bt -> all (pred1 GenesisBlock) bs -> (foldl btExtend bt bs) = bt.
@@ -216,8 +212,7 @@ case: Iw=>_ [GStabW|GSyncW].
       do? by [
         (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
         move: (procMsg_nGetData_no_blocks n' P notGD)=>allG;
-        move: (btExtend_foldG hIB allG)=>->
-      ].
+        move: (btExtend_foldG hIB allG)=>->].
       (* procMsg GetDataMsg => BlockMsg in ms *)
       rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>_ <-.
       case: st F P'=>id0 peers0 blockTree0 txPool0 F P';
@@ -252,11 +247,18 @@ case: Iw=>_ [GStabW|GSyncW].
 
     * move/eqP=>Eq [Eq']; subst n' stPm.
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
-      rewrite filter_cat map_cat foldl_cat btExtend_fold_comm.
-      case Msg: (msg p)=>[|||b|||].
-      (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
-      move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>allG.
-
+      move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
+      move: (procMsg_valid (src p) (msg p) (ts q) (c3 _ _ F))=>V'.
+      move: (procMsg_has_init_block (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>H'.
+      rewrite ?Z1 ?Z2 in V' H'; rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
+      case Msg: (msg p)=>[|||b|||h];
+      do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
+           move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
+           rewrite (btExtend_foldG _ allG)//].
+      (* All but the last one should be straightforward, so let's focus on it*)
+      Focus 7.
+      
+      
    (* conservation of blocks *)
    split.
    + rewrite!/holds!/localState=>n1 st1; rewrite findU c1 /=; case: ifP.
