@@ -249,17 +249,36 @@ case: Iw=>_ [GStabW|GSyncW].
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
       move: (procMsg_valid (src p) (msg p) (ts q) (c3 _ _ F))=>V'.
-      move: (procMsg_has_init_block (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>H'.
-      rewrite ?Z1 ?Z2 in V' H'; rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
+      move: (procMsg_has_init_block (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
+      rewrite ?Z1 ?Z2 in V' G'; rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
       case Msg: (msg p)=>[|||b|||h];
       do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
            move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
-           rewrite (btExtend_foldG _ allG)//].
+           rewrite (btExtend_foldG _ allG)//
+      ]; do? [
+        NBlockMsg_dest_bt q st p b Msg H;
+        rewrite Z1=>Eq; rewrite -Eq in V' G' *
+      ].
+      (* The second bt = the first bt minus one GenesisBlock *)
 
-      (* All but the last one should be straightforward, so let's focus on it*)
+      (* BlockMsg *)
+      (* move: (HExt _ _ F); rewrite/blocksFor=>->. *)
+      (* destruct st; rewrite -Z1 /procMsg Msg /=. *)
+      (* rewrite -(foldl1 btExtend) -foldl_cat. *)
+
+      (* GetDataMsg *)
       Focus 7.
-      
-      
+      destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=.
+      * case: ifP=>/= _ _;
+        do? [rewrite/has_init_block /= in G';
+          move: (btExtend_withDup_noEffect (find_some G'))=><-
+        ];
+        move: (HExt _ _ F); rewrite/blocksFor=>-> /=.
+        (* The second bt = the first bt minus one GenesisBlock *)
+        admit.
+        admit.
+      * case: ifP=>//=.
+
    (* conservation of blocks *)
    split.
    + rewrite!/holds!/localState=>n1 st1; rewrite findU c1 /=; case: ifP.
