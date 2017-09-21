@@ -130,8 +130,10 @@ Proof. done. Qed.
 Lemma rem_non_block w bt p :
   valid bt -> validH bt ->
   has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->         
-  btChain (foldl btExtend bt [seq msg_block (msg p0) | p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p]) =
-  btChain (foldl btExtend bt [seq msg_block (msg p0) | p0 <- inFlightMsgs w & dst p0 == dst p]).
+  btChain (foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p]) =
+  btChain (foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- inFlightMsgs w & dst p0 == dst p]).
 Proof.
 move=>V Vh H Nb.
 case B: (p \in (inFlightMsgs w)); last by move/negbT/rem_id: B=>->.
