@@ -156,6 +156,12 @@ Lemma foldl_btExtend_last bt ps b :
   foldl btExtend bt ((rcons ps) b) =
   foldl btExtend (btExtend bt b) ps.
 Proof.
+have V: valid bt by admit.
+rewrite -cats1 foldl_cat.
+elim: ps b=>//=x xs Hi b.
+rewrite btExtend_comm.
+Search (btExtend (btExtend _ _) _).
+
 (* Trivial, since btExtend is associative and commutative, hence
    foldr = foldl *)
 Admitted.
