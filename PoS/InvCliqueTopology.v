@@ -47,8 +47,8 @@ Definition GSyncing_clique w :=
 
    (* Conservation of blocks in clique topology *)
    [/\ forall n1, holds n1 w (fun st => forall b, b ∈ (blockTree st) ->
-        forall n2, holds n2 w (fun st' => b ∈ (blockTree st') \/ b \in blocksFor n2 w)) &
-
+         forall n2, holds n2 w (fun st' => b ∈ (blockTree st') \/
+                                           b \in blocksFor n2 w)) &
         forall p, p \in inFlightMsgs w -> forall b, msg p = BlockMsg b ->
           exists st', find (src p) (localState w) = Some st' /\
                  holds (src p) w (fun st => b ∈ (blockTree st))
@@ -115,7 +115,9 @@ move=>t; apply/allP=>z/mapP[y]; case:ifP=>X//=.
 Qed.
 
 Lemma btExtend_foldG bt bs :
-  has_init_block bt -> all (pred1 GenesisBlock) bs -> (foldl btExtend bt bs) = bt.
+  has_init_block bt ->
+  all (pred1 GenesisBlock) bs ->
+  (foldl btExtend bt bs) = bt.
 Proof.
 move=>hG; move/all_pred1P=>->; rewrite/nseq/ncons/iter/=.
 elim: (size bs)=>//n Hi/=.
@@ -146,7 +148,26 @@ have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
 by rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold.
 Qed.
 
-(*********************************************************)
+Lemma foldl_btExtend_last bt ps b :
+  foldl btExtend bt ((rcons ps) b) =
+  foldl btExtend (btExtend bt b) ps.
+Proof.
+(* Trivial, since btExtend is associative and commutative, hence
+   foldr = foldl *)
+Admitted.
+
+(********************************************************************)
+(* TODOs:
+
+- A common pattern seems to be to analyse the kind of incoming message
+  and then discharge most of the cases as trivial, as the message is
+  not relevant for the goal. Perhaps, this is something to be captured
+  as a tactic/specialized lemma generated out of the protocol
+  definition. Can we build some better automation for this?
+  
+
+*)
+(********************************************************************)
 
 Lemma clique_inv_step w w' q :
   clique_inv w -> system_step w w' q -> clique_inv w'.
@@ -215,7 +236,8 @@ case: Iw=>_ [GStabW|GSyncW].
     * move=>NDst F'; move: (HExt _ st' F').
       rewrite/blocksFor{2}/inFlightMsgs.
       rewrite filter_cat map_cat foldl_cat.
-      have X: [seq msg_block (msg p0) | p0 <- seq.rem p (inFlightMsgs w) & dst p0 == n']
+      have X: [seq msg_block (msg p0) |
+               p0 <- seq.rem p (inFlightMsgs w) & dst p0 == n']
               = [seq msg_block (msg p0) | p0 <- inFlightMsgs w & dst p0 == n'].
       - elim : (inFlightMsgs w)=>//x xs Hi/=.
         case:ifP=>[/eqP Z|_/=]; first by subst x; rewrite eq_sym NDst.
@@ -269,21 +291,28 @@ case: Iw=>_ [GStabW|GSyncW].
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
       move: (procMsg_valid (src p) (msg p) (ts q) (c3 _ _ F))=>V'.
       move: (@procMsg_validH _ (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F))=>H'.
-      move: (procMsg_has_init_block (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
-      rewrite ?Z1 ?Z2 in V' G'; rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
+      move: (procMsg_has_init_block (src p) (msg p)
+                                    (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
+      rewrite ?Z1 ?Z2 in V' G';
+      rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
       case Msg: (msg p)=>[|||b|||h];
       do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
            move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
            rewrite (btExtend_foldG _ allG)//;
            NBlockMsg_dest_bt q st p b Msg H;
            rewrite Z1=>Eq; rewrite -Eq in V' G' *;
-           rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//].      
+           rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//].  
 
       (* BlockMsg *)
-      admit.
-      (* move: (HExt _ _ F); rewrite/blocksFor=>->. *)
-      (* destruct st; rewrite -Z1 /procMsg Msg /=. *)
-      (* rewrite -(foldl1 btExtend) -foldl_cat. *)
+      have Nmd: msg_type (msg p) != MGetData by case: (msg p) (Msg).
+      rewrite (btExtend_foldG G' (procMsg_nGetData_no_blocks (dst p) P Nmd)).
+      rewrite -Z1; case: (msg p) (Msg)=>//_[->]; rewrite /procMsg/=.
+      destruct st=>//=; move: (HExt _ _ F)=>/=->.
+      congr (btChain _); rewrite /blocksFor.
+      case: (in_seq_neq iF)=>ps[qs][->]Np; rewrite (rem_elem _ Np).
+      (* Now we need to mowe p on the LHS to the beginning. *)
+      rewrite -cat_rcons !filter_cat !map_cat !foldl_cat; congr foldl.
+      by rewrite filter_rcons eqxx/= map_rcons Msg/= foldl_btExtend_last.
 
       (* GetDataMsg *)
       destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X.
@@ -291,9 +320,11 @@ case: Iw=>_ [GStabW|GSyncW].
         do? [rewrite/has_init_block /= in G';
              move: (btExtend_withDup_noEffect (find_some G'))=><-];
         move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
-        do [rewrite Z1 in H'; rewrite (rem_non_block w V')//; last by case: (msg p) Msg];
-        by rewrite -Z1 Msg/=; case: ifP.
-      rewrite Z1 in H'; case:ifP=>Y; first by move/eqP:Y=>Y; rewrite Y eq_sym (c2 _ _ F) in X.
+        do [rewrite Z1 in H'; rewrite (rem_non_block w V')//;
+            last by case: (msg p) Msg];
+           by rewrite -Z1 Msg/=; case: ifP.
+        rewrite Z1 in H'; case:ifP=>Y; first by move/eqP:Y=>Y;
+        rewrite Y eq_sym (c2 _ _ F) in X.
       rewrite (rem_non_block w V')//; last by case: (msg p) Msg.
       by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F).
       
@@ -309,10 +340,9 @@ case: Iw=>_ [GStabW|GSyncW].
           case Msg: (msg p)=>[|||mb|||]; rewrite Msg in P;
           rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>P1 P2;
           (* non-block msg => blockTree st1 = blockTree st *)
-          do? [
-            NBlockMsg_dest_bt q st p b' Msg H; rewrite Msg P1=>Eq;
-            rewrite -Eq in iB1; case: (HCon1 (dst p) _ F b iB1 n2 _ F2)=>[|biF]
-          ]; do? [by left]; do? [
+          do? [NBlockMsg_dest_bt q st p b' Msg H; rewrite Msg P1=>Eq;
+            rewrite -Eq in iB1; case: (HCon1 (dst p) _ F b iB1 n2 _ F2)=>[|biF]];
+          do? [by left]; do? [
             right; rewrite/blocksFor/inFlightMsgs mem_undup; simplw w=>_ ->;
             rewrite/blocksFor mem_undup in biF; move:biF; move/mapP=>[p'] H1 H2;
             apply/mapP; exists p'; last done
@@ -321,9 +351,10 @@ case: Iw=>_ [GStabW|GSyncW].
             rewrite mem_filter in_rem_msg;
             by [|rewrite Dst|
                 rewrite eq_sym in Dst; move/eqP in Dst; rewrite Dst in X;
-                move/eqP; move/eqP=>Eq'; subst p'; contradict X; rewrite eqxx
-            ]
+                move/eqP; move/eqP=>Eq'; subst p'; contradict X; rewrite eqxx]
           ].
+       
+
           (* BlockMsg mb => blocktree st1 = btExtend (blockTree st) mb *)
           move: (procMsg_block_btExtend_bt st mb (ts q)); rewrite P1=>Eq.
           (* Is b something n1 just received (i.e. mb) or something it had? *)
