@@ -30,6 +30,26 @@ by move/eqP=>->; exists [::], t.
 by move=>H; move: (Hi H); move=>[fs] [ls]=>->; exists (h :: fs), ls.
 Qed.
 
+Lemma in_seq_neq {T : eqType} (x : T) (xs : seq T) :
+  x \in xs -> exists fs ls, xs = fs ++ x :: ls /\ x \notin fs.
+Proof.
+move=>H. elim: xs H; first done.
+move=>h t Hi; rewrite in_cons; move/orP; case.
+by move/eqP=>->; exists [::], t.
+move=>H; move: (Hi H); move=>[fs][ls][->]G.
+case E: (x == h); last first.
+- by exists (h :: fs), ls; split; rewrite ?cat_cons// inE E G.
+by exists [::], (fs ++ x :: ls); split; move/eqP:E=>->.
+Qed.
+
+Lemma rem_elem {T: eqType} (p : T) xs ys :
+  p \notin xs-> seq.rem p (xs ++ p :: ys) = xs ++ ys.
+Proof.
+elim: xs=>//=; first by rewrite eqxx.
+move=>x xs Hi; rewrite inE=>/norP[H1 H2].
+by move/negbTE: H1; rewrite eq_sym=>->; rewrite (Hi H2).
+Qed.
+
 Lemma in_rem_msg {T: eqType} p0 p ms (hs : seq T) :
   p0 \in hs -> p0 <> p ->
   p0 \in ms ++ seq.rem p hs.

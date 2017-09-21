@@ -127,6 +127,23 @@ Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
   foldl f init [:: val] = f init val.
 Proof. done. Qed.
 
+Lemma rem_non_block w bt p :
+  valid bt -> validH bt ->
+  has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->         
+  btChain (foldl btExtend bt [seq msg_block (msg p0) | p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p]) =
+  btChain (foldl btExtend bt [seq msg_block (msg p0) | p0 <- inFlightMsgs w & dst p0 == dst p]).
+Proof.
+move=>V Vh H Nb.
+case B: (p \in (inFlightMsgs w)); last by move/negbT/rem_id: B=>->.
+case: (in_seq_neq B)=>xs [ys][->]Ni{B}.
+rewrite rem_elem// !filter_cat !map_cat !foldl_cat/= eqxx map_cons.
+have X: msg_block (msg p) = GenesisBlock.
+- by case: (msg p) Nb=>//b Nb; move: (Nb b); move/negbTE; rewrite eqxx.
+rewrite X -cat1s foldl_cat; clear X.
+have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
+by rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold.
+Qed.
+
 (*********************************************************)
 
 Lemma clique_inv_step w w' q :
@@ -249,36 +266,37 @@ case: Iw=>_ [GStabW|GSyncW].
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
       move: (procMsg_valid (src p) (msg p) (ts q) (c3 _ _ F))=>V'.
+      move: (@procMsg_validH _ (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F))=>H'.
       move: (procMsg_has_init_block (src p) (msg p) (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
       rewrite ?Z1 ?Z2 in V' G'; rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
       case Msg: (msg p)=>[|||b|||h];
       do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
            move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
-           rewrite (btExtend_foldG _ allG)//
-      ]; do? [
-        NBlockMsg_dest_bt q st p b Msg H;
-        rewrite Z1=>Eq; rewrite -Eq in V' G' *
-      ].
-      (* The second bt = the first bt minus one GenesisBlock *)
+           rewrite (btExtend_foldG _ allG)//;
+           NBlockMsg_dest_bt q st p b Msg H;
+           rewrite Z1=>Eq; rewrite -Eq in V' G' *;
+           rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//].      
 
       (* BlockMsg *)
+      admit.
       (* move: (HExt _ _ F); rewrite/blocksFor=>->. *)
       (* destruct st; rewrite -Z1 /procMsg Msg /=. *)
       (* rewrite -(foldl1 btExtend) -foldl_cat. *)
 
       (* GetDataMsg *)
-      Focus 7.
-      destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=.
-      * case: ifP=>/= _ _;
+      destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X.
+      * by case: ifP=>/=?;
         do? [rewrite/has_init_block /= in G';
-          move: (btExtend_withDup_noEffect (find_some G'))=><-
-        ];
-        move: (HExt _ _ F); rewrite/blocksFor=>-> /=.
-        (* The second bt = the first bt minus one GenesisBlock *)
-        admit.
-        admit.
-      * case: ifP=>//=.
+             move: (btExtend_withDup_noEffect (find_some G'))=><-];
+        move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
+        do [rewrite Z1 in H'; rewrite (rem_non_block w V')//; last by case: (msg p) Msg];
+        by rewrite -Z1 Msg/=; case: ifP.
+      rewrite Z1 in H'; case:ifP=>Y; first by move/eqP:Y=>Y; rewrite Y eq_sym (c2 _ _ F) in X.
+      rewrite (rem_non_block w V')//; last by case: (msg p) Msg.
+      by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F).
+      
 
+   (***************************************************)    
    (* conservation of blocks *)
    split.
    + rewrite!/holds!/localState=>n1 st1; rewrite findU c1 /=; case: ifP.
@@ -287,7 +305,7 @@ case: Iw=>_ [GStabW|GSyncW].
         - by move/eqP=>Eq [Eq']; subst n2 st2; left.
         - move=>X; simplw w=>-> _ F2.
           case Msg: (msg p)=>[|||mb|||]; rewrite Msg in P;
-          rewrite [procMsg _ _ _] surjective_pairing in P; case: P=>P1 P2;
+          rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>P1 P2;
           (* non-block msg => blockTree st1 = blockTree st *)
           do? [
             NBlockMsg_dest_bt q st p b' Msg H; rewrite Msg P1=>Eq;
