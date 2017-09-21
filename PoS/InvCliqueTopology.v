@@ -148,6 +148,10 @@ have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
 by rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold.
 Qed.
 
+(* Lemma foldr_foldl S {T: eqType} (f: S -> T -> S) (a : S) xs : *)
+(*   (* TODO refine *) *)
+(*   foldr (fun x z => f z x) a xs = foldl f a xs. *)
+
 Lemma foldl_btExtend_last bt ps b :
   foldl btExtend bt ((rcons ps) b) =
   foldl btExtend (btExtend bt b) ps.
