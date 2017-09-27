@@ -340,26 +340,77 @@ case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
 
 (* Internal *)
 move=>proc t st [c1 c2 c3 c4 c5] Al F.
-case P: (procInt _ _ _)=>[stPt ms]; move=>->; case: Iw=>_ GSyncW.
+move=>P; assert (P' := P); move: P.
+case P: (procInt _ _ _)=>[stPt ms]; move=>->; case: Iw=>Cw GSyncW.
 case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
-case: t P=>[tx|] P; last first.
+case: t P P'=>[tx|] P P'; last first.
 (* MintT - can_bc and can_n might change *)
-- move: P; destruct st; rewrite/procInt.
+- assert (PInt := P); move: P; destruct st; rewrite/procInt.
   case X: (genProof _)=>[pf|].
   case Y: (VAF _).
   (* This is the only interesting case - when a new block is minted *)
-  + case=><- <-;
-    set new_block :=
+  + set new_block :=
     {| height := height (last GenesisBlock (btChain blockTree)) + 1;
         prevBlockHash := # last GenesisBlock (btChain blockTree);
         txs := [seq t <- txPool | txValid t (btChain blockTree)];
         proof := pf
     |}.
+    set new_txpool :=
+    [seq t <- txPool | txValid t (btChain (btExtend blockTree new_block))].
+    (* Book-keeping *)
+    move=>P; assert (PInt' := P); move: P; case=><- <-.
     case Gt: ((btChain (btExtend blockTree new_block)) > can_bc).
-    * exists (btChain (btExtend blockTree new_block)), proc.
-    admit.
+    * exists (btChain (btExtend blockTree new_block)), proc; split.
+      (* HHold *)
+      rewrite/holds/localState findU c1 /=; case: ifP; last by move/eqP.
+      by move=>_ st [Eq]; subst st; rewrite/has_chain.
+      (* HGt *)
+      move: (HGt proc (btChain blockTree) _ F); rewrite/has_chain eqxx.
+      rewrite/largest_chain/holds/localState; simplw w=>-> _.
+      move/(_ is_true_true)=>H0.
+      move=>n bc st; rewrite findU c1 /=; case: ifP.
+      by move/eqP=>Eq [stEq]; subst proc st;
+         rewrite/has_chain/==>/eqP <-; left.
+      move=>Neq Fn hbc; move: (HGt _ _ _ Fn hbc)=>H1.
+      (have: (btChain (btExtend blockTree new_block) >= can_bc) by right)=>H2.
+      by move: (Geq_trans H2 H1).
+      (* HCliq *)
+      move=>n st; rewrite findU c1 /=; case: ifP;
+      [ move/eqP=>Eq [stEq]; subst n st; move=>z /=;
+        move: (HCliq proc _ F)=>/= H1 |
+        move=>Neq Fn z /=; move: (HCliq n _ Fn)=>/= H1
+      ];
+      by move: (step_nodes (Intern Cw Al F P'))=>H2;
+         rewrite PInt in P'; rewrite P' in H2; clear P'; specialize (H1 z);
+         move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
+         case: PInt'=><- _ H2; rewrite H2 in H1.
+      (* HExt *)
+      move=>n st; rewrite/localState; simplw w=>-> _; move=>Fn.
+      case Dst: (proc == n).
+      - move/eqP in Dst; subst n;
+        move: Fn; rewrite findU c1 /=; case: ifP; last by move/eqP.
+        move=>_ [stEq];
+        rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
+        rewrite filter_cat map_cat foldl_cat -stEq /=.
+        move: (HCliq proc _ F)=>/= Cliq.
+        move: (HExt proc _ F)=>/= Ext; rewrite/blocksFor in Ext.
+        (* Needs massaging *)
+        admit.
+      - move: Fn; rewrite findU c1 /=; case: ifP.
+        by move/eqP in Dst; rewrite eq_sym=>/eqP.
+        move=>_ Fn.
+        rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->.
+        rewrite filter_cat map_cat foldl_cat.
+        (* Use HCon1 wrt. proc and n *)
+
+
+      (* HCon *)
+      admit.
+
+
     * exists can_bc, can_n.
     admit.
+
   + admit.
   + admit.
 

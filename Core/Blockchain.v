@@ -103,6 +103,17 @@ Axiom CFR_trans :
   forall (A B C : Blockchain),
     A > B -> B > C -> A > C.
 
+Lemma Geq_trans :
+  forall (A B C : Blockchain),
+  A >= B -> B >= C -> A >= C.
+Proof.
+move=> A B C H1 H2; case: H1; case: H2.
+by move=><- <-; left.
+by move=>H ->; right.
+by move=><-; right.
+by move=>H1 H2; move: (CFR_trans H2 H1); right.
+Qed.
+
 Lemma CFR_excl :
   forall (bc bc' : Blockchain),
     bc > bc' -> bc' > bc -> False.
