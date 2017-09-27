@@ -150,6 +150,7 @@ Qed.
 (*   foldr (fun x z => f z x) a xs = foldl f a xs. *)
 
 Lemma foldl_btExtend_last bt ps b :
+  valid bt ->
   foldl btExtend bt ((rcons ps) b) =
   foldl btExtend (btExtend bt b) ps.
 Proof.
@@ -318,7 +319,8 @@ case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
       case: (in_seq_neq iF)=>ps[qs][->]Np; rewrite (rem_elem _ Np).
       (* Now we need to mowe p on the LHS to the beginning. *)
       rewrite -cat_rcons !filter_cat !map_cat !foldl_cat; congr foldl.
-      by rewrite filter_rcons eqxx/= map_rcons Msg/= foldl_btExtend_last.
+      by rewrite filter_rcons eqxx/= map_rcons Msg/=
+                 (foldl_btExtend_last _ _ (c3 _ _ F)).
 
       (* GetDataMsg *)
       destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X.
