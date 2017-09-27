@@ -56,16 +56,13 @@ Definition GSyncing_clique w :=
   ].
 
 Definition clique_inv (w : World) :=
-  Coh w /\ [\/ GStable w | GSyncing_clique w].
+  Coh w /\ GSyncing_clique w.
 
 Lemma clique_eventual_consensus w n :
   clique_inv w -> blocksFor n w == [::] ->
   holds n w (fun st => exists bc, (has_chain bc st) /\ largest_chain w bc).
 Proof.
-case=>C; case=>[H|[bc][can_n][H1 H2 H3 H4 H5]] Na st Fw.
-- case: H=>cE[bc]H; exists bc; split=>//; first by move:(H _ _ Fw).
-  move=>n' bc' st' Fw'/eqP Z.
-  by move: (H n' _ Fw')=>/eqP; rewrite Z=>->; left.
+case=>C; case=>[bc][can_n][H1 H2 H3 H4 H5] Na st Fw.
 exists bc; split=>//.
 move/eqP:Na=>Na.
 by rewrite (H4 n _ Fw); rewrite Na/= /has_chain eqxx.
@@ -131,7 +128,7 @@ Proof. done. Qed.
 
 Lemma rem_non_block w bt p :
   valid bt -> validH bt ->
-  has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->         
+  has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->
   btChain (foldl btExtend bt [seq msg_block (msg p0) |
                  p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p]) =
   btChain (foldl btExtend bt [seq msg_block (msg p0) |
@@ -174,7 +171,7 @@ Admitted.
   not relevant for the goal. Perhaps, this is something to be captured
   as a tactic/specialized lemma generated out of the protocol
   definition. Can we build some better automation for this?
-  
+
 
 *)
 (********************************************************************)
@@ -185,12 +182,11 @@ Proof.
 move=>Iw S; rewrite/clique_inv; split; first by apply (Coh_step S).
 case: S; first by elim; move=>_ <-; apply Iw.
 (* Deliver *)
-move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F;
-case: Iw=>_ [GStabW|GSyncW].
-- by case GStabW=>noPackets; contradict iF; rewrite noPackets.
-- case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
+move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F.
+case: Iw=>_ GSyncW.
+case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
   move=>P; assert (P' := P).
-  move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->; right.
+  move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->.
   (* The canonical chain is guaranteed to remain the same for any Msg *)
   exists can_bc, can_n; split.
 
@@ -311,7 +307,7 @@ case: Iw=>_ [GStabW|GSyncW].
            rewrite (btExtend_foldG _ allG)//;
            NBlockMsg_dest_bt q st p b Msg H;
            rewrite Z1=>Eq; rewrite -Eq in V' G' *;
-           rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//].  
+           rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//].
 
       (* BlockMsg *)
       have Nmd: msg_type (msg p) != MGetData by case: (msg p) (Msg).
@@ -337,35 +333,60 @@ case: Iw=>_ [GStabW|GSyncW].
         rewrite Y eq_sym (c2 _ _ F) in X.
       rewrite (rem_non_block w V')//; last by case: (msg p) Msg.
       by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F).
-      
 
-   (***************************************************)    
+   (***************************************************)
    (* conservation of blocks *)
-   split.
-   + rewrite!/holds!/localState=>n1 st1; rewrite findU c1 /=; case: ifP.
-     * move/eqP=>Eq [Eq']; subst n1 stPm.
-       move=>b iB1 n2 st2; rewrite findU c1 /=; case: ifP.
-        - by move/eqP=>Eq [Eq']; subst n2 st2; left.
-        - move=>X; simplw w=>-> _ F2.
-          case Msg: (msg p)=>[|||mb|||]; rewrite Msg in P;
-          rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>P1 P2;
-          (* non-block msg => blockTree st1 = blockTree st *)
-          do? [NBlockMsg_dest_bt q st p b' Msg H; rewrite Msg P1=>Eq;
-            rewrite -Eq in iB1; case: (HCon1 (dst p) _ F b iB1 n2 _ F2)=>[|biF]];
-          do? [by left]; do? [
-            right; rewrite/blocksFor/inFlightMsgs mem_undup; simplw w=>_ ->;
-            rewrite/blocksFor mem_undup in biF; move:biF; move/mapP=>[p'] H1 H2;
-            apply/mapP; exists p'; last done
-          ]; do? [
-            move: H1; rewrite mem_filter; move/andP=>[Dst] iF';
-            rewrite mem_filter in_rem_msg;
-            by [|rewrite Dst|
-                rewrite eq_sym in Dst; move/eqP in Dst; rewrite Dst in X;
-                move/eqP; move/eqP=>Eq'; subst p'; contradict X; rewrite eqxx]
-          ].
-       
+    admit.
 
-          (* BlockMsg mb => blocktree st1 = btExtend (blockTree st) mb *)
-          move: (procMsg_block_btExtend_bt st mb (ts q)); rewrite P1=>Eq.
-          (* Is b something n1 just received (i.e. mb) or something it had? *)
-          rewrite Eq in iB1. move: (c3 (dst p) _ F)=>V.
+(* Internal *)
+move=>proc t st [c1 c2 c3 c4 c5] Al F.
+case P: (procInt _ _ _)=>[stPt ms]; move=>->; case: Iw=>_ GSyncW.
+case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
+case: t P=>[tx|] P; last first.
+(* MintT - can_bc and can_n might change *)
+- move: P; destruct st; rewrite/procInt.
+  case X: (genProof _)=>[pf|].
+  case Y: (VAF _).
+  (* This is the only interesting case - when a new block is minted *)
+  + case=><- <-;
+    set new_block :=
+    {| height := height (last GenesisBlock (btChain blockTree)) + 1;
+        prevBlockHash := # last GenesisBlock (btChain blockTree);
+        txs := [seq t <- txPool | txValid t (btChain blockTree)];
+        proof := pf
+    |}.
+    case Gt: ((btChain (btExtend blockTree new_block)) > can_bc).
+    * exists (btChain (btExtend blockTree new_block)), proc.
+    admit.
+    * exists can_bc, can_n.
+    admit.
+  + admit.
+  + admit.
+
+(* Tx - invariant holds trivially *)
+(* TODO: eliminate duplication *)
+- exists can_bc, can_n; split.
+
+  (* can_n still retains can_bc *)
+  + rewrite/holds/has_chain/localState; simplw w=>-> _.
+    rewrite findU c1 /=; case: ifP.
+    * move/eqP=> Eq st' [Eq']; subst can_n stPt;
+      rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _;
+      destruct st; rewrite/procInt /=;
+      by move: (HHold _ F).
+    * by move=>_ st' F'; move: (HHold _ F').
+
+  (* can_bc is still the largest chain *)
+  + move=>n bc; rewrite/holds/localState; simplw w=>-> _.
+    rewrite findU c1 /=; case: ifP.
+    * move=>/eqP Eq st' [Eq']; subst n stPt.
+      rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _.
+      destruct st; rewrite/procInt/has_chain/=; move/eqP=><-.
+      move: (HGt proc (btChain blockTree) _ F); rewrite/has_chain eqxx.
+      case; by [|left|right].
+    * by move=>_ st' F'; move: (HGt _ bc _ F').
+
+  + admit.
+  + admit.
+  + admit.
+Qed.
