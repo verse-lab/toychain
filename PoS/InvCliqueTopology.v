@@ -259,8 +259,11 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
       last by move: (find_some hIB)=>hG;
               move: (btExtend_withDup_noEffect hG)=><-.
       rewrite -E.
-      suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn).
-      move: (HExt _ _ F)=>/= ->.
+      suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn);
+      by move: (HExt _ _ F)=>/= ->; move: (find_some X)=>Dom;
+         move: (c4 _ _ F hash b X)=>H; rewrite H in Dom;
+         rewrite/btHasBlock;
+         move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Dom).
       admit.
 
       (* set st := {| id := id0; peers := peers0; *)
