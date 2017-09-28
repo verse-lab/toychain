@@ -396,6 +396,7 @@ case: t P P'=>[tx|] P P'; last first.
         rewrite filter_cat map_cat foldl_cat -stEq /=.
         move: (HCliq proc _ F)=>/= Cliq.
         move: (HExt proc _ F)=>/= Ext; rewrite/blocksFor in Ext.
+        subst can_bc.
         (* Needs massaging *)
         admit.
       - move: Fn; rewrite findU c1 /=; case: ifP.
@@ -403,15 +404,32 @@ case: t P P'=>[tx|] P P'; last first.
         move=>_ Fn.
         rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->.
         rewrite filter_cat map_cat foldl_cat.
+        move: (HCliq proc _ F)=>/= Cliq.
+        move: (HExt n _ Fn)=>/= Ext; rewrite/blocksFor in Ext.
+        (* inFlightMsgs w contains everything in blockTree *)
         (* Use HCon1 wrt. proc and n *)
-
+        move: (HCon1 proc _ F)=>/= Con1; rewrite/blocksFor in Con1.
+        (* Needs massaging *)
+        admit.
 
       (* HCon *)
       admit.
 
+    * exists can_bc, can_n; split.
+      case Dst: (can_n == proc). (* Isn't true. *)
+      contradict Gt.
+      move/eqP in Dst; subst can_n.
+      move: (HHold _ F); rewrite/has_chain/==>/eqP <-.
+      (* This should be an axiom/proven lemma *)
+      admit.
 
-    * exists can_bc, can_n.
-    admit.
+      (* HHold *)
+      move=>st; rewrite/localState; simplw w=>-> _;
+      rewrite findU c1 /=; case: ifP; first by rewrite Dst.
+
+      move/eqP=>Eq [Eq']; subst can_n st;
+      move: (HHold _ F)=>/eqP/= Can;
+      rewrite -Can in Gt HHold *; rewrite/has_chain/=.
 
   + admit.
   + admit.
