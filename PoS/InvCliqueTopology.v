@@ -141,20 +141,14 @@ have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
 by rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold.
 Qed.
 
-(* Lemma foldr_foldl S {T: eqType} (f: S -> T -> S) (a : S) xs : *)
-(*   (* TODO refine *) *)
-(*   foldr (fun x z => f z x) a xs = foldl f a xs. *)
-
 Lemma foldl_btExtend_last bt ps b :
   valid bt ->
-  foldl btExtend bt ((rcons ps) b) =
-  foldl btExtend (btExtend bt b) ps.
+  foldl btExtend bt ((rcons ps) b) = foldl btExtend (btExtend bt b) ps.
 Proof.
-have V: valid bt by admit.
-rewrite -cats1 foldl_cat.
-elim: ps b=>//=x xs Hi b.
-rewrite btExtend_comm.
-Search (btExtend (btExtend _ _) _).
+move=>V; rewrite -cats1 foldl_cat.
+elim: ps b bt V=>//=x xs Hi b bt V; rewrite btExtend_comm//.
+by rewrite Hi// -btExtendV. 
+Qed.
 
 (********************************************************************)
 
