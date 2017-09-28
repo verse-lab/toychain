@@ -669,6 +669,17 @@ rewrite -cats1 !foldl_cat -Hi /=; apply btExtend_comm.
 by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-.
 Qed.
 
+Lemma btExtend_fold_preserve :
+  forall (ob : Block) (bt : BlockTree) (bs : seq Block),
+    valid bt -> # ob \in (dom bt) ->
+    # ob \in dom (foldl btExtend bt bs).
+Proof.
+move=>ob bt bs V Dom; elim/last_ind: bs=>[|xs x Hi]//.
+rewrite -cats1 foldl_cat /=. 
+have: (valid (foldl btExtend bt xs)) by rewrite -btExtendV_fold.
+by move=>V'; move: (btExtend_preserve x V' Hi).
+Qed.
+
 Lemma btExtend_fold_sameOrBetter:
   forall (bt :BlockTree) (bs : seq Block),
     valid bt -> btChain (foldl btExtend bt bs) >= btChain bt.
