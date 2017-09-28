@@ -150,14 +150,6 @@ elim: ps b bt V=>//=x xs Hi b bt V; rewrite btExtend_comm//.
 by rewrite Hi// -btExtendV. 
 Qed.
 
-(* Lemma foldl_btExtend_idemp bt bs : *)
-(*   valid bt -> *)
-(*   foldl btExtend bt bs = foldl btExtend (foldl btExtend bt bs) bs. *)
-(* Proof. *)
-(* move=>V. *)
-(* have X: forall b, b \in bs -> b ∈ foldl btExtend bt bs. *)
-(* Admitted. *)
-
 (********************************************************************)
 
 Lemma clique_inv_step w w' q :
