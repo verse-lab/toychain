@@ -30,29 +30,21 @@ Definition saturated_chain w bc :=
     btChain (btExtend bt b) = bc).
 
 Definition GSyncing_clique w :=
-  exists (bc : Blockchain) (n : nid),
+  exists (bc : Blockchain) (bt : BlockTree) (n : nid),
   [/\ holds n w (has_chain bc),
 
    (* The canonical chain is the largest in the network *)
    largest_chain w bc,
 
+   (* A "global" block-tree, also the conservation law *)
+   bc = btChain bt,
+
    (* Clique topology *)
-   forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}),
+   forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
 
-   (* Applying blocks in flight will induce either the canonical
-      chain or a smaller one. *)
+   (* Relating global and local block-trees *)
    forall n',
-      holds n' w (fun st =>
-        bc = btChain (foldl btExtend (blockTree st) (blocksFor n' w))) &
-
-   (* Conservation of blocks in clique topology *)
-   [/\ forall n1, holds n1 w (fun st => forall b, b ∈ (blockTree st) ->
-         forall n2, holds n2 w (fun st' => b ∈ (blockTree st') \/
-                                           b \in blocksFor n2 w)) &
-        forall p, p \in inFlightMsgs w -> forall b, msg p = BlockMsg b ->
-          exists st', find (src p) (localState w) = Some st' /\
-                 holds (src p) w (fun st => b ∈ (blockTree st))
-   ]
+     holds n' w (fun st => bt = foldl btExtend (blockTree st) (blocksFor n' w))
   ].
 
 Definition clique_inv (w : World) :=
@@ -62,10 +54,10 @@ Lemma clique_eventual_consensus w n :
   clique_inv w -> blocksFor n w == [::] ->
   holds n w (fun st => exists bc, (has_chain bc st) /\ largest_chain w bc).
 Proof.
-case=>C; case=>[bc][can_n][H1 H2 H3 H4 H5] Na st Fw.
+case=>C. case=>[bc][bt][can_n][H1 H2 H3 H4 H5] Na st Fw.
 exists bc; split=>//.
 move/eqP:Na=>Na.
-by rewrite (H4 n _ Fw); rewrite Na/= /has_chain eqxx.
+by move:(H5 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
 Qed.
 
 Ltac NBlockMsg_dest_bt q st p b Msg H :=
@@ -185,21 +177,23 @@ case: S; first by elim; move=>_ <-; apply Iw.
 (* Deliver *)
 move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F.
 case: Iw=>_ GSyncW.
-case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
+case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HCliq HExt.
   move=>P; assert (P' := P).
   move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->.
   (* The canonical chain is guaranteed to remain the same for any Msg *)
-  exists can_bc, can_n; split.
+  exists can_bc, can_bt, can_n; split.
 
   (* can_n still retains can_bc *)
   + move=>st'; rewrite findU c1 /=; case: ifP.
     move/eqP=>Eq [Eq']; subst can_n stPm.
     case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     do? by [NBlockMsg_dest_btChain q st p b Msg P H; move: (HHold _ F)].
-    by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V;
-       move/eqP: (HHold _ F)=>Eq; subst can_bc;
-       rewrite (btExtend_seq_same V iB); by [|move: (HExt (dst p) _ F)].
-    by move=>_ F'; move: (HHold _ F').
+    admit.
+    admit.
+    (* by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V; *)
+    (*    move/eqP: (HHold _ F)=>Eq; subst can_bc; *)
+    (*    rewrite (btExtend_seq_same V iB); by [|move: (HExt (dst p) _ F)]. *)
+    (* by move=>_ F'; move: (HHold _ F'). *)
 
   (* can_bc is still the largest chain *)
   + move=>n' bc'; rewrite/holds findU c1 /=; case: ifP.
@@ -207,14 +201,19 @@ case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
     case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     do? by
     [NBlockMsg_dest_btChain q st p b Msg P H=>Hc; move: (HGt (dst p) bc' _ F Hc)].
-    by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V;
-       move/eqP=>Eq; subst bc';
-       (have: (has_chain (btChain (blockTree st)) st)
-          by rewrite/has_chain eqxx)=>O;
-       move: (HGt (dst p) (btChain (blockTree st)) _ F O)=>Gt;
-       move: (HExt (dst p) _ F)=>Ext;
-       move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext).
-    by move=>_ st' F'; move: (HGt n' bc' st' F').
+    admit.
+    admit.
+    (* by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V; *)
+    (*    move/eqP=>Eq; subst bc'; *)
+    (*    (have: (has_chain (btChain (blockTree st)) st) *)
+    (*       by rewrite/has_chain eqxx)=>O; *)
+    (*    move: (HGt (dst p) (btChain (blockTree st)) _ F O)=>Gt; *)
+    (*    move: (HExt (dst p) _ F)=>Ext; *)
+    (*    move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext). *)
+    (* by move=>_ st' F'; move: (HGt n' bc' st' F'). *)
+
+  (* can_bc = btChain can_bt *)
+  + done.
 
   (* clique topology is maintained *)
   + move=>n' st'; rewrite findU c1 /=;
@@ -272,26 +271,28 @@ case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
       case X: (find hash blockTree0)=>[b|];
       last by move: (find_some hIB)=>hG;
               move: (btExtend_withDup_noEffect hG)=><-.
-      set st := {| id := id0; peers := peers0;
-                   blockTree := blockTree0; txPool := txPool0 |}.
-      have: b ∈ Protocol.blockTree st.
-      by rewrite/btHasBlock; move: (c4 _ _ F hash b X)=><-; move: (find_some X).
+      admit.
 
-      move=>hB; move: (HCon1 (dst p) _ F b hB (src p) _ F');
-      case=>[|iBF]; subst bt old_msgs.
-      - rewrite -foldl1 btExtend_fold_comm /=.
-        by rewrite/btHasBlock=>hB'; rewrite -(btExtend_withDup_noEffect hB').
-        by move: (c3 _ _ F').
-      - rewrite/blocksFor in iBF; move: (in_seq iBF)=>[fs] [ls]=>Eq.
-        move: (c3 _ _ F')=>V.
-        rewrite Eq -cat1s 2!foldl_cat btExtend_fold_comm /=.
-        (have: valid (foldl btExtend (foldl btExtend (blockTree st') fs) ls)
-        by rewrite -!btExtendV_fold)=>V'.
-        rewrite -(btExtend_idemp b V'); clear V'.
-        rewrite -foldl1 btExtend_fold_comm.
-        by rewrite -foldl_cat cat1s -foldl_cat -Eq.
-        by rewrite -btExtendV_fold.
-        by rewrite -btExtendV_fold.
+      (* set st := {| id := id0; peers := peers0; *)
+      (*              blockTree := blockTree0; txPool := txPool0 |}. *)
+      (* have: b ∈ Protocol.blockTree st. *)
+      (* by rewrite/btHasBlock; move: (c4 _ _ F hash b X)=><-; move: (find_some X). *)
+
+      (* move=>hB; move: (HCon1 (dst p) _ F b hB (src p) _ F'); *)
+      (* case=>[|iBF]; subst bt old_msgs. *)
+      (* - rewrite -foldl1 btExtend_fold_comm /=. *)
+      (*   by rewrite/btHasBlock=>hB'; rewrite -(btExtend_withDup_noEffect hB'). *)
+      (*   by move: (c3 _ _ F'). *)
+      (* - rewrite/blocksFor in iBF; move: (in_seq iBF)=>[fs] [ls]=>Eq. *)
+      (*   move: (c3 _ _ F')=>V. *)
+      (*   rewrite Eq -cat1s 2!foldl_cat btExtend_fold_comm /=. *)
+      (*   (have: valid (foldl btExtend (foldl btExtend (blockTree st') fs) ls) *)
+      (*   by rewrite -!btExtendV_fold)=>V'. *)
+      (*   rewrite -(btExtend_idemp b V'); clear V'. *)
+      (*   rewrite -foldl1 btExtend_fold_comm. *)
+      (*   by rewrite -foldl_cat cat1s -foldl_cat -Eq. *)
+      (*   by rewrite -btExtendV_fold. *)
+      (*   by rewrite -btExtendV_fold. *)
 
     * move/eqP=>Eq [Eq']; subst n' stPm.
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
@@ -302,13 +303,22 @@ case: GSyncW=>can_bc [can_n] [] HHold HGt HCliq HExt [HCon1 HCon2].
                                     (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
       rewrite ?Z1 ?Z2 in V' G';
       rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
-      case Msg: (msg p)=>[|||b|||h];
-      do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
+      case Msg: (msg p)=>[|||b|||h].
+      (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
            move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
            rewrite (btExtend_foldG _ allG)//;
            NBlockMsg_dest_bt q st p b Msg H;
-           rewrite Z1=>Eq; rewrite -Eq in V' G' *;
-           rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//].
+          rewrite Z1=>Eq; rewrite -Eq in V' G' *.
+      Check (rem_non_block w V' (c4 _ _ F) (c5 _ _ F) H).
+      admit.
+
+
+      (* do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD; *)
+      (*      move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG; *)
+      (*      rewrite (btExtend_foldG _ allG)//; *)
+      (*      NBlockMsg_dest_bt q st p b Msg H; *)
+      (*      rewrite Z1=>Eq; rewrite -Eq in V' G' *; *)
+      (*      rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//]. *)
 
       (* BlockMsg *)
       have Nmd: msg_type (msg p) != MGetData by case: (msg p) (Msg).
