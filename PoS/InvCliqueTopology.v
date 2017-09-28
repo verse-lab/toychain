@@ -45,7 +45,6 @@ Definition GSyncing_clique w :=
    (* Clique topology *)
    forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
 
-
    (* Relating global and local block-trees *)
    forall n',
      holds n' w (fun st => bt = foldl btExtend (blockTree st) (blocksFor n' w))
@@ -157,21 +156,6 @@ elim: ps b=>//=x xs Hi b.
 rewrite btExtend_comm.
 Search (btExtend (btExtend _ _) _).
 
-(* Trivial, since btExtend is associative and commutative, hence
-   foldr = foldl *)
-Admitted.
-
-(********************************************************************)
-(* TODOs:
-
-- A common pattern seems to be to analyse the kind of incoming message
-  and then discharge most of the cases as trivial, as the message is
-  not relevant for the goal. Perhaps, this is something to be captured
-  as a tactic/specialized lemma generated out of the protocol
-  definition. Can we build some better automation for this?
-
-
-*)
 (********************************************************************)
 
 Lemma clique_inv_step w w' q :
@@ -189,16 +173,15 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
   exists can_bc, can_bt, can_n; split=>//.
 
   (* can_n still retains can_bc *)
-  + move=>st'; rewrite findU c1 /=; case: ifP.
+  + move=>st'; rewrite findU c1 /=;
+    case: ifP; last by move=>_ F'; apply (HHold _ F').
     move/eqP=>Eq [Eq']; subst can_n stPm.
     case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     do? by [NBlockMsg_dest_btChain q st p b Msg P H; move: (HHold _ F)].
-    admit.
-    admit.
-    (* by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V; *)
-    (*    move/eqP: (HHold _ F)=>Eq; subst can_bc; *)
-    (*    rewrite (btExtend_seq_same V iB); by [|move: (HExt (dst p) _ F)]. *)
-    (* by move=>_ F'; move: (HHold _ F'). *)
+    BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V;
+    rewrite -(btExtend_seq_same V iB); move: (HHold _ F); first done.
+    by rewrite/has_chain=>/eqP->; rewrite HBc;
+       move: (HExt (dst p) _ F)=><-.
 
   (* can_bc is still the largest chain *)
   + move=>n' bc'; rewrite/holds findU c1 /=; case: ifP.
@@ -206,16 +189,18 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
     case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     do? by
     [NBlockMsg_dest_btChain q st p b Msg P H=>Hc; move: (HGt (dst p) bc' _ F Hc)].
-    admit.
-    admit.
-    (* by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V; *)
-    (*    move/eqP=>Eq; subst bc'; *)
-    (*    (have: (has_chain (btChain (blockTree st)) st) *)
-    (*       by rewrite/has_chain eqxx)=>O; *)
-    (*    move: (HGt (dst p) (btChain (blockTree st)) _ F O)=>Gt; *)
-    (*    move: (HExt (dst p) _ F)=>Ext; *)
-    (*    move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext). *)
-    (* by move=>_ st' F'; move: (HGt n' bc' st' F'). *)
+    by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V;
+       move/eqP=>Eq; subst bc';
+       (have: (has_chain (btChain (blockTree st)) st)
+          by rewrite/has_chain eqxx)=>O;
+       move: (HGt (dst p) (btChain (blockTree st)) _ F O)=>Gt;
+       move: (HExt (dst p) _ F)=>Ext;
+       (have: (btChain can_bt =
+               btChain (foldl btExtend (blockTree st) (blocksFor (dst p) w)))
+        by rewrite Ext);
+       rewrite -HBc; move=>Ext';
+       move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext').
+    by move=>_ st' F'; move: (HGt n' bc' st' F').
 
   (* clique topology is maintained *)
   + move=>n' st'; rewrite findU c1 /=;
