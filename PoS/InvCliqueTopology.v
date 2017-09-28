@@ -150,6 +150,14 @@ elim: ps b bt V=>//=x xs Hi b bt V; rewrite btExtend_comm//.
 by rewrite Hi// -btExtendV. 
 Qed.
 
+(* Lemma foldl_btExtend_idemp bt bs : *)
+(*   valid bt -> *)
+(*   foldl btExtend bt bs = foldl btExtend (foldl btExtend bt bs) bs. *)
+(* Proof. *)
+(* move=>V. *)
+(* have X: forall b, b \in bs -> b ∈ foldl btExtend bt bs. *)
+(* Admitted. *)
+
 (********************************************************************)
 
 Lemma clique_inv_step w w' q :
@@ -312,20 +320,20 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
       destruct st=>//=; move: (HExt _ _ F)=>/=->.
       rewrite /blocksFor.
       case: (in_seq_neq iF)=>ps[qs][->]Np; rewrite (rem_elem _ Np).
-      (* Now we need to mowe p on the LHS to the beginning. *)
+      (* Now we need to move p on the LHS to the beginning. *)
       rewrite -cat_rcons !filter_cat !map_cat !foldl_cat; congr foldl.
       rewrite filter_rcons eqxx/= map_rcons Msg/=.
-      admit.
+      rewrite (foldl_btExtend_last _ _)?(c3 _ _ F)//.
+      move: (@procMsg_nGetData_no_blocks _ p _ _ _ (dst p) P Nmd)=>Ag.
+      rewrite (btExtend_foldG _ Ag)//. 
+      by move: (btExtendIB b (c3 _ _ F)(c4 _ _ F)(c5 _ _ F))=>/=.
 
-      (* Check (@foldl_btExtend_last blockTree). _ _ (c3 _ _ F)). *)
-      (*         Check foldl_btExtend_last.` *)
-      (*            (foldl_btExtend_last _ _ (c3 _ _ F)). *)
-
-      admit.
       admit.
       admit.
 
-      (* (* GetDataMsg *) *)
+      (* GetDataMsg *)
+      admit.
+
       (* destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X. *)
       (* * by case: ifP=>/=?; *)
       (*   do? [rewrite/has_init_block /= in G'; *)
