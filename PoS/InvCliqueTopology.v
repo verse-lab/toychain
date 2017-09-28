@@ -125,10 +125,10 @@ Proof. done. Qed.
 Lemma rem_non_block w bt p :
   valid bt -> validH bt ->
   has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->
-  btChain (foldl btExtend bt [seq msg_block (msg p0) |
-                 p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p]) =
-  btChain (foldl btExtend bt [seq msg_block (msg p0) |
-                 p0 <- inFlightMsgs w & dst p0 == dst p]).
+  foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p] =
+  foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- inFlightMsgs w & dst p0 == dst p].
 Proof.
 move=>V Vh H Nb.
 case B: (p \in (inFlightMsgs w)); last by move/negbT/rem_id: B=>->.
@@ -260,35 +260,12 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
       case X: (find hash blockTree0)=>[b|];
       last by move: (find_some hIB)=>hG;
               move: (btExtend_withDup_noEffect hG)=><-.
-      rewrite -E.
-      suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn);
+      rewrite -E;
+      suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn).
       by move: (HExt _ _ F)=>/= ->; move: (find_some X)=>Dom;
          move: (c4 _ _ F hash b X)=>H; rewrite H in Dom;
          rewrite/btHasBlock;
          move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Dom).
-      admit.
-
-      (* set st := {| id := id0; peers := peers0; *)
-      (*              blockTree := blockTree0; txPool := txPool0 |}. *)
-      (* have: b ∈ Protocol.blockTree st. *)
-      (* by rewrite/btHasBlock; move: (c4 _ _ F hash b X)=><-; move: (find_some X). *)
-
-      (* move=>hB; move: (HCon1 (dst p) _ F b hB (src p) _ F'); *)
-      (* case=>[|iBF]; subst bt old_msgs. *)
-      (* - rewrite -foldl1 btExtend_fold_comm /=. *)
-      (*   by rewrite/btHasBlock=>hB'; rewrite -(btExtend_withDup_noEffect hB'). *)
-      (*   by move: (c3 _ _ F'). *)
-      (* - rewrite/blocksFor in iBF; move: (in_seq iBF)=>[fs] [ls]=>Eq. *)
-      (*   move: (c3 _ _ F')=>V. *)
-      (*   rewrite Eq -cat1s 2!foldl_cat btExtend_fold_comm /=. *)
-      (*   (have: valid (foldl btExtend (foldl btExtend (blockTree st') fs) ls) *)
-      (*   by rewrite -!btExtendV_fold)=>V'. *)
-      (*   rewrite -(btExtend_idemp b V'); clear V'. *)
-      (*   rewrite -foldl1 btExtend_fold_comm. *)
-      (*   by rewrite -foldl_cat cat1s -foldl_cat -Eq. *)
-      (*   by rewrite -btExtendV_fold. *)
-      (*   by rewrite -btExtendV_fold. *)
-
     * move/eqP=>Eq [Eq']; subst n' stPm.
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
@@ -298,23 +275,15 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
                                     (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
       rewrite ?Z1 ?Z2 in V' G';
       rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
-      case Msg: (msg p)=>[|||b|||h].
-      (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
-           move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
-           rewrite (btExtend_foldG _ allG)//;
-           NBlockMsg_dest_bt q st p b Msg H;
-          rewrite Z1=>Eq; rewrite -Eq in V' G' *.
-      Check (rem_non_block w V' (c4 _ _ F) (c5 _ _ F) H).
-      admit.
-      admit.
-      admit.
-
-      (* do? [(have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD; *)
-      (*      move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG; *)
-      (*      rewrite (btExtend_foldG _ allG)//; *)
-      (*      NBlockMsg_dest_bt q st p b Msg H; *)
-      (*      rewrite Z1=>Eq; rewrite -Eq in V' G' *; *)
-      (*      rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F))//; apply: HExt=>//]. *)
+      case Msg: (msg p)=>[|||b|||h];
+      do? [
+        (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
+        move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
+        rewrite (btExtend_foldG _ allG)//;
+        NBlockMsg_dest_bt q st p b Msg H;
+        rewrite Z1=>Eq; rewrite -Eq in V' G' *;
+        rewrite (rem_non_block w V' (c4 _ _ F) (c5 _ _ F) H)//; apply HExt=>//
+      ].
 
       (* BlockMsg *)
       have Nmd: msg_type (msg p) != MGetData by case: (msg p) (Msg).
@@ -331,25 +300,19 @@ case: GSyncW=>can_bc [can_bt] [can_n] [] HHold HGt HBc HComp HCliq HExt.
       rewrite (btExtend_foldG _ Ag)//. 
       by move: (btExtendIB b (c3 _ _ F)(c4 _ _ F)(c5 _ _ F))=>/=.
 
-      admit.
-      admit.
-
       (* GetDataMsg *)
-      admit.
-
-      (* destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X. *)
-      (* * by case: ifP=>/=?; *)
-      (*   do? [rewrite/has_init_block /= in G'; *)
-      (*        move: (btExtend_withDup_noEffect (find_some G'))=><-]; *)
-      (*   move: (HExt _ _ F); rewrite/blocksFor=>-> /=; *)
-      (*   do [rewrite Z1 in H'; rewrite (rem_non_block w V')//; *)
-      (*       last by case: (msg p) Msg]; *)
-      (*      by rewrite -Z1 Msg/=; case: ifP. *)
-      (*   rewrite Z1 in H'; case:ifP=>Y; first by move/eqP:Y=>Y; *)
-      (*   rewrite Y eq_sym (c2 _ _ F) in X. *)
-      (* rewrite (rem_non_block w V')//; last by case: (msg p) Msg. *)
-      (* by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F). *)
-
+      destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X.
+      * by case: ifP=>/=?;
+        do? [rewrite/has_init_block /= in G';
+             move: (btExtend_withDup_noEffect (find_some G'))=><-];
+        move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
+        do [rewrite Z1 in H'; rewrite (rem_non_block w V')//;
+            last by case: (msg p) Msg];
+           by rewrite -Z1 Msg/=; case: ifP.
+        rewrite Z1 in H'; case:ifP=>Y; first by move/eqP:Y=>Y;
+        rewrite Y eq_sym (c2 _ _ F) in X.
+      rewrite (rem_non_block w V')//; last by case: (msg p) Msg.
+      by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F).
 
 (* Internal *)
 move=>proc t st [c1 c2 c3 c4 c5] Al F.
