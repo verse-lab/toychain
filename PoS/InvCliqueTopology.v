@@ -29,6 +29,10 @@ Definition saturated_chain w bc :=
     (* This block is not going to affect the blockchain out of bt *)
     btChain (btExtend bt b) = bc).
 
+Definition valid_with_bc bt bc :=
+  [/\ valid bt, validH bt & has_init_block bt] /\
+   bc = btChain bt.
+
 Definition GSyncing_clique w :=
   exists (bc : Blockchain) (bt : BlockTree) (n : nid),
   [/\ holds n w (has_chain bc),
@@ -36,9 +40,8 @@ Definition GSyncing_clique w :=
    (* The canonical chain is the largest in the network *)
    largest_chain w bc,
 
-   (* A "global" block-tree, also the conservation law *)
-   [/\ valid bt, validH bt & has_init_block bt] /\
-   bc = btChain bt,
+   (* An "accumulated" block-tree and its chain *)
+   valid_with_bc bt bc,
 
    (* bt is complete *)
    forall b, b ∈ bt -> prevBlockHash b \in dom bt,
@@ -49,7 +52,6 @@ Definition GSyncing_clique w :=
    (* Relating global and local block-trees *)
    forall n',
      holds n' w (fun st => bt = foldl btExtend (blockTree st) (blocksFor n' w))
-
   ].
 
 Definition clique_inv (w : World) :=
@@ -349,20 +351,18 @@ case: t P P'=>[tx|] P P'; last first.
     (have: (btChain (btExtend blockTree new_block) >= can_bc) by right)=>H2.
     by move: (Geq_trans H2 H1).
 
-    split.
+    split;[split|].
     (* Validity *)
-    split.
-    by rewrite -(btExtendV can_bt new_block).
-    by apply (btExtendH C1 C2).
-    by apply (btExtendIB new_block C1 C2 C3).
+    + by rewrite -(btExtendV can_bt new_block).
+    + by apply (btExtendH C1 C2).
+    + by apply (btExtendIB new_block C1 C2 C3).
 
     (* HBc *)
     rewrite HBc in Gt. move: (HExt _ _ F)=>/=H. subst can_bt.
-    rewrite -(foldl1 _ (foldl _ _ _)) btExtend_fold_comm /=.
+    rewrite -(foldl1 _ (foldl _ _ _)) btExtend_fold_comm ?(c3 _ _ F) //=.
     (* Need to use HComp somehow wrt. Gt *)
     admit.
-    by move: (c3 _ _ F).
-
+    
     (* HComp *)
     admit.
 
@@ -386,8 +386,7 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
     rewrite filter_cat map_cat foldl_cat -stEq /=.
     move: (HCliq proc _ F)=>/= Cliq.
-    move: (HExt proc _ F)=>/= Ext; rewrite/blocksFor in Ext.
-    subst can_bc.
+    move: (HExt proc _ F)=>/= Ext; rewrite/blocksFor in Ext; subst can_bc.
     (* Needs massaging *)
     rewrite Ext.
     admit.
@@ -405,10 +404,10 @@ case: t P P'=>[tx|] P P'; last first.
 
   * exists can_bc, (btExtend can_bt new_block), can_n; split.
     case Dst: (can_n == proc). (* Isn't true. *)
-    contradict Gt.
-    move/eqP in Dst; subst can_n.
+    contradict Gt; move/eqP in Dst; subst can_n.
+    suff Z: (btChain (btExtend blockTree new_block) > can_bc) by rewrite Z.
     move: (HHold _ F); rewrite/has_chain/==>/eqP <-.
-    (* This should be an axiom/proven lemma *)
+    (* This should follow from procInt implementation! *)
     admit.
 
     (* HHold *)
@@ -423,12 +422,11 @@ case: t P P'=>[tx|] P P'; last first.
     (* HGt *)
     admit.
 
-    split.
+    split; [split|].
     (* Validity *)
-    split.
-    by rewrite -(btExtendV can_bt new_block).
-    by apply (btExtendH C1 C2).
-    by apply (btExtendIB new_block C1 C2 C3).
+    + by rewrite -(btExtendV can_bt new_block).
+    + by apply (btExtendH C1 C2).
+    + by apply (btExtendIB new_block C1 C2 C3).
 
     (* HBc *)
     rewrite HBc in Gt *.
