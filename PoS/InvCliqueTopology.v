@@ -158,7 +158,18 @@ Lemma broadcast_reduce id peers X n :
   [seq msg_block (msg p) | p <- emitBroadcast id peers X & dst p == n] =
     [:: msg_block X].
 Proof.
-Admitted.
+rewrite /emitBroadcast/=; elim: peers=>//p ps Hi/=.
+rewrite inE; case/orP.
+- move/eqP=>->/andP[H1 H2]; rewrite eqxx/=.
+  suff G: [seq msg_block (msg p0) | p0 <- [seq {| src := id; dst := to; msg := X |}
+                                  | to <- ps] & dst p0 == p] = [::] by rewrite G.
+  apply/nilP; rewrite /nilp; clear Hi; elim: ps H1 H2=>//x xs Hi G1 G2/=.
+  rewrite inE in G1; case/norP: G1; move/negbTE; rewrite eq_sym=>->G1.
+  by apply: Hi=>//; case/andP: G2. 
+- move=>G1/andP[G2 G3].
+have N : (p == n) = false by apply/negP=>/eqP Z; subst p; rewrite G1 in G2.
+by rewrite N; apply: Hi.
+Qed.
 
 Lemma find_upd_same {T : ordType} W k v (m : union_map T W):
   find k m = Some v -> upd k v m = m.
