@@ -34,9 +34,11 @@ Definition Coh (w : World) :=
      forall (n : nid),
        holds n w (fun st => valid (blockTree st)),
      forall (n : nid),
-       holds n w (fun st => validH (blockTree st)) &
+       holds n w (fun st => validH (blockTree st)),
      forall (n : nid),
-       holds n w (fun st => has_init_block (blockTree st))
+       holds n w (fun st => has_init_block (blockTree st)) &
+     forall (n : nid),
+       holds n w (fun st => uniq (peers st))
   ].
 
 Record Qualifier := Q { ts: Timestamp; allowed: nid; }.
@@ -111,6 +113,7 @@ do? InitState_induction; do? [rewrite um_findPt; case=><-].
 - by rewrite/Init/validH/blockTree=>h b H;
      move: (um_findPt_inv H); elim=>->->.
 - by rewrite/Init/has_init_block/blockTree um_findPt.
+- by rewrite/Init/peers.
 Qed.
 
 Lemma Coh_step w w' q:
@@ -121,7 +124,7 @@ case: S'.
 (* Idle *)
 by case=>Cw <-.
 (* Deliver *)
-- move=> p st [H1 H2 H3 H4 H5] _ iF sF; case P: (procMsg _ _ _)=>[st' ms].
+- move=> p st [H1 H2 H3 H4 H5 H6] _ iF sF; case P: (procMsg _ _ _)=>[st' ms].
   move=>->; split;
     do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
   + rewrite /localState validU=>/=; apply H1.
@@ -138,8 +141,13 @@ by case=>Cw <-.
     move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
     rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
     by move: (H5 (dst p) _ sF); apply procMsg_has_init_block.
+  + Coh_step_case n (dst p) H6 F.
+    move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
+    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _.
+    by move: (H6 (dst p) _ sF); apply procMsg_peers_uniq.
+
 (* Intern *)
-- move=> proc t st [H1 H2 H3 H4 H5] _ sF. case P: (procInt _ _ _)=>[st' ms].
+- move=> proc t st [H1 H2 H3 H4 H5 H6] _ sF. case P: (procInt _ _ _)=>[st' ms].
   move=>->; split;
     do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
   + rewrite /localState validU=>/=; apply H1.
@@ -156,6 +164,10 @@ by case=>Cw <-.
     move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
     rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _;
     by move: (H5 proc _ sF); apply procInt_has_init_block.
+  + Coh_step_case n proc H6 F.
+    move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
+    rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _.
+    by move: (H6 proc _ sF); apply procInt_peers_uniq.
 Qed.
 
 (* Stepping does not remove or add nodes *)

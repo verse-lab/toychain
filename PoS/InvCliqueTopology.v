@@ -153,6 +153,13 @@ elim: ps b bt V=>//=x xs Hi b bt V; rewrite btExtend_comm//.
 by rewrite Hi// -btExtendV.
 Qed.
 
+Lemma broadcast_reduce id peers X n :
+  n \in peers -> uniq peers ->
+  [seq msg_block (msg p) | p <- emitBroadcast id peers X & dst p == n] =
+    [:: msg_block X].
+Proof.
+Admitted.
+
 (********************************************************************)
 
 Lemma clique_inv_step w w' q :
@@ -161,7 +168,7 @@ Proof.
 move=>Iw S; rewrite/clique_inv; split; first by apply (Coh_step S).
 case: S; first by elim; move=>_ <-; apply Iw.
 (* Deliver *)
-move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F.
+move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5 c6] Al iF F.
 case: Iw=>_ GSyncW.
 case: GSyncW=>can_bc [can_bt] [can_n] []
              HHold HGt [C] [HBc] HComp HCliq HExt.
@@ -311,7 +318,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F).
 
 (* Internal *)
-move=>proc t st [c1 c2 c3 c4 c5] Al F.
+move=>proc t st [c1 c2 c3 c4 c5 c6] Al F.
 move=>P; assert (P' := P); move: P.
 case P: (procInt _ _ _)=>[stPt ms]; move=>->; case: Iw=>Cw GSyncW.
 case: GSyncW=>can_bc [can_bt] [can_n] []
@@ -366,9 +373,26 @@ case: t P P'=>[tx|] P P'; last first.
     block-tree new block iduce _only one_ new chain, and this might be
     the one that delivers a new maxium. There won't be any others! *)
     admit.
-    
+
     (* HComp *)
-    admit.
+    (* TODO: remove duplication *)
+    move=>b; rewrite/btHasBlock/btExtend/=; case: ifP.
+    by move=>H1 H2; move: (HComp _ H2).
+    move=>H1; rewrite um_domPtUn; move/andP=>[] _ /orP; case.
+    - move=>/eqP Eq; move: (hashB_inj Eq)=><- /=.
+      move: (mem_last GenesisBlock (btChain blockTree));
+      rewrite in_cons; move/orP; case.
+      * move/eqP=>->; rewrite um_domPtUn; apply/andP; split.
+        by rewrite um_validPtUn H1 /= C1.
+        by apply/orP; right; move: (find_some C3).
+      * move=>H; move: (btChain_mem2 (c3 _ _ F) (c5 _ _ F) H)=>/=H2;
+        move: (btExtend_fold_preserve (blocksFor proc w) (c3 _ _ F) H2);
+        move: (HExt _ _ F)=>/=<- In; rewrite um_domPtUn; apply/andP; split.
+        by rewrite um_validPtUn H1 /= C1.
+        by apply/orP; right; move: (find_some C3).
+    - move=>H. move: (HComp _ H)=>In; rewrite um_domPtUn; apply/andP; split.
+      by rewrite um_validPtUn H1 /= C1.
+      by apply/orP; right; move: (find_some C3).
 
     (* HCliq *)
     move=>n st; rewrite findU c1 /=; case: ifP;
@@ -382,29 +406,16 @@ case: t P P'=>[tx|] P P'; last first.
         case: PInt'=><- _ H2; rewrite H2 in H1.
 
     (* HExt *)
-    move=>n st; rewrite/localState; simplw w=>-> _; move=>Fn.
-    case Dst: (proc == n).
-    - move/eqP in Dst; subst n;
-    move: Fn; rewrite findU c1 /=; case: ifP; last by move/eqP.
-    move=>_ [stEq];
-    rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
-    rewrite filter_cat map_cat foldl_cat -stEq /=.
-    move: (HCliq proc _ F)=>/= Cliq.
-    move: (HExt proc _ F)=>/= Ext; rewrite/blocksFor in Ext; subst can_bc.
-    (* Needs massaging *)
-    rewrite Ext.
-    admit.
-    - move: Fn; rewrite findU c1 /=; case: ifP.
-    by move/eqP in Dst; rewrite eq_sym=>/eqP.
-    move=>_ Fn.
-    rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->.
-    rewrite filter_cat map_cat foldl_cat.
-    move: (HCliq proc _ F)=>/= Cliq.
-    move: (HExt n _ Fn)=>/= Ext; rewrite/blocksFor in Ext.
-    (* inFlightMsgs w contains everything in blockTree *)
-    (* Needs massaging *)
-    rewrite Ext.
-    admit.
+    move=>n st; rewrite/localState; simplw w=>-> _.
+    rewrite findU c1 /=; case: ifP;
+    [move/eqP=>Eq [Eq']; assert (F' := F); rewrite -Eq in F' * | move=> _ F'];
+    by rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
+       rewrite filter_cat map_cat foldl_cat; do? [rewrite -Eq'];
+       move: (HCliq proc _ F)=>/= Cliq;
+       move: (HExt n _ F')=>/= Ext; rewrite/blocksFor in Ext; subst can_bc;
+       rewrite Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F')) /=;
+       rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c6 _ _ F)) /=;
+       do? [rewrite -(btExtend_idemp _ (c3 _ _ F))].
 
   * exists can_bc, (btExtend can_bt new_block), can_n; split.
     case Dst: (can_n == proc). (* Isn't true. *)
