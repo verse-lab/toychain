@@ -361,6 +361,10 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite HBc in Gt. move: (HExt _ _ F)=>/=H. subst can_bt.
     rewrite -(foldl1 _ (foldl _ _ _)) btExtend_fold_comm ?(c3 _ _ F) //=.
     (* Need to use HComp somehow wrt. Gt *)
+    (* This should be proven as a core property of btChain in
+    Blockchain.v out of Gt, Hbc and HExt. Essentially, in a complete
+    block-tree new block iduce _only one_ new chain, and this might be
+    the one that delivers a new maxium. There won't be any others! *)
     admit.
     
     (* HComp *)
