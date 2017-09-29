@@ -574,16 +574,27 @@ Strategy:
  *)
 
 Lemma init_chain bt :
+  has_init_block bt ->
   compute_chain bt GenesisBlock = [:: GenesisBlock].
 Proof.
-(* TODO: the proof is trivial, but boring out of init_hash *)
-Admitted.
+rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n bt hs Es En=>[|n Hi] bt hs Es En Ib=>/=;
+subst hs; move/find_some: (Ib); rewrite -keys_dom.
+- by move/esym/size0nil:En=>->. 
+move=>->; rewrite init_hash Ib compute_chain_no_block'//.  
+rewrite mem_rem_uniq; last by apply: keys_uniq.
+by rewrite inE eqxx.
+Qed.
 
 Lemma all_chains_init bt : 
   has_init_block bt -> [:: GenesisBlock] \in all_chains bt.
 Proof.
 move=>H; rewrite /all_chains; apply/mapP.
-exists GenesisBlock; last by rewrite init_chain.
+exists GenesisBlock; last by rewrite (init_chain H).
 by apply/mapP; exists (# GenesisBlock); 
 [by rewrite keys_dom; move/find_some: H|by rewrite /get_block H].
 Qed.
@@ -637,6 +648,17 @@ Definition bc_fun bt := fun x =>
    [eta take_better_bc (([eta compute_chain bt] \o
    [eta get_block bt]) x)].
 
+Lemma better_chains1 bt b :
+  valid (# b \\-> b \+ bt) ->
+  # b \notin dom bt -> validH bt ->
+  let f := bc_fun bt in
+  let f' := bc_fun (# b \\-> b \+ bt) in
+  forall h bc, f' h bc >= f h bc.
+Proof.
+move=>V B Vh/=h bc; rewrite /bc_fun/=.
+(* Start by case analysis on h and then use btExtend_chain_prefix *)
+Admitted.
+
 (* Monotonicity of BT => Monotonicity of btChain *)
 Lemma btExtend_sameOrBetter bt b :
   valid (btExtend bt b) ->
@@ -646,13 +668,16 @@ rewrite /btChain.
 case B : (#b \in dom bt); rewrite /btExtend B; first by left.
 move=>V; rewrite /all_chains/all_blocks -!seq.map_comp/=.
 case: (keys_insert V)=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
-rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)).
-rewrite !foldr_cat.
+rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)) !foldr_cat.
+
+set f := (bc_fun bt).
+set f' := (bc_fun (# b \\-> b \+ bt)).
 
 (* TODO: now prove facts that bc_fun is monotone, and this 
    monotonicity is preserved by foldr. *)
-have X1: (foldr (bc_fun (# b \\-> b \+ bt)) [:: GenesisBlock] ks2) >=
-         (foldr (bc_fun bt) [:: GenesisBlock] ks2).
+have X1: foldr f' [:: GenesisBlock] ks2 >= foldr f [:: GenesisBlock] ks2.
+(* Use better_chains1 *)
+  
 Admitted.
 
 Lemma btExtend_fold_comm :
