@@ -187,7 +187,7 @@ Ltac simplw w :=
 have: ((let (_, inFlightMsgs, _) := w in inFlightMsgs) = inFlightMsgs w) by [];
 have: ((let (localState, _, _) := w in localState) = localState w) by [].
 
-Ltac procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z :=
+Ltac procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z :=
   move=>n st; rewrite findU c1 /=; case: ifP;
   [ move/eqP=>Eq [stEq]; subst n st; move=>z /=;
     move: (HCliq proc _ F)=>/= H1 |
@@ -197,6 +197,25 @@ Ltac procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 
      rewrite PInt in P'; rewrite P' in H2; clear P'; specialize (H1 z);
      move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
      case: PInt'=><- _ H2; rewrite H2 in H1.
+
+Ltac procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5 :=
+    move=>b; rewrite/btHasBlock/btExtend/=; case: ifP;
+    first by [move=>H1 H2; move: (HComp _ H2)];
+    move=>H1; rewrite um_domPtUn; move/andP=>[] _ /orP; case;
+    last by [ move=>H; move: (HComp _ H)=>In; rewrite um_domPtUn; apply/andP; split;
+      by [rewrite um_validPtUn H1 /= C1 | apply/orP; right; move: (find_some C3)]
+    ];
+    move=>/eqP Eq'; move: (hashB_inj Eq')=><- /=;
+    move: (mem_last GenesisBlock (btChain blockTree));
+    rewrite in_cons; move/orP; case;
+    do? [move/eqP=>->; rewrite um_domPtUn; apply/andP; split];
+    do? [
+      move=>H; move: (btChain_mem2 (c3 _ _ F) (c5 _ _ F) H)=>/=H2;
+      move: (btExtend_fold_preserve (blocksFor proc w) (c3 _ _ F) H2);
+      move: (HExt _ _ F)=>/=<- In; rewrite um_domPtUn; apply/andP; split
+    ];
+    by [rewrite um_validPtUn H1 /= C1 | apply/orP; right; move: (find_some C3)].
+
 
 Ltac no_change can_bc can_bt can_n w F F' HExt c5 :=
   case=><- <- /=; exists can_bc, can_bt, can_n; rewrite (upd_nothing F); split=>//;
@@ -421,27 +440,10 @@ case: t P P'=>[tx|] P P'; last first.
     admit.
 
     (* HComp *)
-    (* TODO: remove duplication *)
-    move=>b; rewrite/btHasBlock/btExtend/=; case: ifP.
-    by move=>H1 H2; move: (HComp _ H2).
-    move=>H1; rewrite um_domPtUn; move/andP=>[] _ /orP; case.
-    - move=>/eqP Eq; move: (hashB_inj Eq)=><- /=.
-      move: (mem_last GenesisBlock (btChain blockTree));
-      rewrite in_cons; move/orP; case.
-      * move/eqP=>->; rewrite um_domPtUn; apply/andP; split.
-        by rewrite um_validPtUn H1 /= C1.
-        by apply/orP; right; move: (find_some C3).
-      * move=>H; move: (btChain_mem2 (c3 _ _ F) (c5 _ _ F) H)=>/=H2;
-        move: (btExtend_fold_preserve (blocksFor proc w) (c3 _ _ F) H2);
-        move: (HExt _ _ F)=>/=<- In; rewrite um_domPtUn; apply/andP; split.
-        by rewrite um_validPtUn H1 /= C1.
-        by apply/orP; right; move: (find_some C3).
-    - move=>H. move: (HComp _ H)=>In; rewrite um_domPtUn; apply/andP; split.
-      by rewrite um_validPtUn H1 /= C1.
-      by apply/orP; right; move: (find_some C3).
+    procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
 
     (* HCliq *)
-    procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
+    procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
 
     (* HExt *)
     move=>n st; rewrite/localState; simplw w=>-> _.
@@ -490,26 +492,10 @@ case: t P P'=>[tx|] P P'; last first.
     admit.
 
     (* HComp *)
-    move=>b; rewrite/btHasBlock/btExtend/=; case: ifP.
-    by move=>H1 H2; move: (HComp _ H2).
-    move=>H1; rewrite um_domPtUn; move/andP=>[] _ /orP; case.
-    - move=>/eqP Eq; move: (hashB_inj Eq)=><- /=.
-      move: (mem_last GenesisBlock (btChain blockTree));
-      rewrite in_cons; move/orP; case.
-      * move/eqP=>->; rewrite um_domPtUn; apply/andP; split.
-        by rewrite um_validPtUn H1 /= C1.
-        by apply/orP; right; move: (find_some C3).
-      * move=>H; move: (btChain_mem2 (c3 _ _ F) (c5 _ _ F) H)=>/=H2;
-        move: (btExtend_fold_preserve (blocksFor proc w) (c3 _ _ F) H2);
-        move: (HExt _ _ F)=>/=<- In; rewrite um_domPtUn; apply/andP; split.
-        by rewrite um_validPtUn H1 /= C1.
-        by apply/orP; right; move: (find_some C3).
-    - move=>H. move: (HComp _ H)=>In; rewrite um_domPtUn; apply/andP; split.
-      by rewrite um_validPtUn H1 /= C1.
-      by apply/orP; right; move: (find_some C3).
+    procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
 
     (* HCliq *)
-    procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
+    procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
 
     (* HExt *)
     move=>n st; rewrite/localState; simplw w=>-> _.
