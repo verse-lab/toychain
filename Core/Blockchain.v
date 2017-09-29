@@ -96,12 +96,28 @@ Axiom CFR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
     bc ++ (b :: ext) > bc.
 
+Axiom CFR_rel :
+  forall (A B : Blockchain),
+    A = B \/ A > B \/ B > A.
+
 Axiom CFR_nrefl :
   forall (bc : Blockchain), bc > bc -> False.
 
 Axiom CFR_trans :
   forall (A B C : Blockchain),
     A > B -> B > C -> A > C.
+
+Lemma CFR_dual :
+  forall (A B : Blockchain),
+    (A > B = false) <-> (B >= A).
+Proof.
+split=>H.
+* move: (CFR_rel A B); rewrite H; case; case; do? by [|right];
+  by move=>/eqP H'; left; apply/eqP; rewrite eq_sym.
+* case: H.
+  by move=>->; case X: (A > A); by [|move: (CFR_nrefl X)].
+  by move=>H; case X: (A > B); by [|move: (CFR_nrefl (CFR_trans H X))].
+Qed.
 
 Lemma Geq_trans :
   forall (A B C : Blockchain),
@@ -120,6 +136,7 @@ Lemma CFR_excl :
 Proof.
 by move=>bc bc' H1 H2; move: (CFR_trans H1 H2); apply CFR_nrefl.
 Qed.
+
 
 (*****************************
  *  BlockTree implementation *
