@@ -67,24 +67,6 @@ move/eqP:Na=>Na.
 by move:(H6 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
 Qed.
 
-Ltac NBlockMsg_dest_bt q st p b Msg H :=
-  (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
-  move: (procMsg_non_block_nc_blockTree st (src p) (ts q) H).
-
-Ltac NBlockMsg_dest_btChain q st p b Msg P H :=
-  (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
-  move: (procMsg_non_block_nc_btChain st (src p) (ts q) H);
-  rewrite/has_chain Msg P /==><-.
-
-Ltac BlockMsg_dest q st from b iF P Msg :=
-  rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
-  rewrite/has_chain (procMsg_block_btExtend_btChain st from b (ts q));
-  move: (b_in_blocksFor iF Msg)=>iB.
-
-Ltac simplw w :=
-have: ((let (_, inFlightMsgs, _) := w in inFlightMsgs) = inFlightMsgs w) by [];
-have: ((let (localState, _, _) := w in localState) = localState w) by [].
-
 (*********************************************************)
 (*                  Auxiliary Lemmas                     *)
 (*********************************************************)
@@ -165,7 +147,7 @@ rewrite inE; case/orP.
                                   | to <- ps] & dst p0 == p] = [::] by rewrite G.
   apply/nilP; rewrite /nilp; clear Hi; elim: ps H1 H2=>//x xs Hi G1 G2/=.
   rewrite inE in G1; case/norP: G1; move/negbTE; rewrite eq_sym=>->G1.
-  by apply: Hi=>//; case/andP: G2. 
+  by apply: Hi=>//; case/andP: G2.
 - move=>G1/andP[G2 G3].
 have N : (p == n) = false by apply/negP=>/eqP Z; subst p; rewrite G1 in G2.
 by rewrite N; apply: Hi.
@@ -182,6 +164,47 @@ Qed.
 Lemma upd_nothing (n : nid) (st : State) (w : World) :
   find n (localState w) = Some st -> upd n st (localState w) = (localState w).
 Proof. by apply find_upd_same. Qed.
+
+(*********************************************************)
+(*                 Invariant Tactics                     *)
+(*********************************************************)
+
+Ltac NBlockMsg_dest_bt q st p b Msg H :=
+  (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
+  move: (procMsg_non_block_nc_blockTree st (src p) (ts q) H).
+
+Ltac NBlockMsg_dest_btChain q st p b Msg P H :=
+  (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
+  move: (procMsg_non_block_nc_btChain st (src p) (ts q) H);
+  rewrite/has_chain Msg P /==><-.
+
+Ltac BlockMsg_dest q st from b iF P Msg :=
+  rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
+  rewrite/has_chain (procMsg_block_btExtend_btChain st from b (ts q));
+  move: (b_in_blocksFor iF Msg)=>iB.
+
+Ltac simplw w :=
+have: ((let (_, inFlightMsgs, _) := w in inFlightMsgs) = inFlightMsgs w) by [];
+have: ((let (localState, _, _) := w in localState) = localState w) by [].
+
+Ltac procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z :=
+  move=>n st; rewrite findU c1 /=; case: ifP;
+  [ move/eqP=>Eq [stEq]; subst n st; move=>z /=;
+    move: (HCliq proc _ F)=>/= H1 |
+    move=>Neq Fn z /=; move: (HCliq n _ Fn)=>/= H1
+  ];
+  by move: (step_nodes (Intern Cw Al F P'))=>H2;
+     rewrite PInt in P'; rewrite P' in H2; clear P'; specialize (H1 z);
+     move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
+     case: PInt'=><- _ H2; rewrite H2 in H1.
+
+Ltac no_change can_bc can_bt can_n w F F' HExt c5 :=
+  case=><- <- /=; exists can_bc, can_bt, can_n; rewrite (upd_nothing F); split=>//;
+    by move=>n st'; rewrite/localState; simplw w=>-> _ F';
+       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
+       rewrite -cat1s filter_cat /=; case: ifP; rewrite map_cat /=;
+       do? rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
+       move: (HExt _ _ F').
 
 (********************************************************************)
 
@@ -418,15 +441,7 @@ case: t P P'=>[tx|] P P'; last first.
       by apply/orP; right; move: (find_some C3).
 
     (* HCliq *)
-    move=>n st; rewrite findU c1 /=; case: ifP;
-    [ move/eqP=>Eq [stEq]; subst n st; move=>z /=;
-    move: (HCliq proc _ F)=>/= H1 |
-    move=>Neq Fn z /=; move: (HCliq n _ Fn)=>/= H1
-    ];
-    by move: (step_nodes (Intern Cw Al F P'))=>H2;
-        rewrite PInt in P'; rewrite P' in H2; clear P'; specialize (H1 z);
-        move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
-        case: PInt'=><- _ H2; rewrite H2 in H1.
+    procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
 
     (* HExt *)
     move=>n st; rewrite/localState; simplw w=>-> _.
@@ -469,7 +484,8 @@ case: t P P'=>[tx|] P P'; last first.
 
     (* HBc *)
     rewrite (btExtendV _ new_block) in C1.
-    rewrite HBc in Gt *; case: (btExtend_sameOrBetter C1)=>//Gt1. 
+    rewrite HBc in Gt *; case: (btExtend_sameOrBetter C1)=>//Gt1.
+    move: (HExt _ _ F)=>/= H; subst can_bt.
     (* There should be some contradiction here  *)
     admit.
 
@@ -493,15 +509,7 @@ case: t P P'=>[tx|] P P'; last first.
       by apply/orP; right; move: (find_some C3).
 
     (* HCliq *)
-    move=>n st; rewrite findU c1 /=; case: ifP;
-    [ move/eqP=>Eq [stEq]; subst n st; move=>z /=;
-    move: (HCliq proc _ F)=>/= H1 |
-    move=>Neq Fn z /=; move: (HCliq n _ Fn)=>/= H1
-    ];
-    by move: (step_nodes (Intern Cw Al F P'))=>H2;
-        rewrite PInt in P'; rewrite P' in H2; clear P'; specialize (H1 z);
-        move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
-        case: PInt'=><- _ H2; rewrite H2 in H1.
+    procInt_clique_maintained proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
 
     (* HExt *)
     move=>n st; rewrite/localState; simplw w=>-> _.
@@ -515,19 +523,8 @@ case: t P P'=>[tx|] P P'; last first.
        rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c6 _ _ F)) /=;
        do? [rewrite -(btExtend_idemp _ (c3 _ _ F))].
 
-  + case=><- <- /=; exists can_bc, can_bt, can_n; rewrite (upd_nothing F); split=>//.
-    by move=>n st'; rewrite/localState; simplw w=>-> _ F';
-       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
-       rewrite -cat1s filter_cat /=; case: ifP; rewrite map_cat /=;
-       do? rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
-       move: (HExt _ _ F').
-
-  + case=><- <- /=; exists can_bc, can_bt, can_n; rewrite (upd_nothing F); split=>//.
-    by move=>n st'; rewrite/localState; simplw w=>-> _ F';
-       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
-       rewrite -cat1s filter_cat /=; case: ifP; rewrite map_cat /=;
-       do? rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
-       move: (HExt _ _ F').
+  + no_change can_bc can_bt can_n w F F' HExt c5.
+  + no_change can_bc can_bt can_n w F F' HExt c5.
 
 (* Tx - invariant holds trivially *)
 - exists can_bc, can_bt, can_n; destruct st; rewrite/procInt in P;
