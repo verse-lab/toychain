@@ -10,7 +10,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (*******************************************************************)
-(* Global Invariant 2: Clique consensus. *)
+(* Global Invariant: Clique consensus. *)
 
 (* Under assumption of a clique network topology (every node is
 connected to every other node), ensures that any node's local
