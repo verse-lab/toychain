@@ -468,7 +468,9 @@ case: t P P'=>[tx|] P P'; last first.
     + by apply (btExtendIB new_block C1 C2 C3).
 
     (* HBc *)
-    rewrite HBc in Gt *.
+    rewrite (btExtendV _ new_block) in C1.
+    rewrite HBc in Gt *; case: (btExtend_sameOrBetter C1)=>//Gt1. 
+    (* There should be some contradiction here  *)
     admit.
 
     (* HComp *)
