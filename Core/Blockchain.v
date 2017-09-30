@@ -107,6 +107,26 @@ Axiom CFR_trans :
   forall (A B C : Blockchain),
     A > B -> B > C -> A > C.
 
+Lemma CFR_trans_eq (A B C : Blockchain):
+    A >= B -> B >= C -> A >= C.
+Proof.
+case=>H1[]H2.
+- by subst C B; left.
+- by subst B; right.
+- by subst C; right.
+by right; apply: (CFR_trans H1).
+Qed.  
+
+Lemma CFR_trans_eq1 (A B C : Blockchain):
+    A >= B -> B > C -> A > C.
+Proof. by move=>[]H1 H2; [by subst B|]; apply: (CFR_trans H1). Qed.
+
+Lemma CFR_trans_eq2 (A B C : Blockchain):
+    A > B -> B >= C -> A > C.
+Proof. by move=>H1[]H2; [by subst B|]; apply: (CFR_trans H1). Qed.
+
+
+
 Lemma CFR_dual :
   forall (A B : Blockchain),
     (A > B = false) <-> (B >= A).
@@ -672,6 +692,13 @@ Definition bc_fun bt := fun x =>
    [eta take_better_bc (([eta compute_chain bt] \o
    [eta get_block bt]) x)].
 
+Lemma good_init bc :
+  good_chain bc -> [:: GenesisBlock] > bc = false.
+Proof.      
+rewrite /good_chain. case: bc=>//h t/eqP->.
+by apply/CFR_dual; apply: CFR_subchain; exists [::], t. 
+Qed.
+
 (* This is going to be used for proving X1 in btExtend_sameOrBetter *)
 Lemma better_chains1 bt b :
   valid (# b \\-> b \+ bt) ->
@@ -684,27 +711,25 @@ Lemma better_chains1 bt b :
     good_chain bc ->
     f' h bc' >= f h bc.
 Proof.
-(* move=>V B Vh H/=h bc' bc Gt Gb' Gb; rewrite /bc_fun/=. *)
-(* case E: (#b == h). *)
-(* - move/eqP:E=>Z; subst h. *)
-(*   rewrite /get_block !um_findPtUn//. *)
-(*   have X: find (# b) bt = None. *)
-(*   + case: validUn V=>//_ _/(_ (# b)); rewrite um_domPt inE eqxx. *)
-(*     by move/(_ is_true_true); case : dom_find=>//. *)
-(*   rewrite !X init_chain//; clear X; rewrite /take_better_bc/=. *)
-(*   case: ifP=>[/andP[X1 X2]|X]/=. *)
-(*   + right; rewrite eqxx/=. *)
-(*     suff X: [:: GenesisBlock] > bc = false. rewrite X. *)
-(*     rewrite/good_chain in Gb; case: (bc) Gb=>//h t/eqP->{h}. *)
-(*     suff L: GenesisBlock :: t >= [:: GenesisBlock] by move/CFR_dual: L.  *)
-(*     by apply: CFR_subchain; exists [::], t. *)
-(*   case: ifP=>[/andP[_]Y|Y]; last by left. *)
-(*   rewrite/good_chain in Gb; case: (bc) Gb Y=>//h t/eqP->{h}G. *)
-(*   suff L: GenesisBlock :: t >= [:: GenesisBlock] by move/CFR_dual: L; rewrite G. *)
-(*   by apply: CFR_subchain; exists [::], t. *)
-(* rewrite /get_block findUnL// um_domPt inE E. *)
-(* case: (find h bt)=>[c|]; clear E h; last first. *)
-(* (* Some heavy case analysis here + facts about monotonicity of good_chain *) *)
+move=>V B Vh H/=h bc' bc Gt Gb' Gb; rewrite /bc_fun/=.
+set bc2 := compute_chain (# b \\-> b \+ bt) b.
+case E: (#b == h).
+- move/eqP:E=>Z; subst h.
+  rewrite /get_block !um_findPtUn//.
+  have X: find (# b) bt = None.
+  + case: validUn V=>//_ _/(_ (# b)); rewrite um_domPt inE eqxx.
+    by move/(_ is_true_true); case : dom_find=>//.
+  rewrite !X init_chain//; clear X; rewrite /take_better_bc/=.
+  case: ifP=>[/andP[X1 X2]|X]/=; rewrite (good_init Gb) andbC//=.
+  + by right; apply: (CFR_trans_eq2 X2).
+(* Now check if h \in dom bt *)
+case D: (h \in dom bt); last first.    
+- rewrite /get_block (findUnL _ V) um_domPt inE E.
+  case: dom_find D=>//->_{E h}.
+  rewrite /take_better_bc/=.
+  (* Should be trivial *)
+  admit.
+  
 Admitted.
 
 (* Monotonicity of BT => Monotonicity of btChain *)
