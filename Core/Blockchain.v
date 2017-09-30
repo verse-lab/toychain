@@ -125,8 +125,6 @@ Lemma CFR_trans_eq2 (A B C : Blockchain):
     A > B -> B >= C -> A > C.
 Proof. by move=>H1[]H2; [by subst B|]; apply: (CFR_trans H1). Qed.
 
-
-
 Lemma CFR_dual :
   forall (A B : Blockchain),
     (A > B = false) <-> (B >= A).
@@ -565,7 +563,8 @@ case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last first.
   rewrite um_freePt2//eqxx -um_ptsU=> E _; move:(um_cancelPt E)=>{E B}E; subst a.
   by eexists _; rewrite -cats1.
 move=>pb Hf; rewrite updF Hf eqxx -(Vh _ _ Hf)=>Eb _.
-have Bn' : # b == # a = false by apply/negbTE/negP=>/eqP=>E; rewrite -E -keys_dom -Es X in B.
+have Bn' : # b == # a = false by apply/negbTE/negP=>/eqP=>E;
+           rewrite -E -keys_dom -Es X in B.
 rewrite (um_freePtUn2 (#b) V') !Bn' !(Vh _ _ Hf).
 (** How should we fold this over-eager rewriting **)
 subst hs.
@@ -583,6 +582,16 @@ by rewrite -(compute_chain_equiv _ _ _ _ _ (keys_rem1 V' Bn'))
            ?(keys_uniq _) ?(rem_uniq _ (keys_uniq _)).
 Qed.
 
+
+Lemma btExtend_chain_good bt a b :
+  valid bt -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  (compute_chain (btExtend bt a) b) = compute_chain bt b.
+Proof.
+(* A good chain begins with GenesisBlock -- there should be no
+  progress after that. *)
+Admitted.
+
 (* Chains from blocks are only growing as BT is extended *)
 Lemma btExtend_chain_grows bt a b :
   valid bt -> validH bt ->
@@ -591,31 +600,6 @@ Proof.
 move=>V H; apply: CFR_subchain.
 by case: (btExtend_chain_prefix a b V H)=>p<-; exists p, [::]; rewrite cats0.
 Qed.
-
-(* TODO: Show that the goodness of chains is preserved *)
-
-(* Lemma btExtend_chains (bt : BlockTree) (b : Block) : valid bt -> *)
-(*   {subset all_good_chains bt <= all_good_chains (btExtend bt b)}. *)
-(* Proof. *)
-(* move=>V z. *)
-(* suff X: {subset all_chains bt <= all_chains (btExtend bt b)}. *)
-(* - by move: (X z)=>{X}X; rewrite/all_good_chains !mem_filter; case/andP=>->. *)
-(* move=>{z}z; case/mapP=>k/(btExtend_blocks b V) H E; apply/mapP. *)
-(* exists k=>//. subst z. *)
-
-(*
-Strategy:
-
-- Show that the keys in the old and the new one are off by one (from
-  the properties of union maps);
-
-- "Aling" the corresponding segments and show that the maximum can
-  only grow due to the lemma above;
-
-- Also will have to show that for each new "champion chain", its
-  prefix must have been a good chain already there.
-
- *)
 
 Lemma init_chain bt :
   has_init_block bt ->
@@ -726,11 +710,53 @@ case E: (#b == h).
 case D: (h \in dom bt); last first.    
 - rewrite /get_block (findUnL _ V) um_domPt inE E.
   case: dom_find D=>//->_{E h}.
-  rewrite /take_better_bc/=.
-  (* Should be trivial *)
-  admit.
-  
-Admitted.
+  rewrite /take_better_bc/= !init_chain//; last first.
+  + by move: (btExtendIB b (validR V) Vh H); rewrite/btExtend(negbTE B).
+  by rewrite !(good_init Gb)!(good_init Gb') -(andbC false)/=.  
+case: dom_find D=>//c F _ _.
+rewrite /get_block (findUnL _ V) um_domPt inE E !F.
+move: (Vh h _ F); move/find_some: F=>D ?{E bc2}; subst h.
+have P : exists p, p ++ (compute_chain bt c) = compute_chain (# b \\-> b \+ bt) c.
+- by move: (btExtend_chain_prefix b c (validR V)Vh); rewrite /btExtend(negbTE B).
+case:P=>p E; rewrite /take_better_bc.
+case G1: (good_chain (compute_chain bt c))=>/=; last first.
+- case G2: (good_chain (compute_chain (# b \\-> b \+ bt) c))=>//=.
+  by case: ifP=>//X; right; apply: (CFR_trans_eq2 X).
+(* Now need a fact about goodness monotonicity *)
+move: (btExtend_chain_good b (validR V) Vh H G1).
+rewrite /btExtend (negbTE B)=>->; rewrite G1/=.
+case:ifP=>X1; case: ifP=>X2=>//; do?[by left].
+- by right; apply: (CFR_trans_eq2 X1 Gt).
+by move/CFR_dual: X1.
+Qed.
+
+Lemma good_chain_foldr bt bc ks :
+  good_chain bc -> 
+  good_chain (foldr (bc_fun bt) bc ks).
+Proof.
+elim: ks=>//=x xs Hi G; rewrite /bc_fun/take_better_bc/= in Hi *.
+by case: ifP=>[/andP[B1 B2]|B]=>//; move/Hi: G. 
+Qed.
+
+Lemma good_chain_foldr_init bt ks :
+  good_chain (foldr (bc_fun bt) [:: GenesisBlock] ks).
+Proof. by apply: good_chain_foldr; rewrite /good_chain eqxx. Qed.
+
+Lemma better_chains_foldr bt b :
+  valid (# b \\-> b \+ bt) ->
+  # b \notin dom bt -> validH bt -> has_init_block bt ->
+  let f := bc_fun bt in
+  let f' := bc_fun (# b \\-> b \+ bt) in
+  forall ks bc' bc,
+    bc' >= bc ->
+    good_chain bc' ->
+    good_chain bc ->
+    foldr f' bc' ks >= foldr f bc ks.
+Proof.
+move=>V B Vh H f f'; elim=>//h hs Hi bc' bc Gt G1 G2/=.
+move: (Hi _ _ Gt G1 G2)=>{Hi}Hi.
+by apply: better_chains1=>//; apply: good_chain_foldr.
+Qed.
 
 (* Monotonicity of BT => Monotonicity of btChain *)
 Lemma btExtend_sameOrBetter bt b :
@@ -743,21 +769,19 @@ case B : (#b \in dom bt);
 move=>V Vh Ib; rewrite /all_chains/all_blocks -!seq.map_comp/=.
 case: (keys_insert V)=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
 rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)) !foldr_cat.
-
 set f := (bc_fun bt).
 set f' := (bc_fun (# b \\-> b \+ bt)).
-
-(* TODO: now prove facts that bc_fun is monotone, and this
-   monotonicity is preserved by foldr. *)
 have X1: foldr f' [:: GenesisBlock] ks2 >= foldr f [:: GenesisBlock] ks2.
  - elim: ks2=>//=[|k ks Hi]; first by left.
-   apply: better_chains1; rewrite ?B//.
-   (* TODO: prove this fact about goodness *)
-   admit. admit. 
-
-(* Nest >= facts using foldr three times *)   
-
-Admitted.
+   by apply: better_chains1; rewrite ?B ?good_chain_foldr_init//.
+apply: better_chains_foldr=>//;
+rewrite ?good_chain_foldr_init//; [by apply/negbT| |]; last first.
+- by apply: good_chain_foldr; apply:good_chain_foldr_init.
+simpl; rewrite {1 3}/f'/bc_fun/=/take_better_bc/=.
+case:ifP=>///andP[B1 B2]. right. 
+apply: (CFR_trans_eq2 B2).
+apply: better_chains_foldr=>//=; [by apply/negbT|by left].
+Qed.
 
 Lemma btExtend_fold_comm (bt : BlockTree) (bs bs' : seq Block) :
     valid bt ->
