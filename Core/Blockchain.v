@@ -1002,15 +1002,28 @@ Axiom VAF_ndom :
     VAF (proof b) ts (btChain bt) -> # b \notin dom bt.
 
 Lemma btExtend_mint bt b ts :
-  let bt' := (btExtend bt b) in
   let lst := last GenesisBlock (btChain bt) in
   let new_chain := (rcons (compute_chain bt lst) b) in
   valid bt -> validH bt -> has_init_block bt ->
   prevBlockHash b = # lst ->
   VAF (proof b) ts (btChain bt) = true ->
-  all_chains bt' =i new_chain :: (all_chains bt).
+  all_chains (btExtend bt b) =i new_chain :: (all_chains bt).
 Proof.
-move=>bt' lst new_chain V VH IB mint VAF; move=>ch.
+move=>lst new_chain V VH IB mint VAF; move=>ch.
+
+(*  
+I'd suggest you not to deal with =i here but rather reason
+with the explicit sequences. For instance, you can rely on
+the fact given by the lemma `keys_insert`, once you have proven
+that the new block is indeed new.
+
+Check how it's used in the proof of `btExtend_sameOrBetter`.
+
+What are you trying to prove here anyway?
+
+*)
+Check keys_insert.
+
 rewrite in_cons /all_chains /bt' /btExtend; case: ifP.
 by move=>C; move: (VAF_ndom VAF); rewrite/negb C.
 move=>NIn; apply/mapP/orP.
