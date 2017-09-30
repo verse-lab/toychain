@@ -523,4 +523,4 @@ case: t P P'=>[tx|] P P'; last first.
      rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c6 _ _ F)) /=;
      rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
      move: (HExt _ _ F').
-Qed.
+Admitted.
