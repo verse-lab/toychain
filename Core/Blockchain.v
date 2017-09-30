@@ -198,6 +198,13 @@ elim/last_ind: bs=>[|xs x Hi]; first done.
 by rewrite -cats1 foldl_cat /= Hi; apply btExtendV.
 Qed.
 
+Lemma btExtendH_fold bt bs : valid bt -> validH bt -> validH (foldl btExtend bt bs).
+Proof.
+move=>V Vh; elim/last_ind: bs=>[|xs x Hi]; first done.
+rewrite (btExtendV_fold bt xs) in V.
+by rewrite -cats1 foldl_cat /=; apply btExtendH.
+Qed.
+
 Lemma btExtendIB bt b :
   valid bt -> validH bt -> has_init_block bt ->
   has_init_block (btExtend bt b).
@@ -702,14 +709,13 @@ Admitted.
 
 (* Monotonicity of BT => Monotonicity of btChain *)
 Lemma btExtend_sameOrBetter bt b :
-  valid (btExtend bt b) ->
+  valid bt -> validH bt -> has_init_block bt ->
   btChain (btExtend bt b) >= btChain bt.
 Proof.
-have Vh: validH bt by admit.
-have Ib: has_init_block bt by admit.
 rewrite /btChain.
-case B : (#b \in dom bt); rewrite /btExtend B; first by left.
-move=>V; rewrite /all_chains/all_blocks -!seq.map_comp/=.
+case B : (#b \in dom bt);
+  rewrite (btExtendV bt b) /btExtend B; first by left.
+move=>V Vh Ib; rewrite /all_chains/all_blocks -!seq.map_comp/=.
 case: (keys_insert V)=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
 rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)) !foldr_cat.
 
@@ -751,13 +757,15 @@ by move=>V'; move: (btExtend_preserve x V' Hi).
 Qed.
 
 Lemma btExtend_fold_sameOrBetter bt bs:
-    valid bt -> btChain (foldl btExtend bt bs) >= btChain bt.
+  valid bt -> validH bt -> has_init_block bt ->
+  btChain (foldl btExtend bt bs) >= btChain bt.
 Proof.
-move=>V; elim/last_ind: bs=>[|xs x Hi]/=; first by left.
+move=>V Vh Ib; elim/last_ind: bs=>[|xs x Hi]/=; first by left.
 rewrite -cats1 foldl_cat /=.
 (have: (btChain (btExtend (foldl btExtend bt xs) x)
-        >= btChain (foldl btExtend bt xs))
-  by apply btExtend_sameOrBetter; rewrite -btExtendV -btExtendV_fold)=>H.
+        >= btChain (foldl btExtend bt xs)) by
+    apply btExtend_sameOrBetter;
+    by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold])=>H.
 case: Hi; case: H.
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
@@ -767,80 +775,89 @@ Qed.
 
 (* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
 Lemma btExtend_monotone_btChain (bs ext : seq Block) bt:
-    valid bt ->
+    valid bt -> validH bt -> has_init_block bt ->
     btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
 Proof.
-move=>V; elim/last_ind: ext=>[|xs x H]/=.
+move=>V Vh Ib; elim/last_ind: ext=>[|xs x H]/=.
 by rewrite foldl_cat; left.
 rewrite -cats1.
 (have: valid (foldl btExtend bt (bs ++ xs)) by rewrite -btExtendV_fold)=>V'.
 move: (btExtend_fold_sameOrBetter [:: x] V')=>H'.
 case: H; case: H'; rewrite !foldl_cat.
+apply btExtendH_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold].
+apply btExtendIB_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold].
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
+apply btExtendH_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold].
+apply btExtendIB_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold].
 by move=>->; right.
 by move=>H1 H2; move: (CFR_trans H1 H2); right.
 Qed.
 
 Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
-    valid bt -> ~ (btChain bt > btChain (btExtend bt b)).
+    valid bt -> validH bt -> has_init_block bt ->
+    ~ (btChain bt > btChain (btExtend bt b)).
 Proof.
-move=>V;
-(have: valid (btExtend bt b) by rewrite -btExtendV)=>V';
-move: (btExtend_sameOrBetter V'); case.
+move=>V Vh Ib;
+move: (btExtend_sameOrBetter b V Vh Ib); case.
 by move=>->; apply: (CFR_nrefl).
 move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
 by move: (CFR_nrefl (CFR_trans H X)).
 Qed.
 
 Lemma btExtend_fold_not_worse (bt : BlockTree) (bs : seq Block) :
-    valid bt -> ~ (btChain bt > btChain (foldl btExtend bt bs)).
+    valid bt -> validH bt -> has_init_block bt ->
+    ~ (btChain bt > btChain (foldl btExtend bt bs)).
 Proof.
-move=>V; move: (btExtend_fold_sameOrBetter bs V); case.
+move=>V Vh Ib; move: (btExtend_fold_sameOrBetter bs V Vh Ib); case.
 by move=><-; apply: CFR_nrefl.
 by apply: CFR_excl.
 Qed.
 
 Lemma btExtend_seq_same bt b bs:
-    valid bt ->
-    b \in bs -> btChain bt = btChain (foldl btExtend bt bs) ->
-    btChain bt = btChain (btExtend bt b).
+  valid bt -> validH bt -> has_init_block bt ->
+  b \in bs -> btChain bt = btChain (foldl btExtend bt bs) ->
+  btChain bt = btChain (btExtend bt b).
 Proof.
-move=>V H1.
+move=>V Vh Ib H1.
 move: (in_seq H1)=>[bf] [af] H2; rewrite H2.
 move=>H; clear H1 H2.
-move: (btExtend_fold_sameOrBetter [:: b] V)=>H1.
+move: (btExtend_fold_sameOrBetter [:: b] V Vh Ib)=>H1.
 case: H1; first by move/eqP; rewrite eq_sym=>/eqP.
 rewrite -cat1s in H.
 move=>/=Con; rewrite H in Con; clear H; contradict Con.
 rewrite foldl_cat btExtend_fold_comm. rewrite foldl_cat /= - foldl_cat.
-(have: valid (btExtend bt b) by rewrite -btExtendV)=>V';
-by apply (btExtend_fold_not_worse V').
-by [].
+(have: valid (btExtend bt b) by rewrite -btExtendV)=>V'.
+(have: validH (btExtend bt b) by apply btExtendH)=>Vh'.
+(have: has_init_block (btExtend bt b) by apply btExtendIB)=>Ib'.
+by apply (btExtend_fold_not_worse V' Vh' Ib').
+done.
 Qed.
 
 Lemma btExtend_seq_sameOrBetter bt b bs:
-    valid bt->
+    valid bt -> validH bt -> has_init_block bt ->
     b \in bs -> btChain bt >= btChain (foldl btExtend bt bs) ->
     btChain bt >= btChain (btExtend bt b).
 Proof.
-move=>V H1; case.
-by move=>H2; left; apply (btExtend_seq_same V H1 H2).
+move=>V Vh Ib H1; case.
+by move=>H2; left; apply (btExtend_seq_same V Vh Ib H1 H2).
 by move=>Con; contradict Con; apply btExtend_fold_not_worse.
 Qed.
 
 Lemma btExtend_seq_sameOrBetter_fref :
   forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
-    valid bt ->
+    valid bt -> validH bt -> has_init_block bt ->
     b \in bs -> bc >= btChain bt ->
     bc >= btChain (foldl btExtend bt bs) ->
     bc >= btChain (btExtend bt b).
 Proof.
-move=> bc bt b bs V H HGt HGt'.
+move=> bc bt b bs V Vh Ib H HGt HGt'.
 move: (in_seq H)=>[bf] [af] H'; rewrite H' in HGt'; clear H H'.
 (have: valid (btExtend bt b) by rewrite -btExtendV)=>V';
-move: (btExtend_sameOrBetter V')=>H.
-move: (btExtend_fold_sameOrBetter (bf ++ b :: af) V).
+(have: validH (btExtend bt b) by apply btExtendH)=>Vh';
+(have: has_init_block (btExtend bt b) by apply btExtendIB)=>Ib'.
+move: (btExtend_sameOrBetter b V Vh Ib)=>H.
+move: (btExtend_fold_sameOrBetter (bf ++ b :: af) V Vh Ib).
 rewrite -cat1s foldl_cat btExtend_fold_comm in HGt' *.
 rewrite foldl_cat /= -foldl_cat in HGt' *.
 move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
@@ -861,26 +878,26 @@ move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
 - by right; rewrite -h1 in h3.
 - by right; rewrite -h1 in h3.
 - rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
-by [].
+done. done. done.  
 have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
         >= btChain (btExtend bt b)) by apply: btExtend_fold_sameOrBetter.
 case=>[|H].
 by move=><-; right.
 by right; move: (CFR_trans h2 H).
-by [].
+done.
 Qed.
 
 (* Trivial sub-case of the original lemma; for convenience *)
 Lemma btExtend_seq_sameOrBetter_fref' :
   forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
-    valid bt ->
+    valid bt -> validH bt -> has_init_block bt ->
     b \in bs -> bc >= btChain bt ->
     bc = btChain (foldl btExtend bt bs) ->
     bc >= btChain (btExtend bt b).
 Proof.
-move=>bc bt b bs V iB Gt Eq.
+move=>bc bt b bs V Vh Ib iB Gt Eq.
 (have: (bc >= btChain (foldl btExtend bt bs)) by left)=>GEq; clear Eq.
-by move: (btExtend_seq_sameOrBetter_fref V iB Gt GEq).
+by move: (btExtend_seq_sameOrBetter_fref V Vh Ib iB Gt GEq).
 Qed.
 
 Lemma bc_spre_gt bc bc' :
@@ -908,23 +925,20 @@ Axiom VAF_ndom :
   forall (b : Block) (ts : Timestamp) (bt : BlockTree),
     VAF (proof b) ts (btChain bt) -> # b \notin dom bt.
 
-(* Lemma btExtend_mint bt b ts : *)
-(*   let bt' := (btExtend bt b) in *)
-(*   let lst := last GenesisBlock (btChain bt) in *)
-(*   let new_chain := (rcons (compute_chain bt lst) b) in *)
-(*   valid bt -> validH bt -> has_init_block bt -> *)
-(*   prevBlockHash b = # lst -> *)
-(*   VAF (proof b) ts (btChain bt) = true -> *)
-(*   all_chains bt' =i new_chain :: (all_chains bt). *)
-(* Proof. *)
-(* move=>bt' lst new_chain V VH IB mint VAF; move=>ch. *)
-(* rewrite in_cons /all_chains /bt' /btExtend; case: ifP. *)
-(* by move=>C; move: (VAF_ndom VAF); rewrite/negb C. *)
-(* move=>NIn; apply/mapP/orP. *)
-(* - move=>[x] H1 H2; case X: (x == b); move/eqP in X. *)
-(*   * subst x; rewrite H2 /new_chain; left. *)
-(*     rewrite/compute_chain{1}/compute_chain' /=. *)
-(* Qed. *)
+Lemma btExtend_mint bt b ts :
+  let bt' := (btExtend bt b) in
+  let lst := last GenesisBlock (btChain bt) in
+  let new_chain := (rcons (compute_chain bt lst) b) in
+  valid bt -> validH bt -> has_init_block bt ->
+  prevBlockHash b = # lst ->
+  VAF (proof b) ts (btChain bt) = true ->
+  all_chains bt' =i new_chain :: (all_chains bt).
+Proof.
+move=>bt' lst new_chain V VH IB mint VAF; move=>ch.
+rewrite in_cons /all_chains /bt' /btExtend; case: ifP.
+by move=>C; move: (VAF_ndom VAF); rewrite/negb C.
+move=>NIn; apply/mapP/orP.
+Admitted.
 
 End BtChainProperties.
 

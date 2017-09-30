@@ -248,8 +248,9 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
     move/eqP=>Eq [Eq']; subst can_n stPm.
     case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     do? by [NBlockMsg_dest_btChain q st p b Msg P H; move: (HHold _ F)].
-    BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V;
-    rewrite -(btExtend_seq_same V iB); move: (HHold _ F); first done.
+    BlockMsg_dest q st (src p) b iF P Msg;
+    move: (c3 (dst p) _ F) (c4 (dst p) _ F) (c5 (dst p) _ F)=>V Vh Ib;
+    rewrite -(btExtend_seq_same V Vh Ib iB); move: (HHold _ F); first done.
     by rewrite/has_chain=>/eqP->; rewrite HBc;
        move: (HExt (dst p) _ F)=><-.
 
@@ -259,7 +260,8 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
     case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
     do? by
     [NBlockMsg_dest_btChain q st p b Msg P H=>Hc; move: (HGt (dst p) bc' _ F Hc)].
-    by BlockMsg_dest q st (src p) b iF P Msg; move: (c3 (dst p) _ F)=>V;
+    by BlockMsg_dest q st (src p) b iF P Msg;
+       move: (c3 (dst p) _ F) (c4 (dst p) _ F) (c5 (dst p) _ F)=>V Vh Ib;
        move/eqP=>Eq; subst bc';
        (have: (has_chain (btChain (blockTree st)) st)
           by rewrite/has_chain eqxx)=>O;
@@ -269,7 +271,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
                btChain (foldl btExtend (blockTree st) (blocksFor (dst p) w)))
         by rewrite Ext);
        rewrite -HBc; move=>Ext';
-       move: (btExtend_seq_sameOrBetter_fref' V iB Gt Ext').
+       move: (btExtend_seq_sameOrBetter_fref' V Vh Ib iB Gt Ext').
     by move=>_ st' F'; move: (HGt n' bc' st' F').
 
   (* clique topology is maintained *)
@@ -485,8 +487,7 @@ case: t P P'=>[tx|] P P'; last first.
     + by apply (btExtendIB new_block C1 C2 C3).
 
     (* HBc *)
-    rewrite (btExtendV _ new_block) in C1.
-    rewrite HBc in Gt *; case: (btExtend_sameOrBetter C1)=>//Gt1.
+    rewrite HBc in Gt *; case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     move: (HExt _ _ F)=>/= H; subst can_bt.
     (* There should be some contradiction here  *)
     admit.
