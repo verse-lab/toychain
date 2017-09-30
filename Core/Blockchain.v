@@ -338,30 +338,6 @@ Fixpoint compute_chain' (bt : BlockTree) b remaining n : Blockchain :=
 Definition compute_chain bt b :=
   compute_chain' bt b (keys_of bt) (size (keys_of bt)).
 
-(* TODO: Perhaps, it's worthwhile to reformulate compute_chain b in
-terms of path, uniq, prevHash not defined/cyclic etc, to reason about
-paths rather then these things. *)
-
-
-
-(* TODO: prove the properties of compute_chain's result bc:
-
-1. It has no block repetitions;
-2. It has all blocks from the bt;
-3. path next_of GenesisBlock bc
-4. Anything else?
-
- *)
-(* Definition valid_chain bc : Prop := *)
-(*   [/\ *)
-(*    (* Evey chain is a path in bt.bm starting from GenesisBlock *) *)
-(*    path next_of GenesisBlock bc, *)
-(*    (* Every block in the chain is also in bm *) *)
-(*    forall b, b \in bc -> find (hashB b) bm = Some b & *)
-(*    (* Every block/hash in the chain is unique *)                  *)
-(*    uniq (map hashB bc)]. *)
-
-
 (* Total get_block function *)
 Definition get_block (bt : BlockTree) k : Block :=
   if find k bt is Some b then b else GenesisBlock.
@@ -582,15 +558,66 @@ by rewrite -(compute_chain_equiv _ _ _ _ _ (keys_rem1 V' Bn'))
            ?(keys_uniq _) ?(rem_uniq _ (keys_uniq _)).
 Qed.
 
+(* A simple lemma: any block in the result of compute_chain,
+   except for probably the first one, is not self-referential *)
+Lemma compute_chain_no_self_ref bt b:
+  valid bt -> validH bt -> (* has_init_block bt -> *)
+  compute_chain bt b = [::] \/
+  exists h t, compute_chain bt b = h :: t /\
+              forall c, c \in t -> prevBlockHash c != # c.
+Proof.
+move=>V Vh; rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+case D: ((# b) \in hs); [right|left]; last first.
+- by elim: n En=>/=[|n Hi]; rewrite D.
+elim: n b bt V Vh hs Es En D=>[|n Hi] b bt V Vh hs Es En D/=.
+- by move/esym/size0nil: En=>Z; subst hs; rewrite Z in D. 
+rewrite D.
+case D1: (prevBlockHash b \in dom bt);
+  case: dom_find (D1)=>//; last by move=>->_; exists b, [::].
+move=>pb F; move: (Vh _ _ F)=>E _ _; rewrite F; rewrite !E in F D1 *.
+have H1: valid (free (# b) bt) by rewrite validF.
+have H2: validH (free (# b) bt) by apply: validH_free.
+have H3: n = size (keys_of (free (# b) bt)).
+- by apply: size_free=>//; rewrite -Es//.
+have Uh: uniq hs by rewrite Es keys_uniq.
+case Eh: (#pb == #b).
+- have Eb: pb = b by apply/hashB_inj/eqP.
+  subst pb; exists b, [::]; clear Hi H3 En; move/eqP: Eh=>Eh.
+  by elim: n=>//=[|? _]; rewrite rem_filter//=; rewrite mem_filter/=eqxx/=.
+have D2: #pb \in seq.rem (# b) (keys_of bt).
+- apply: rem_neq; [by apply/negbT |by rewrite keys_dom].
+have H4: # pb \in keys_of (free (# b) bt) by rewrite -keys_rem2. 
+case: (Hi pb _ H1 H2 _ (erefl _) H3 H4)=>{Hi D2 H4 H3 H2 H1}h[t][H1 H2]. 
+rewrite Es (compute_chain_equiv (free (# b) bt) pb n (rem_uniq _ (keys_uniq _))
+      (keys_uniq (free (# b) bt)) (keys_rem2 _ _)) H1.
+exists h, (rcons t b); rewrite rcons_cons; split=>//.
+move=>c; rewrite mem_rcons inE=>/orP[]; last by apply H2.
+by move/eqP=>?; subst c; rewrite E; apply/negbT.
+Qed.
 
 Lemma btExtend_chain_good bt a b :
   valid bt -> validH bt -> has_init_block bt ->
   good_chain (compute_chain bt b) ->
   (compute_chain (btExtend bt a) b) = compute_chain bt b.
 Proof.
-(* A good chain begins with GenesisBlock -- there should be no
-  progress after that. *)
-Admitted.
+move=>V Vh Ib G.
+move: (@btExtendH _ a V Vh)=>Vh'.
+move: (V);  rewrite (btExtendV bt a) =>V'.
+move: (btExtendIB a V Vh Ib)=>Ib'.
+case: (btExtend_chain_prefix a b V Vh)
+      (compute_chain_no_self_ref b V' Vh')=>p<- H.
+suff X: p = [::] by subst p.
+case: H; first by elim: p=>//.
+case=>h[t][E]H; case:p E=>//=x xs[]->{x}Z; subst t.
+have X: GenesisBlock \in xs ++ compute_chain bt b.
+- rewrite mem_cat orbC; rewrite /good_chain in G.
+  by case: (compute_chain bt b) G=>//??/eqP->; rewrite inE eqxx.
+by move/H: X; rewrite init_hash; move/negbTE; rewrite eqxx.
+Qed.  
 
 (* Chains from blocks are only growing as BT is extended *)
 Lemma btExtend_chain_grows bt a b :
