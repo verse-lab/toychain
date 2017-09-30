@@ -19,6 +19,3 @@ PoS/States.v
 PoS/Protocol.v
 PoS/InvMisc.v
 PoS/InvCliqueTopology.v
-PoS/InvLocal.v
-PoS/InvBlockchainSize.v
-PoS/InvAvailable.v
