@@ -1024,11 +1024,11 @@ What are you trying to prove here anyway?
 *)
 Check keys_insert.
 
-rewrite in_cons /all_chains /bt' /btExtend; case: ifP.
+rewrite in_cons /all_chains /btExtend; case: ifP.
 by move=>C; move: (VAF_ndom VAF); rewrite/negb C.
 move=>NIn; apply/mapP/orP.
 Admitted.
-
+ 
 End BtChainProperties.
 
 (**************************
