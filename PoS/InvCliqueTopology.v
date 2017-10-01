@@ -239,6 +239,8 @@ by exists (# b \\-> b \+ q); rewrite joinCA.
 Qed.
 
 (********************************************************************)
+(************* Invariant inductivity proof **************************)
+(********************************************************************)
 
 Lemma clique_inv_step w w' q :
   clique_inv w -> system_step w w' q -> clique_inv w'.
@@ -450,8 +452,7 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite -foldl_btExtend_last ?(c3 _ _ F)// -cats1 foldl_cat/=.
     set can_bt := foldl btExtend blockTree (blocksFor proc w)
         in Gt C1 C2 C3 HBc HComp *.
-    by apply: complete_bt_extend_gt=>//; apply: foldl_expand;
-       rewrite//(c3 _ _ F).
+    by apply: complete_bt_extend_gt.
   
     (* HComp *)
     procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.

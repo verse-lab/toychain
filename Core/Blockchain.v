@@ -993,25 +993,37 @@ Qed.
 (************    Remaining properties   **********************)
 (*************************************************************)
 
-Lemma complete_bt_extend_gt cbt bt b :
+Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   (forall b : Block, b ∈ cbt -> prevBlockHash b \in dom cbt) ->
   btChain (btExtend bt b) > btChain cbt ->
-  (exists q, cbt = bt \+ q) ->
+  cbt = foldl btExtend bt bs ->
   btChain (btExtend bt b) = btChain (btExtend cbt b).      
 Proof.
-move=>V Vh Hib HComp Gt [q]E.
+move=>V Vh Hib HComp Gt E.
 (*
 
-The reasoning is out of definition of btChain via foldr 
+The reasoning is out of definition of btChain via foldr
 
 So you need to show that:
 
 1. btChain (btExtend bt b) is larger than any chain from cbt;
-2. Any chain in bt from a block b is a subchain of a chain in cbt from b; 
-   (this might be non-trivial, out of expansion via ... \+ q)
-3. A new chain in (btExtend bt b) builds on an old chain;
+
+2. Any _good_ chain in bt from a block b is exactly the same chain in
+   cbt from the block b. This might be non-trivial, out of expansion
+   via foldl ... bs, but the lemmas like `btExtend_chain_prefix` and
+   `btExtend_chain_good` might be helpful (expanded transitively for
+   foldl)
+
+3. A new chain in (btExtend bt b) builds on an old chain -- perhaps,
+   this should be passed as a hypothesis.;
+
 4. Therefore there should be a counterpart in cbt.
+
+Baiscally, for the remaining three tricky subgoals you will have to
+build a small toolset for reasoning about btChain anre relating
+its result to a specific `good` chain in a current block-tree.
+
  *)
 
 Admitted.
@@ -1030,35 +1042,20 @@ Axiom VAF_ndom :
   forall (b : Block) (ts : Timestamp) (bt : BlockTree),
     VAF (proof b) ts (btChain bt) -> # b \notin dom bt.
 
+(* Lemma btExtend_mint bt b ts : *)
+(*   let lst := last GenesisBlock (btChain bt) in *)
+(*   let new_chain := (rcons (compute_chain bt lst) b) in *)
+(*   valid bt -> validH bt -> has_init_block bt -> *)
+(*   prevBlockHash b = # lst -> *)
+(*   VAF (proof b) ts (btChain bt) = true -> *)
+(*   all_chains (btExtend bt b) =i new_chain :: (all_chains bt). *)
+(* Proof. *)
+(* move=>lst new_chain V VH IB mint VAF; move=>ch. *)
 
-
-Lemma btExtend_mint bt b ts :
-  let lst := last GenesisBlock (btChain bt) in
-  let new_chain := (rcons (compute_chain bt lst) b) in
-  valid bt -> validH bt -> has_init_block bt ->
-  prevBlockHash b = # lst ->
-  VAF (proof b) ts (btChain bt) = true ->
-  all_chains (btExtend bt b) =i new_chain :: (all_chains bt).
-Proof.
-move=>lst new_chain V VH IB mint VAF; move=>ch.
-
-(*  
-I'd suggest you not to deal with =i here but rather reason
-with the explicit sequences. For instance, you can rely on
-the fact given by the lemma `keys_insert`, once you have proven
-that the new block is indeed new.
-
-Check how it's used in the proof of `btExtend_sameOrBetter`.
-
-What are you trying to prove here anyway?
-
-*)
-Check keys_insert.
-
-rewrite in_cons /all_chains /btExtend; case: ifP.
-by move=>C; move: (VAF_ndom VAF); rewrite/negb C.
-move=>NIn; apply/mapP/orP.
-Admitted.
+(* rewrite in_cons /all_chains /btExtend; case: ifP. *)
+(* by move=>C; move: (VAF_ndom VAF); rewrite/negb C. *)
+(* move=>NIn; apply/mapP/orP. *)
+(* Admitted. *)
  
 End BtChainProperties.
 
