@@ -995,12 +995,13 @@ Qed.
 
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
+  valid bt -> validH bt -> has_init_block bt ->
   (forall b : Block, b ∈ cbt -> prevBlockHash b \in dom cbt) ->
   btChain (btExtend bt b) > btChain cbt ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend bt b) = btChain (btExtend cbt b).      
 Proof.
-move=>V Vh Hib HComp Gt E.
+move=>V Vh Hib V' Vh' Hib' HComp Gt E.
 (*
 
 The reasoning is out of definition of btChain via foldr
@@ -1038,23 +1039,25 @@ Admitted.
 (* prevBlockHash := # last GenesisBlock (btChain blockTree); *)
 (* foldr take_better_bc [:: GenesisBlock] (all_chains bt) *)
 
+(* Is this realistic? VAF doesn't look at the entire tree,
+   yet the conclusion talks about the whole tree bt. *)
 Axiom VAF_ndom :
   forall (b : Block) (ts : Timestamp) (bt : BlockTree),
     VAF (proof b) ts (btChain bt) -> # b \notin dom bt.
 
-(* Lemma btExtend_mint bt b ts : *)
-(*   let lst := last GenesisBlock (btChain bt) in *)
-(*   let new_chain := (rcons (compute_chain bt lst) b) in *)
-(*   valid bt -> validH bt -> has_init_block bt -> *)
-(*   prevBlockHash b = # lst -> *)
-(*   VAF (proof b) ts (btChain bt) = true -> *)
-(*   all_chains (btExtend bt b) =i new_chain :: (all_chains bt). *)
-(* Proof. *)
+Lemma btExtend_mint bt b ts :
+  let lst := last GenesisBlock (btChain bt) in
+  valid bt -> validH bt -> has_init_block bt ->
+  prevBlockHash b = # lst ->
+  VAF (proof b) ts (btChain bt) = true ->
+  btChain (btExtend bt b) > btChain bt.
+Proof.
 (* move=>lst new_chain V VH IB mint VAF; move=>ch. *)
 (* rewrite in_cons /all_chains /btExtend; case: ifP. *)
 (* by move=>C; move: (VAF_ndom VAF); rewrite/negb C. *)
 (* move=>NIn; apply/mapP/orP. *)
- 
+Admitted.
+
 End BtChainProperties.
 
 (**************************

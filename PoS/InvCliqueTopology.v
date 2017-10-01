@@ -452,7 +452,8 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite -foldl_btExtend_last ?(c3 _ _ F)// -cats1 foldl_cat/=.
     set can_bt := foldl btExtend blockTree (blocksFor proc w)
         in Gt C1 C2 C3 HBc HComp *.
-    by apply: complete_bt_extend_gt.
+    by apply: complete_bt_extend_gt=>//;
+       [by apply: (c3 _ _ F)|by apply: (c4 _ _ F)|by apply: (c5 _ _ F)].
   
     (* HComp *)
     procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
@@ -477,9 +478,8 @@ case: t P P'=>[tx|] P P'; last first.
     contradict Gt; move/eqP in Dst; subst can_n.
     suff Z: (btChain (btExtend blockTree new_block) > can_bc) by rewrite Z.
     move: (HHold _ F); rewrite/has_chain/==>/eqP <-.
-    (* This should follow from procInt implementation! *)
-    (* -> minting lemma, same as required for HBc *)
-    admit.
+    by apply: (@btExtend_mint _ new_block (ts q)
+                              (c3 _ _ F)(c4 _ _ F)(c5 _ _ F)).
 
     split.
     (* HHold *)
@@ -490,7 +490,7 @@ case: t P P'=>[tx|] P P'; last first.
     (* HGt *)
     move=>n bc st; rewrite/localState; simplw w=>-> _.
     rewrite findU c1 /=; case: ifP.
-    by move/eqP=>Eq [Eq']; subst n st; rewrite/has_chain/==>/eqP<-; apply CFR_dual.
+    by move/eqP=>Eq[Eq']; subst n st; rewrite/has_chain=>/eqP<-; apply CFR_dual.
     by move=>_ F'; move: (HGt n bc _ F').
 
     split; [split|].
@@ -500,7 +500,8 @@ case: t P P'=>[tx|] P P'; last first.
     + by apply (btExtendIB new_block C1 C2 C3).
 
     (* HBc *)
-    rewrite HBc in Gt *; case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
+    rewrite HBc in Gt *.
+    case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt. 
     admit.
     
