@@ -115,7 +115,7 @@ case=>H1[]H2.
 - by subst B; right.
 - by subst C; right.
 by right; apply: (CFR_trans H1).
-Qed.  
+Qed.
 
 Lemma CFR_trans_eq1 (A B C : Blockchain):
     A >= B -> B > C -> A > C.
@@ -256,6 +256,14 @@ Proof.
 move=>V z; rewrite /btExtend.
 case:ifP=>C//=D.
 by rewrite domUn inE andbC/= gen_validPtUn/= V D/= C orbC.
+Qed.
+
+Lemma btExtend_dom_fold bt bs :
+  valid bt -> {subset dom bt <= dom (foldl btExtend bt bs)}.
+Proof.
+move=>V z; elim/last_ind: bs=>[|xs x Hi]=>//.
+by move=>In; move: (Hi In); rewrite -cats1 foldl_cat /=;
+   apply btExtend_dom; rewrite -(btExtendV_fold _ xs).
 Qed.
 
 Lemma btExtend_in bt b :
@@ -574,7 +582,7 @@ move: {-2}(keys_of bt) Ek=>hs Es En.
 case D: ((# b) \in hs); [right|left]; last first.
 - by elim: n En=>/=[|n Hi]; rewrite D.
 elim: n b bt V Vh hs Es En D=>[|n Hi] b bt V Vh hs Es En D/=.
-- by move/esym/size0nil: En=>Z; subst hs; rewrite Z in D. 
+- by move/esym/size0nil: En=>Z; subst hs; rewrite Z in D.
 rewrite D.
 case D1: (prevBlockHash b \in dom bt);
   case: dom_find (D1)=>//; last by move=>->_; exists b, [::].
@@ -590,8 +598,8 @@ case Eh: (#pb == #b).
   by elim: n=>//=[|? _]; rewrite rem_filter//=; rewrite mem_filter/=eqxx/=.
 have D2: #pb \in seq.rem (# b) (keys_of bt).
 - apply: rem_neq; [by apply/negbT |by rewrite keys_dom].
-have H4: # pb \in keys_of (free (# b) bt) by rewrite -keys_rem2. 
-case: (Hi pb _ H1 H2 _ (erefl _) H3 H4)=>{Hi D2 H4 H3 H2 H1}h[t][H1 H2]. 
+have H4: # pb \in keys_of (free (# b) bt) by rewrite -keys_rem2.
+case: (Hi pb _ H1 H2 _ (erefl _) H3 H4)=>{Hi D2 H4 H3 H2 H1}h[t][H1 H2].
 rewrite Es (compute_chain_equiv (free (# b) bt) pb n (rem_uniq _ (keys_uniq _))
       (keys_uniq (free (# b) bt)) (keys_rem2 _ _)) H1.
 exists h, (rcons t b); rewrite rcons_cons; split=>//.
@@ -599,7 +607,7 @@ move=>c; rewrite mem_rcons inE=>/orP[]; last by apply H2.
 by move/eqP=>?; subst c; rewrite E; apply/negbT.
 Qed.
 
-Lemma btExtend_chain_good bt a b :
+Lemma btExtend_compute_chain bt a b :
   valid bt -> validH bt -> has_init_block bt ->
   good_chain (compute_chain bt b) ->
   (compute_chain (btExtend bt a) b) = compute_chain bt b.
@@ -617,7 +625,7 @@ have X: GenesisBlock \in xs ++ compute_chain bt b.
 - rewrite mem_cat orbC; rewrite /good_chain in G.
   by case: (compute_chain bt b) G=>//??/eqP->; rewrite inE eqxx.
 by move/H: X; rewrite init_hash; move/negbTE; rewrite eqxx.
-Qed.  
+Qed.
 
 (* Chains from blocks are only growing as BT is extended *)
 Lemma btExtend_chain_grows bt a b :
@@ -705,9 +713,9 @@ Definition bc_fun bt := fun x =>
 
 Lemma good_init bc :
   good_chain bc -> [:: GenesisBlock] > bc = false.
-Proof.      
+Proof.
 rewrite /good_chain. case: bc=>//h t/eqP->.
-by apply/CFR_dual; apply: CFR_subchain; exists [::], t. 
+by apply/CFR_dual; apply: CFR_subchain; exists [::], t.
 Qed.
 
 (* This is going to be used for proving X1 in btExtend_sameOrBetter *)
@@ -734,12 +742,12 @@ case E: (#b == h).
   case: ifP=>[/andP[X1 X2]|X]/=; rewrite (good_init Gb) andbC//=.
   + by right; apply: (CFR_trans_eq2 X2).
 (* Now check if h \in dom bt *)
-case D: (h \in dom bt); last first.    
+case D: (h \in dom bt); last first.
 - rewrite /get_block (findUnL _ V) um_domPt inE E.
   case: dom_find D=>//->_{E h}.
   rewrite /take_better_bc/= !init_chain//; last first.
   + by move: (btExtendIB b (validR V) Vh H); rewrite/btExtend(negbTE B).
-  by rewrite !(good_init Gb)!(good_init Gb') -(andbC false)/=.  
+  by rewrite !(good_init Gb)!(good_init Gb') -(andbC false)/=.
 case: dom_find D=>//c F _ _.
 rewrite /get_block (findUnL _ V) um_domPt inE E !F.
 move: (Vh h _ F); move/find_some: F=>D ?{E bc2}; subst h.
@@ -750,7 +758,7 @@ case G1: (good_chain (compute_chain bt c))=>/=; last first.
 - case G2: (good_chain (compute_chain (# b \\-> b \+ bt) c))=>//=.
   by case: ifP=>//X; right; apply: (CFR_trans_eq2 X).
 (* Now need a fact about goodness monotonicity *)
-move: (btExtend_chain_good b (validR V) Vh H G1).
+move: (btExtend_compute_chain b (validR V) Vh H G1).
 rewrite /btExtend (negbTE B)=>->; rewrite G1/=.
 case:ifP=>X1; case: ifP=>X2=>//; do?[by left].
 - by right; apply: (CFR_trans_eq2 X1 Gt).
@@ -758,11 +766,11 @@ by move/CFR_dual: X1.
 Qed.
 
 Lemma good_chain_foldr bt bc ks :
-  good_chain bc -> 
+  good_chain bc ->
   good_chain (foldr (bc_fun bt) bc ks).
 Proof.
 elim: ks=>//=x xs Hi G; rewrite /bc_fun/take_better_bc/= in Hi *.
-by case: ifP=>[/andP[B1 B2]|B]=>//; move/Hi: G. 
+by case: ifP=>[/andP[B1 B2]|B]=>//; move/Hi: G.
 Qed.
 
 Lemma good_chain_foldr_init bt ks :
@@ -805,7 +813,7 @@ apply: better_chains_foldr=>//;
 rewrite ?good_chain_foldr_init//; [by apply/negbT| |]; last first.
 - by apply: good_chain_foldr; apply:good_chain_foldr_init.
 simpl; rewrite {1 3}/f'/bc_fun/=/take_better_bc/=.
-case:ifP=>///andP[B1 B2]. right. 
+case:ifP=>///andP[B1 B2]. right.
 apply: (CFR_trans_eq2 B2).
 apply: better_chains_foldr=>//=; [by apply/negbT|by left].
 Qed.
@@ -954,7 +962,7 @@ move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
 - by right; rewrite -h1 in h3.
 - by right; rewrite -h1 in h3.
 - rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
-done. done. done.  
+done. done. done.
 have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
         >= btChain (btExtend bt b)) by apply: btExtend_fold_sameOrBetter.
 case=>[|H].
@@ -993,15 +1001,58 @@ Qed.
 (************    Remaining properties   **********************)
 (*************************************************************)
 
+Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
+  foldl f init [:: val] = f init val.
+Proof. done. Qed.
+
+Lemma good_chain_btExtend bt X b :
+  valid bt -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  good_chain (compute_chain (btExtend bt X) b).
+Proof.
+move=>V Vh Ib Gc.
+by move: (@btExtend_compute_chain _ X b V Vh Ib Gc)=>->.
+Qed.
+
+Lemma good_chain_btExtend_fold bt bs b :
+  valid bt -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  good_chain (compute_chain (foldl btExtend bt bs) b).
+Proof.
+move=>V Vh Ib Gc; elim/last_ind: bs=>[|xs x Hi]//.
+rewrite -cats1 foldl_cat /=; apply good_chain_btExtend.
+by rewrite -(btExtendV_fold _ xs).
+by move: (@btExtendH_fold _ xs V Vh).
+by move: (btExtendIB_fold xs V Vh Ib).
+done.
+Qed.
+
+Lemma btExtend_compute_chain_fold bt bs b :
+  valid bt -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  (compute_chain (foldl btExtend bt bs) b) = compute_chain bt b.
+Proof.
+move=>V Vh Ib G; elim/last_ind: bs=>[|xs x Hi]//.
+rewrite -cats1 foldl_cat /=.
+move/eqP: (btExtendV_fold bt xs); rewrite V eq_sym=>/eqP V'.
+move: (@btExtendH_fold _ xs V Vh)=>Vh'.
+move: (btExtendIB_fold xs V Vh Ib)=>Ib'.
+move: (@good_chain_btExtend_fold _ xs b V Vh Ib G)=>G'.
+by move: (@btExtend_compute_chain _ x b V' Vh' Ib' G')=>->.
+Qed.
+
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   (forall b : Block, b ∈ cbt -> prevBlockHash b \in dom cbt) ->
   btChain (btExtend bt b) > btChain cbt ->
   cbt = foldl btExtend bt bs ->
-  btChain (btExtend bt b) = btChain (btExtend cbt b).      
+  btChain (btExtend bt b) = btChain (btExtend cbt b).
 Proof.
 move=>V Vh Hib V' Vh' Hib' HComp Gt E.
+move: (btExtend_dom_fold bs V'); rewrite E=>Sub.
+rewrite /btChain.
+
 (*
 
 The reasoning is out of definition of btChain via foldr
@@ -1024,7 +1075,7 @@ So you need to show that:
 Baiscally, for the remaining three tricky subgoals you will have to
 build a small toolset for reasoning about btChain and relating
 its result to a specific `good` chain in a current block-tree.
-
+re
  *)
 
 Admitted.
@@ -1039,11 +1090,11 @@ Admitted.
 (* prevBlockHash := # last GenesisBlock (btChain blockTree); *)
 (* foldr take_better_bc [:: GenesisBlock] (all_chains bt) *)
 
-(* Is this realistic? VAF doesn't look at the entire tree,
-   yet the conclusion talks about the whole tree bt. *)
-Axiom VAF_ndom :
-  forall (b : Block) (ts : Timestamp) (bt : BlockTree),
-    VAF (proof b) ts (btChain bt) -> # b \notin dom bt.
+(* (* Is this realistic? VAF doesn't look at the entire tree, *)
+(*    yet the conclusion talks about the whole tree bt. *) *)
+(* Axiom VAF_ndom : *)
+(*   forall (b : Block) (ts : Timestamp) (bt : BlockTree), *)
+(*     VAF (proof b) ts (btChain bt) -> # b \notin dom bt. *)
 
 Lemma btExtend_mint bt b ts :
   let lst := last GenesisBlock (btChain bt) in
