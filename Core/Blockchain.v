@@ -1021,7 +1021,7 @@ So you need to show that:
 4. Therefore there should be a counterpart in cbt.
 
 Baiscally, for the remaining three tricky subgoals you will have to
-build a small toolset for reasoning about btChain anre relating
+build a small toolset for reasoning about btChain and relating
 its result to a specific `good` chain in a current block-tree.
 
  *)
@@ -1051,11 +1051,9 @@ Axiom VAF_ndom :
 (*   all_chains (btExtend bt b) =i new_chain :: (all_chains bt). *)
 (* Proof. *)
 (* move=>lst new_chain V VH IB mint VAF; move=>ch. *)
-
 (* rewrite in_cons /all_chains /btExtend; case: ifP. *)
 (* by move=>C; move: (VAF_ndom VAF); rewrite/negb C. *)
 (* move=>NIn; apply/mapP/orP. *)
-(* Admitted. *)
  
 End BtChainProperties.
 
