@@ -253,9 +253,17 @@ Qed.
 Lemma btExtend_dom bt b :
   valid bt -> {subset dom bt <= dom (btExtend bt b)}.
 Proof.
-move=>V z; rewrite /btExtend.
+move=>V z; rewrite/btExtend.
 case:ifP=>C//=D.
 by rewrite domUn inE andbC/= gen_validPtUn/= V D/= C orbC.
+Qed.
+
+Lemma btExtend_find bt z b :
+  valid bt -> find (#b) bt = Some b -> find (#b) (btExtend bt z) = Some b.
+Proof.
+move=>V F; rewrite/btExtend.
+case:ifP=>C //.
+by rewrite findUnR ?gen_validPtUn ?V ?C //; move: (find_some F)=>->.
 Qed.
 
 Lemma btExtend_dom_fold bt bs :
@@ -264,6 +272,14 @@ Proof.
 move=>V z; elim/last_ind: bs=>[|xs x Hi]=>//.
 by move=>In; move: (Hi In); rewrite -cats1 foldl_cat /=;
    apply btExtend_dom; rewrite -(btExtendV_fold _ xs).
+Qed.
+
+Lemma btExtend_find_fold bt b bs :
+  valid bt -> find (#b) bt = Some b -> find (#b) (foldl btExtend bt bs) = Some b.
+Proof.
+move=>V F; elim/last_ind: bs=>[|xs x Hi]=>//.
+rewrite -cats1 foldl_cat /=; apply btExtend_find=>//.
+by rewrite -(btExtendV_fold _ xs).
 Qed.
 
 Lemma btExtend_in bt b :
@@ -373,6 +389,8 @@ Definition good_chain (bc : Blockchain) :=
   if bc is h :: _ then h == GenesisBlock else false.
 
 Definition all_chains bt := [seq compute_chain bt b | b <- all_blocks bt].
+
+Definition good_chains bt := [seq ch <- all_chains bt | good_chain ch].
 
 (* Get the blockchain *)
 Definition take_better_bc bc2 bc1 := if (good_chain bc2) && (bc2 > bc1) then bc2 else bc1.
@@ -1041,6 +1059,64 @@ move: (@good_chain_btExtend_fold _ xs b V Vh Ib G)=>G'.
 by move: (@btExtend_compute_chain _ x b V' Vh' Ib' G')=>->.
 Qed.
 
+Lemma btExtend_mint_ext bt b ts :
+  let lst := last GenesisBlock (btChain bt) in
+  valid bt -> validH bt -> has_init_block bt ->
+  prevBlockHash b = # lst ->
+  VAF (proof b) ts (btChain bt) = true ->
+  btChain (btExtend bt b) = rcons (btChain bt) b.
+Proof.
+move=>lst V Vh Ib mint VAF.
+(* btChain bt = compute_chain bt lst *)
+rewrite /btChain/all_chains/all_blocks/btExtend.
+suff: #b \in dom bt = false. move=>NDom; rewrite NDom /=.
+move: (um_validPtUn (#b) b bt); rewrite V NDom /==>V'.
+move: (keys_insert V'); move=>[ks1][ks2][]=>->->.
+rewrite -(cat1s (# b)) !map_cat /=.
+(have: (get_block (# b \\-> b \+ bt) (# b)) = b
+  by rewrite/get_block um_findPtUn=>//)=>->.
+rewrite{2}/compute_chain/=. (* Want to unfold compute_chain' here *)
+(* compute_chain (# b \\-> b \+ bt) b = rcons (btChain bt) b *)
+
+(* have Ek: keys_of (# b \\-> b \+ bt) = keys_of (# b \\-> b \+ bt) by []. *)
+(* have Es: size (keys_of (# b \\-> b \+ bt)) = size (keys_of (# b \\-> b \+ bt)) by []. *)
+(* move: {-2}(size (keys_of (# b \\-> b \+ bt))) Es=>n. *)
+(* move: {-2}(keys_of (# b \\-> b \+ bt)) Ek=>hs Es En. *)
+(* elim: n b V Vh Ib mint VAF NDom V' Es En=>[|n Hi] b V Vh Ib mint VAF NDom V' Es En. *)
+(* by contradict En; rewrite Es keysUn_size ?gen_validPtUn ?V ?NDom// um_keysPt /=. *)
+
+Admitted.
+
+Lemma btExtend_mint bt b ts :
+  let lst := last GenesisBlock (btChain bt) in
+  valid bt -> validH bt -> has_init_block bt ->
+  prevBlockHash b = # lst ->
+  VAF (proof b) ts (btChain bt) = true ->
+  btChain (btExtend bt b) > btChain bt.
+Proof.
+move=>lst V Vh Ib mint VAF;
+move: (btExtend_mint_ext V Vh Ib mint VAF)=>->;
+rewrite -cats1; apply/CFR_ext.
+Qed.
+
+Lemma good_chains_in_superset cbt bt bs :
+  valid cbt -> validH cbt -> has_init_block cbt ->
+  valid bt -> validH bt -> has_init_block bt ->
+  cbt = foldl btExtend bt bs ->
+  {subset good_chains bt <= good_chains cbt }.
+Proof.
+move=>V Vh Ib V' Vh' Ib' Ext; move: (btExtend_dom_fold bs V')=>Sub;
+rewrite/good_chains; move=>ch; rewrite !mem_filter; move/andP=>[Gc] HCh.
+apply/andP; split=>//.
+move: HCh; move/mapP=>[z] IBt Ch; apply/mapP.
+exists z.
+- apply/all_blocksP; move/all_blocksP: IBt; rewrite/is_block_in;
+  move=>[h] F; move: (Vh' _ _ F)=>Eq; exists h; subst h;
+  by rewrite Ext; move: (@btExtend_find_fold _ _ bs V' F).
+- rewrite Ch in Gc *; rewrite Ext.
+  by move: (@btExtend_compute_chain_fold _ bs z V' Vh' Ib' Gc).
+Qed.
+
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
@@ -1051,7 +1127,6 @@ Lemma complete_bt_extend_gt cbt bt bs b :
 Proof.
 move=>V Vh Hib V' Vh' Hib' HComp Gt E.
 move: (btExtend_dom_fold bs V'); rewrite E=>Sub.
-rewrite /btChain.
 
 (*
 
@@ -1060,17 +1135,23 @@ The reasoning is out of definition of btChain via foldr
 So you need to show that:
 
 1. btChain (btExtend bt b) is larger than any chain from cbt;
+   => Easy from hypothesis Gt
 
 2. Any _good_ chain in bt from a block b is exactly the same chain in
    cbt from the block b. This might be non-trivial, out of expansion
    via foldl ... bs, but the lemmas like `btExtend_chain_prefix` and
    `btExtend_chain_good` might be helpful (expanded transitively for
    foldl)
+   => DONE: btExtend_compute_chain_fold
 
 3. A new chain in (btExtend bt b) builds on an old chain -- perhaps,
    this should be passed as a hypothesis.;
+   => This is true ONLY when b is a new_block (cbt has no gaps, but bt might)
+   => See btExtend_mint_ext
+   => So yes, hypothesis should be that b is a newly minted block
 
 4. Therefore there should be a counterpart in cbt.
+   => DONE: good_chains_in_superset
 
 Baiscally, for the remaining three tricky subgoals you will have to
 build a small toolset for reasoning about btChain and relating
@@ -1078,35 +1159,6 @@ its result to a specific `good` chain in a current block-tree.
 re
  *)
 
-Admitted.
-
-
-
-(* all_chains bt := [seq compute_chain bt b | b <- all_blocks bt]. *)
-(* Lemma btExtend_chain_prefix bt a b : *)
-(*   valid bt -> validH bt -> *)
-(*   exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b . *)
-
-(* prevBlockHash := # last GenesisBlock (btChain blockTree); *)
-(* foldr take_better_bc [:: GenesisBlock] (all_chains bt) *)
-
-(* (* Is this realistic? VAF doesn't look at the entire tree, *)
-(*    yet the conclusion talks about the whole tree bt. *) *)
-(* Axiom VAF_ndom : *)
-(*   forall (b : Block) (ts : Timestamp) (bt : BlockTree), *)
-(*     VAF (proof b) ts (btChain bt) -> # b \notin dom bt. *)
-
-Lemma btExtend_mint bt b ts :
-  let lst := last GenesisBlock (btChain bt) in
-  valid bt -> validH bt -> has_init_block bt ->
-  prevBlockHash b = # lst ->
-  VAF (proof b) ts (btChain bt) = true ->
-  btChain (btExtend bt b) > btChain bt.
-Proof.
-(* move=>lst new_chain V VH IB mint VAF; move=>ch. *)
-(* rewrite in_cons /all_chains /btExtend; case: ifP. *)
-(* by move=>C; move: (VAF_ndom VAF); rewrite/negb C. *)
-(* move=>NIn; apply/mapP/orP. *)
 Admitted.
 
 End BtChainProperties.
