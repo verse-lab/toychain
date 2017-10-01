@@ -989,6 +989,35 @@ elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
 by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
 Qed.
 
+(*************************************************************)
+(************    Remaining properties   **********************)
+(*************************************************************)
+
+Lemma complete_bt_extend_gt cbt bt b :
+  valid cbt -> validH cbt -> has_init_block cbt ->
+  (forall b : Block, b ∈ cbt -> prevBlockHash b \in dom cbt) ->
+  btChain (btExtend bt b) > btChain cbt ->
+  (exists q, cbt = bt \+ q) ->
+  btChain (btExtend bt b) = btChain (btExtend cbt b).      
+Proof.
+move=>V Vh Hib HComp Gt [q]E.
+(*
+
+The reasoning is out of definition of btChain via foldr 
+
+So you need to show that:
+
+1. btChain (btExtend bt b) is larger than any chain from cbt;
+2. Any chain in bt from a block b is a subchain of a chain in cbt from b; 
+   (this might be non-trivial, out of expansion via ... \+ q)
+3. A new chain in (btExtend bt b) builds on an old chain;
+4. Therefore there should be a counterpart in cbt.
+ *)
+
+Admitted.
+
+
+
 (* all_chains bt := [seq compute_chain bt b | b <- all_blocks bt]. *)
 (* Lemma btExtend_chain_prefix bt a b : *)
 (*   valid bt -> validH bt -> *)
@@ -1000,6 +1029,8 @@ Qed.
 Axiom VAF_ndom :
   forall (b : Block) (ts : Timestamp) (bt : BlockTree),
     VAF (proof b) ts (btChain bt) -> # b \notin dom bt.
+
+
 
 Lemma btExtend_mint bt b ts :
   let lst := last GenesisBlock (btChain bt) in

@@ -225,6 +225,19 @@ Ltac no_change can_bc can_bt can_n w F F' HExt c5 :=
        do? rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
        move: (HExt _ _ F').
 
+Lemma foldl_expand cbt bt bs :
+  valid bt ->
+  cbt = foldl btExtend bt bs -> exists q, cbt = bt \+ q.
+Proof.
+move=>V.
+elim: bs cbt=>//=[|b bs Hi]cbt E; first by by exists Unit; rewrite unitR.
+rewrite -foldl_btExtend_last//= -cats1 foldl_cat/= in E.
+case: (Hi (foldl btExtend bt bs) (erefl _))=>q E'.
+rewrite E' in E; subst cbt; rewrite /btExtend.
+case:ifP=>X; first by exists q.
+by exists (# b \\-> b \+ q); rewrite joinCA.
+Qed.
+
 (********************************************************************)
 
 Lemma clique_inv_step w w' q :
@@ -434,13 +447,12 @@ case: t P P'=>[tx|] P P'; last first.
     (* HBc *)
     rewrite HBc in Gt. move: (HExt _ _ F)=>/=H. subst can_bt.
     rewrite -(foldl1 _ (foldl _ _ _)) btExtend_fold_comm ?(c3 _ _ F) //=.
-    (* Need to use HComp somehow wrt. Gt *)
-    (* This should be proven as a core property of btChain in
-    Blockchain.v out of Gt, Hbc and HExt. Essentially, in a complete
-    block-tree new block iduce _only one_ new chain, and this might be
-    the one that delivers a new maxium. There won't be any others! *)
-    admit.
-
+    rewrite -foldl_btExtend_last ?(c3 _ _ F)// -cats1 foldl_cat/=.
+    set can_bt := foldl btExtend blockTree (blocksFor proc w)
+        in Gt C1 C2 C3 HBc HComp *.
+    by apply: complete_bt_extend_gt=>//; apply: foldl_expand;
+       rewrite//(c3 _ _ F).
+  
     (* HComp *)
     procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
 
@@ -488,9 +500,12 @@ case: t P P'=>[tx|] P P'; last first.
 
     (* HBc *)
     rewrite HBc in Gt *; case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
-    move: (HExt _ _ F)=>/= H; subst can_bt.
-    (* There should be some contradiction here  *)
+    move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt. 
     admit.
+    
+    (* There should be a contradiction derived from G, Gt1 and
+       the fact the blockTree <= can_bt. Also, may be you need to
+       make sure that new_block doesn't "plug a hole".  *)
 
     (* HComp *)
     procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
