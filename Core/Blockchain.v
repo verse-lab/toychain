@@ -1313,6 +1313,26 @@ elim: n b bt hs Es En D F=>[|n Hi] b bt hs Es En D F/=.
 by rewrite Es keys_dom D; case (find _ _)=>[?|]//; rewrite last_rcons.
 Qed.
 
+Lemma btExtend_mint_good bt b ts :
+  let bc := btChain bt in
+  let pb := last GenesisBlock bc in
+  valid bt -> validH bt -> has_init_block bt ->
+  good_chain bc ->
+  prevBlockHash b = #pb ->
+  VAF (proof b) ts bc ->
+  good_chain (compute_chain (btExtend bt b) b).
+Proof.
+move=>bc pb V Vh Ib Gc Hp Hv.
+(have: bc \in all_chains bt by move: (btChain_in_bt Ib))=>InC.
+(have: bc = compute_chain bt pb by move: (chain_from_last V Vh Ib InC))=>C.
+move: (btExtend_mint_ext V Vh Ib C Gc Hp Hv)=>->; subst bc.
+rewrite/good_chain. case X: (rcons _ _)=>[|x xs].
+contradict X; elim: (btChain bt)=>//.
+have: (good_chain (btChain bt) = true)by [].
+rewrite/good_chain/=; case X': (btChain _)=>[|h t]; first done.
+by move/eqP=>Eq; subst h; rewrite X' rcons_cons in X; case: X=>-> _.
+Qed.
+
 Lemma btExtend_mint bt b ts :
   let pb := last GenesisBlock (btChain bt) in
   valid bt -> validH bt -> has_init_block bt ->
@@ -1452,11 +1472,10 @@ Definition good_bt bt :=
 
 Lemma btExtend_good_chains_fold  bt bs:
   valid bt -> validH bt -> has_init_block bt ->
-  {subset [seq c <- all_chains bt | good_chain c] <=
-          [seq c <- all_chains (foldl btExtend bt bs) | good_chain c]}.
+  {subset good_chains bt <= good_chains (foldl btExtend bt bs) }.
 Proof.
 move=>V Vh Hib c; rewrite !mem_filter=>/andP[G]; rewrite G/=.
-rewrite /all_chains=>/mapP[b]H1 H2; apply/mapP; exists b.
+rewrite/good_chains/all_chains=>/mapP[b]H1 H2; apply/mapP; exists b.
 - apply/mapP; exists (#b).
   + rewrite keys_dom; apply/(btExtend_dom_fold bs V).
     case/mapP: H1=>z; rewrite keys_dom=>D.
