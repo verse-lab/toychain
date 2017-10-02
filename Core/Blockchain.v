@@ -1084,6 +1084,31 @@ elim: (all_chains bt)=>[|bc bcs Hi]/=; first by rewrite eqxx.
 by rewrite {1}/take_better_bc; case:ifP=>[/andP[->]|].
 Qed.
 
+Lemma compute_chain_rcons bt c pc :
+  valid bt -> validH bt -> #c \in dom bt ->
+  find (prevBlockHash c) bt = Some pc ->
+  compute_chain' bt c (keys_of bt) (size (keys_of bt)) =
+  rcons (compute_chain' (free (# c) bt) pc
+        (keys_of (free (# c) bt)) (size (keys_of (free (# c) bt)))) c.
+Proof.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n c pc bt hs Es En=>[|n _]/= c pc bt hs Es En V Vh D F.
+- subst hs; move/esym/size0nil: En=>Z.
+  by rewrite -keys_dom Z in D.
+rewrite Es keys_dom D F; congr (rcons _ _).
+have U1: uniq (seq.rem (# c) hs) by rewrite rem_uniq// Es keys_uniq.
+have U2: uniq (keys_of (free (#c) bt)) by rewrite keys_uniq.
+have N: n = (size (keys_of (free (# c) bt))).
+- apply: size_free=>//; rewrite -?Es//.
+  by subst hs; rewrite keys_dom.
+rewrite -N; clear N.
+rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2) Es//.
+by apply: keys_rem2.
+Qed.
+
 Lemma compute_chain_noblock bt b c :
   valid bt -> validH bt ->
   #b \in dom bt ->
@@ -1150,7 +1175,24 @@ have X: compute_chain' (free (# b) bt) c
   rewrite Z. 
   (* Given everything in the context, this should be a trivial lemma,
      please extract it and prove (takig bt' = free (# b) bt) *)
-  admit.
+  apply: compute_chain_rcons=>//; rewrite ?validF//.
+  + by apply: validH_free.
+  + by rewrite domF inE Z (find_some F).  
+  suff X: prevBlockHash c == # b = false by rewrite findF X.   
+  apply/negP=>/eqP Y; rewrite -Y in Z.
+  move/Vh: (F')=>E'. rewrite E' in Y Z F'.
+  move/hashB_inj : Y=>?; subst pc.
+  have T: exists m, n = m.+1.
+  + rewrite Es in En.
+    (* Should be easy out of Hb, F and N. *)
+    admit. 
+  case: T=>m Zn; rewrite Zn/= in Hn.
+  rewrite Es in Hn.
+  have X: # b \in seq.rem (# c) (keys_of bt)
+    by apply: rem_neq; rewrite ?keys_dom//; apply/negbT. 
+  rewrite X in Hn.
+  case: (find _ _) Hn=>[?|]; last by rewrite inE eqxx.
+  by rewrite mem_rcons inE eqxx.
 
 rewrite H3 X; congr (rcons)=>//.
 have U1: uniq (seq.rem (# c) hs) by rewrite rem_uniq// Es keys_uniq.
