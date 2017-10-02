@@ -1382,93 +1382,8 @@ exists z.
   by move: (@btExtend_compute_chain_fold _ bs z V' Vh' Ib' Gc).
 Qed.
 
-(* Definition complete bt := *)
-(*   (forall b : Block, b ∈ bt -> prevBlockHash b \in dom bt). *)
-
-(* Definition complete_for_chain (bt : BlockTree) (bc : Blockchain) := *)
-(*   (forall b : Block, b \in bc -> #b \in dom bt /\ (prevBlockHash b) \in dom bt). *)
-
-
-(* Lemma complete_rm_complete bt b : *)
-(*   valid bt -> validH bt -> has_init_block bt -> *)
-(*   good_chain (compute_chain bt b) -> *)
-(*   if b == GenesisBlock *)
-(*   then compute_chain bt b = [:: GenesisBlock] *)
-(*   else complete_for_chain bt (compute_chain bt b). *)
-(* Proof. *)
-(* rewrite /compute_chain. *)
-(* have Ek: keys_of bt = keys_of bt by []. *)
-(* have Es: size (keys_of bt) = size (keys_of bt) by []. *)
-(* move: {-2}(size (keys_of bt)) Es=>n. *)
-(* move: {-2}(keys_of bt) Ek=>hs Es En. *)
-(* elim: n b bt hs Es En=>[|n Hi]/= b bt hs Es En V Vh Hb. *)
-(* - by rewrite /good_chain/=; case: ifP. *)
-(* subst hs; rewrite keys_dom=>Hg; case: ifP=>[/eqP Z|N]. *)
-(* - subst b. rewrite (find_some Hb) init_hash Hb/=. *)
-(*   suff X: ((compute_chain' (free (# GenesisBlock) bt) *)
-(*                            GenesisBlock (seq.rem (# GenesisBlock) (keys_of bt)) n)) = [::]. *)
-(*   + by rewrite X.  *)
-(*   clear Hg En Hi; case: n=>//=[|n]; first by case:ifP. *)
-(*   by rewrite mem_rem_uniq ?keys_uniq// inE eqxx.  *)
-(* have D: # b \in dom bt by case: ifP Hg. *)
-(* rewrite D in Hg *. *)
-(* have D': (prevBlockHash b) \in dom bt. admit. *)
-(* have N': (prevBlockHash b) != (#b). *)
-(* (* Prove out of Hg *) *)
-(* Admitted. *)
-
-(* Lemma complete_bt_extend_chain bt b new: *)
-(*   valid bt -> validH bt -> has_init_block bt -> *)
-(*   good_chain (compute_chain bt b) -> *)
-(*   complete_for_chain bt (compute_chain bt b) -> *)
-(*   compute_chain bt b = compute_chain (btExtend bt new) b. *)
-(* Proof. *)
-(* (* TODO *) *)
-(* (* The proof should be somewhat simialr to `btExtend_chain_prefix`: *)
-
-(* the block tree to draw blocks from shrinks as we proceed inductively *)
-(* by the size of available keys, yet still remains complete for the *)
-(* chain to be constructed. *)
-
-(* This is true only for good chains, as non-good ones can have a *)
-(* non-trivial cycle so the chain-completeness is not preserved as we *)
-(* walk along the cain to its beginning. *)
-
-(* *) *)
-
-(* Admitted. *)
-
-
-(* Lemma complete_bt_extend bt a: *)
-(*   valid bt -> validH bt -> has_init_block bt -> *)
-(*   complete bt -> *)
-(*   forall b, b ∈ bt -> *)
-(*             good_chain (compute_chain bt b) -> *)
-(*             compute_chain bt b = compute_chain (btExtend bt a) b. *)
-(* Proof. *)
-(* move=>V Vh IB Hc b. *)
-(* move=>D G; apply: (complete_bt_extend_chain a V Vh IB)=>//. *)
-(* by move=>z/(block_in_chain V) H; split=>//; move/Hc: H. *)
-(* Qed. *)
-
-(* (*[!!!] *)
-
-(* Partition the list of all blocks in all_blocks (btExtend cbt b) into *)
-
-(* p ++ [:: b] ++ q *)
-
-(* using `keys_insert` (see usages above) and then reason about chains *)
-(* block-wise. *)
-
-(* By `complete_bt_extend`, the chains from all of the blocks in *)
-(* (btExtend cbt b), except for new b, will remain the same, so you will *)
-(* only have to consider an outlier. *)
-
-(* *) *)
-
 Definition good_bt bt :=
   forall b, b \in all_blocks bt -> good_chain (compute_chain bt b).
-
 
 Lemma btExtend_good_chains_fold  bt bs:
   valid bt -> validH bt -> has_init_block bt ->
@@ -1503,6 +1418,17 @@ elim: (all_chains bt)=>//c cs/= Hi.
 by case C: (good_chain c)=>//=; rewrite !Hi.
 Qed.
 
+Lemma btExtend_within cbt bt b bs:
+  valid cbt -> validH cbt -> has_init_block cbt ->      
+  valid bt -> validH bt -> has_init_block cbt ->
+  good_bt cbt ->      
+  btChain (btExtend cbt b) > btChain (btExtend bt b) ->
+  cbt = foldl btExtend bt bs ->
+  (* Something is missing: need to have that `b` is not orphan in (btExtend bt b) *)
+  btChain cbt = btChain (btExtend bt b) -> False.
+Proof.
+Admitted.
+
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
@@ -1518,8 +1444,32 @@ rewrite -!E in Sub SubC *.
 rewrite !btChain_alt in Gt.
 case B: (#b \in dom bt); rewrite /btExtend B in Gt.
 - (* Derive contradiction from Gt and SubC *)
-  admit.
-have V2: valid (# b \\-> b \+ bt).  admit.
+  admit. 
+
+  (* have V2: valid (# b \\-> b \+ cbt).  admit. *)
+(* have X: exists cs1 cs2, [seq x <- all_chains cbt | good_chain x] = cs1 ++ cs2 /\ *)
+(*                         [seq x <- all_chains (# b \\-> b \+ cbt) | good_chain x] = *)
+(*                         cs1 ++ [seq x <- [:: compute_chain (# b \\-> b \+ cbt) b] | good_chain x] ++ cs2. *)
+(* - have C: (#b \in dom cbt); last first. *)
+(*   rewrite /all_chains/all_blocks. *)
+(*   case: (@keys_insert _ _ (#b) b cbt V2)=>ks1[ks2][E1]E2. *)
+(*   rewrite E1 E2 !map_cat !filter_cat. *)
+(*   exists [seq x <- [seq compute_chain cbt b0 | b0 <- [seq get_block cbt k | k <- ks1]] | good_chain x]. *)
+(*   exists [seq x <- [seq compute_chain cbt b0 | b0 <- [seq get_block cbt k | k <- ks2]] | good_chain x]. *)
+(*   split=>//. *)
+(*   have Eb: # b \\-> b \+ cbt = btExtend cbt b. rewrite /btExtend. admit. *)
+(*   rewrite !Eb -cat1s !map_cat !filter_cat. *)
+(*   have D1 : #b \notin ks1. admit. (* By Eb *) *)
+(*   have D2 : #b \notin ks2. admit. (* By Eb *) *)
+(*   congr (_ ++ _). *)
+(*   - clear E1 E2; elim:ks1 D1=>//k ks Hi D1/=. *)
+(*     have X: get_block (btExtend cbt b) k = get_block cbt k. *)
+(*     - by rewrite /btExtend C/get_block.  *)
+(*    case G: (good_chain (compute_chain bt (get_block bt k))); rewrite X. *)
+(*    - rewrite (btExtend_compute_chain b V' Vh' Hib' G) G; congr (_ :: _). *)
+(*      by apply: Hi; rewrite inE in D1; case/norP: D1. *)
+   
+     
 (* Partition LHS in Gt into the old stuff (which hasn't changed) and
   the only new blockchain. *)
 
