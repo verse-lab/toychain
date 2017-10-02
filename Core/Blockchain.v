@@ -1084,24 +1084,57 @@ elim: (all_chains bt)=>[|bc bcs Hi]/=; first by rewrite eqxx.
 by rewrite {1}/take_better_bc; case:ifP=>[/andP[->]|].
 Qed.
 
-Lemma compute_chain_noblock bt b pb :
-  valid bt -> validH bt -> 
-  b \notin compute_chain bt pb ->
-  compute_chain bt pb = compute_chain (free (#b) bt) pb.
+Lemma compute_chain_noblock bt b c :
+  valid bt -> validH bt ->
+  #b \in dom bt ->
+  b \notin compute_chain bt c ->
+  compute_chain bt c = compute_chain (free (#b) bt) c.
 Proof.
 rewrite /compute_chain.
 have Ek: keys_of bt = keys_of bt by [].
 have Es: size (keys_of bt) = size (keys_of bt) by [].
 move: {-2}(size (keys_of bt)) Es=>n.
 move: {-2}(keys_of bt) Ek=>hs Es En.
-elim: n b bt hs Es En=>[|n Hi]/= b bt hs Es En V Vh.
+elim: n b bt hs Es En=>[|n Hi]/= b bt hs Es En V Vh Hb.
 - suff X: size (keys_of (free (# b) bt)) = 0
     by rewrite X=>/=_; case:ifP=>_; case:ifP.
   suff X: bt = Unit by subst bt; rewrite free0 keys0.
   subst hs; move/esym/size0nil: En=>Z. 
   by apply/dom0E=>//z/=; rewrite -keys_dom Z inE.
+(* These two seem to always appear in these proofs... *)
+have H1: valid (free (# b) bt) by rewrite validF.
+have H3: n = size (keys_of (free (# b) bt)).
+- apply: size_free=>//; [by rewrite Es in En|by rewrite keys_dom].
+case: ifP=>[X|X _]; rewrite Es keys_dom in X; last first.
+- rewrite -H3; clear Hi En H3; case:n=>//=[|n]; first by case:ifP.
+  by rewrite keys_dom domF inE X; case:ifP; case: ifP.
+case: dom_find X=>// prev F _ _; move/Vh/hashB_inj: (F)=>Z; subst prev.
+case D: ((prevBlockHash c) \in dom bt); last first.
+- case: dom_find (D)=>//->_; rewrite inE=>N; rewrite -H3.
+  clear Hi; elim: n En H3=>/=[|n _]En H3; last first.
+  + have X: #b == #c = false
+      by apply/negP=>/eqP/hashB_inj?; subst c; rewrite eqxx in N.
+  + have Y: find (prevBlockHash c) (free (# b) bt) = None. 
+    * suff D': (prevBlockHash c) \notin dom (free (# b) bt) by case: dom_find D'.
+      by rewrite domF inE D; case:ifP.
+    rewrite Y; clear Y. 
+    suff K : #c \in dom (free (# b) bt) by rewrite keys_dom K.
+    by rewrite domF inE X (find_some F).
+  (* Now need to derive a contradiction from H3 *) 
+  rewrite Es in En.
+  have X: #c \in keys_of (free (# b) bt).
+  + rewrite keys_dom domF inE.
+    case: ifP=>C; last by apply: (find_some F).
+    by move/eqP/hashB_inj : C N=>->; rewrite eqxx.
+  by move/esym/size0nil: H3=>E; rewrite E in X. 
+  
+(* Now an interesting, inductive, case *)
+case: dom_find D=>//pc F' _ _; rewrite F'=>Hn.
+(* Now need to unfold massage the RHS of the goal with compute_chain', so
+   it would match the Hi with (bt := free (# c) bt, c := pc) etc *)
 
 
+  
 (* ZZZZZ   *)
 Admitted.
 
@@ -1112,7 +1145,7 @@ Lemma compute_chain_prev bt b pb :
   compute_chain bt b = rcons (compute_chain bt pb) b.                               
 Proof.
 move=>V Vh D Hp Nh.
-rewrite (compute_chain_noblock V Vh Nh).
+rewrite (compute_chain_noblock V Vh D Nh).
 rewrite /compute_chain.
 have Ek: keys_of bt = keys_of bt by [].
 have Es: size (keys_of bt) = size (keys_of bt) by [].
