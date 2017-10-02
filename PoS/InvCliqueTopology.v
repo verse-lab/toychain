@@ -44,7 +44,7 @@ Definition GSyncing_clique w :=
    valid_with_bc bt bc,
 
    (* bt is complete *)
-   forall b, b ∈ bt -> prevBlockHash b \in dom bt,
+   good_bt bt,
 
    (* Clique topology *)
    forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
@@ -198,25 +198,6 @@ Ltac procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1
      move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
      case: PInt'=><- _ H2; rewrite H2 in H1.
 
-Ltac procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5 :=
-    move=>b; rewrite/btHasBlock/btExtend/=; case: ifP;
-    first by [move=>H1 H2; move: (HComp _ H2)];
-    move=>H1; rewrite um_domPtUn; move/andP=>[] _ /orP; case;
-    last by [ move=>H; move: (HComp _ H)=>In; rewrite um_domPtUn; apply/andP; split;
-      by [rewrite um_validPtUn H1 /= C1 | apply/orP; right; move: (find_some C3)]
-    ];
-    move=>/eqP Eq'; move: (hashB_inj Eq')=><- /=;
-    move: (mem_last GenesisBlock (btChain blockTree));
-    rewrite in_cons; move/orP; case;
-    do? [move/eqP=>->; rewrite um_domPtUn; apply/andP; split];
-    do? [
-      move=>H; move: (btChain_mem2 (c3 _ _ F) (c5 _ _ F) H)=>/=H2;
-      move: (btExtend_fold_preserve (blocksFor proc w) (c3 _ _ F) H2);
-      move: (HExt _ _ F)=>/=<- In; rewrite um_domPtUn; apply/andP; split
-    ];
-    by [rewrite um_validPtUn H1 /= C1 | apply/orP; right; move: (find_some C3)].
-
-
 Ltac no_change can_bc can_bt can_n w F F' HExt c5 :=
   case=><- <- /=; exists can_bc, can_bt, can_n; rewrite (upd_nothing F); split=>//;
     by move=>n st'; rewrite/localState; simplw w=>-> _ F';
@@ -251,7 +232,7 @@ case: S; first by elim; move=>_ <-; apply Iw.
 move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5 c6] Al iF F.
 case: Iw=>_ GSyncW.
 case: GSyncW=>can_bc [can_bt] [can_n] []
-             HHold HGt [C] [HBc] HComp HCliq HExt.
+             HHold HGt [C] [HBc] HGood HCliq HExt.
   move=>P; assert (P' := P).
   move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->.
   (* The canonical chain is guaranteed to remain the same for any Msg *)
@@ -404,7 +385,7 @@ move=>proc t st [c1 c2 c3 c4 c5 c6] Al F.
 move=>P; assert (P' := P); move: P.
 case P: (procInt _ _ _)=>[stPt ms]; move=>->; case: Iw=>Cw GSyncW.
 case: GSyncW=>can_bc [can_bt] [can_n] []
-             HHold HGt [] [C1 C2 C3] [HBc] HComp HCliq HExt.
+             HHold HGt [] [C1 C2 C3] [HBc] HGood HCliq HExt.
 case: t P P'=>[tx|] P P'; last first.
 (* MintT - can_bc and can_n might change *)
 - assert (PInt := P); move: P; destruct st; rewrite/procInt.
@@ -451,12 +432,14 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite -(foldl1 _ (foldl _ _ _)) btExtend_fold_comm ?(c3 _ _ F) //=.
     rewrite -foldl_btExtend_last ?(c3 _ _ F)// -cats1 foldl_cat/=.
     set can_bt := foldl btExtend blockTree (blocksFor proc w)
-        in Gt C1 C2 C3 HBc HComp *.
+        in Gt C1 C2 C3 HBc HGood *.
     by apply: complete_bt_extend_gt=>//;
        [by apply: (c3 _ _ F)|by apply: (c4 _ _ F)|by apply: (c5 _ _ F)].
-  
-    (* HComp *)
-    procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
+
+    (* HGood *)
+    rewrite/good_bt in HGood *.
+    move=>b In. rewrite/all_blocks in In.
+    admit.
 
     (* HCliq *)
     procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
@@ -502,7 +485,7 @@ case: t P P'=>[tx|] P P'; last first.
     (* HBc *)
     rewrite HBc in Gt *.
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
-    move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt. 
+    move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt.
     (* There should be a contradiction derived from G, Gt1 and
        the fact the blockTree <= can_bt. Also, may be you need to
        make sure that new_block doesn't "plug a hole".  *)
@@ -510,8 +493,8 @@ case: t P P'=>[tx|] P P'; last first.
     contradict Gt1; apply/negP; apply/negbT; apply/CFR_dual; left.
     admit.
 
-    (* HComp *)
-    procInt_comp_maintain proc blockTree w F HComp HExt Eq' H H1 H2 C1 C3 c3 c5.
+    (* HGood *)
+    admit.
 
     (* HCliq *)
     procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
