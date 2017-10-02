@@ -1089,6 +1089,20 @@ Lemma compute_chain_noblock bt b pb :
   b \notin compute_chain bt pb ->
   compute_chain bt pb = compute_chain (free (#b) bt) pb.
 Proof.
+rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n b bt hs Es En=>[|n Hi]/= b bt hs Es En V Vh.
+- suff X: size (keys_of (free (# b) bt)) = 0
+    by rewrite X=>/=_; case:ifP=>_; case:ifP.
+  suff X: bt = Unit by subst bt; rewrite free0 keys0.
+  subst hs; move/esym/size0nil: En=>Z. 
+  by apply/dom0E=>//z/=; rewrite -keys_dom Z inE.
+
+
+(* ZZZZZ   *)
 Admitted.
 
 Lemma compute_chain_prev bt b pb :
