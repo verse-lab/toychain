@@ -1380,7 +1380,17 @@ Proof.
 rewrite /btChain/take_better_bc/take_better_alt.
 elim: (all_chains bt)=>//c cs/= Hi.
 by case C: (good_chain c)=>//=; rewrite !Hi. 
-Qed.
+
+Lemma btExtend_within cbt bt b bs:
+  valid cbt -> validH cbt -> has_init_block cbt ->      
+  valid bt -> validH bt -> has_init_block cbt ->
+  good_bt cbt ->      
+  btChain (btExtend cbt b) > btChain (btExtend bt b) ->
+  cbt = foldl btExtend bt bs ->
+  (* Something is missing: need to have that `b` is not orphan in (btExtend bt b) *)
+  btChain cbt = btChain (btExtend bt b) -> False.
+Proof.
+Admitted.
 
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->

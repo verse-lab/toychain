@@ -501,12 +501,14 @@ case: t P P'=>[tx|] P P'; last first.
 
     (* HBc *)
     rewrite HBc in Gt *.
-    case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt. 
+    case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
+    case: Gt=>Gt. rewrite Gt in Gt1. 
     (* There should be a contradiction derived from G, Gt1 and
        the fact the blockTree <= can_bt. Also, may be you need to
        make sure that new_block doesn't "plug a hole".  *)
     (* Gt1 is false - btChain (btExtend can_bt new_block) = btChain can_bt *)
+
     contradict Gt1; apply/negP; apply/negbT; apply/CFR_dual; left.
     admit.
 
