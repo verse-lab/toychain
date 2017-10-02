@@ -1081,9 +1081,19 @@ Qed.
 Lemma compute_chain_prev bt b pb :
   valid bt -> validH bt -> #b \in dom bt ->
   prevBlockHash b = # pb ->
+  #b != #pb ->
   compute_chain bt b = rcons (compute_chain bt pb) b.                               
 Proof.
+move=>V Vh D Hp Nh.
+
+ZZZZ
 Admitted.
+
+(* This axiom seems reasonable: it shouldn't be possible
+   to generate a block with the same hash as its predecessor. *)
+Axiom VAF_no_cycle :
+  forall b ts bc, VAF (proof b) ts bc ->
+    #b != #(last GenesisBlock bc).               
 
 Lemma btExtend_mint_ext bt bc b ts :
   let pb := last GenesisBlock bc in
@@ -1105,6 +1115,7 @@ have Vh': validH (btExtend bt b) by apply:btExtendH.
 have D: #b \in dom (btExtend bt b).
 - move: V'; rewrite /btExtend; case:ifP=>X V'//.
   by rewrite um_domPtUn inE V' eqxx.
+have Hn : #b != #pb by apply: (VAF_no_cycle Hv). 
 by apply: compute_chain_prev.
 Qed.
 
