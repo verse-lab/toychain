@@ -724,7 +724,6 @@ move=> bc' rest Hi/=. rewrite inE=>/orP[].
 by case/Hi/orP=>->//; rewrite ![_||true]orbC.
 Qed.
 
-
 Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
   valid bt -> has_init_block bt ->
   b \in btChain bt -> b ∈ bt.
@@ -1101,6 +1100,13 @@ elim: (all_chains bt)=>[|bc bcs Hi]/=; first by rewrite eqxx.
 by rewrite {1}/take_better_bc; case:ifP=>[/andP[->]|].
 Qed.
 
+Lemma btChain_in_good_chains bt :
+  has_init_block bt -> btChain bt \in good_chains bt.
+Proof.
+move=> Ib; rewrite/good_chains mem_filter; apply/andP; split;
+by [apply btChain_good | apply (btChain_in_bt Ib)].
+Qed.
+
 Lemma compute_chain_rcons bt c pc :
   valid bt -> validH bt -> #c \in dom bt ->
   find (prevBlockHash c) bt = Some pc ->
@@ -1405,6 +1411,45 @@ rewrite/good_chains/all_chains=>/mapP[b]H1 H2; apply/mapP; exists b.
 by rewrite btExtend_compute_chain_fold=>//; rewrite -H2.
 Qed.
 
+Lemma good_chains_subset bt :
+  { subset good_chains bt <= all_chains bt }.
+Proof. by move=>ch; rewrite mem_filter; move/andP=>[]. Qed.
+
+Lemma btExtend_mint_one_gc bt b ts :
+  let bt' := btExtend bt b in
+  let pb := last GenesisBlock (btChain bt) in
+  valid bt -> validH bt -> has_init_block bt ->
+  prevBlockHash b = # pb ->
+  VAF (proof b) ts (btChain bt) = true ->
+  good_chains bt' =i (compute_chain bt' b) :: good_chains bt.
+Proof.
+move=>bt' lst V Vh Ib Hp Hv ch; subst bt';
+rewrite in_cons !mem_filter.
+case X: (ch == compute_chain (btExtend bt b) b)=>/=.
+- move/eqP: X (btExtend_mint_good V Vh Ib (btChain_good bt) Hp Hv)=>->->/=.
+  apply/mapP; exists b; last done.
+  apply/all_blocksP'.
+  by apply (btExtendH V Vh).
+  by rewrite/btExtend; case: ifP=>//; rewrite/btHasBlock;
+     rewrite um_domPtUnE um_validPtUn V /==>H; apply/negP; rewrite H.
+- case Y: (good_chain ch)=>//=; apply/mapP; case: ifP=>H; apply/mapP.
+  by (have: (ch \in good_chains bt) by rewrite/good_chains mem_filter Y)=>H';
+     move: (btExtend_good_chains_fold [::b] V Vh Ib)=>/= S;
+     specialize (S ch H'); move: S; rewrite mem_filter; move/andP=>[].
+  apply/mapP; move=>[z]; move/all_blocksP'=>H';
+  specialize (H' (@btExtendH _ b V Vh)).
+  case: (btExtend_in_either V H'); clear H'; last first.
+  by move/eqP=>Eq; subst z; move/eqP; rewrite X.
+  move/all_blocksP'=>H'; specialize (H' Vh).
+  move=>Cc; move: H; move/mapP=>[]; exists z=>//.
+  case Z: (b == z).
+    by move/eqP in Z; subst z ch; contradict X; rewrite eqxx.
+  subst ch; case W: (good_chain (compute_chain bt z)).
+    by move: (btExtend_compute_chain b V Vh Ib W)=>->.
+  (* There's a contradiction: W, Y and minting *)
+
+Admitted.
+
 Definition take_better_alt bc2 bc1 := if (bc2 > bc1) then bc2 else bc1.
 
 (* Alternative definition of btChain, more convenient to work with *)
@@ -1418,10 +1463,21 @@ elim: (all_chains bt)=>//c cs/= Hi.
 by case C: (good_chain c)=>//=; rewrite !Hi.
 Qed.
 
+Lemma good_chains_subset_geq bt bt':
+  valid bt -> validH bt -> has_init_block bt ->
+  valid bt' -> validH bt' -> has_init_block bt' ->
+  {subset good_chains bt <= good_chains bt' } ->
+  btChain bt' >= btChain bt.
+Proof.
+move=>V Vh Ib V' Vh' Ib' S.
+by specialize (S (btChain bt) (btChain_in_good_chains Ib));
+   apply btChain_is_largest.
+Qed.
+
 Lemma btExtend_within cbt bt b bs:
-  valid cbt -> validH cbt -> has_init_block cbt ->      
+  valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block cbt ->
-  good_bt cbt ->      
+  good_bt cbt ->
   btChain (btExtend cbt b) > btChain (btExtend bt b) ->
   cbt = foldl btExtend bt bs ->
   (* Something is missing: need to have that `b` is not orphan in (btExtend bt b) *)
@@ -1444,7 +1500,7 @@ rewrite -!E in Sub SubC *.
 rewrite !btChain_alt in Gt.
 case B: (#b \in dom bt); rewrite /btExtend B in Gt.
 - (* Derive contradiction from Gt and SubC *)
-  admit. 
+  admit.
 
   (* have V2: valid (# b \\-> b \+ cbt).  admit. *)
 (* have X: exists cs1 cs2, [seq x <- all_chains cbt | good_chain x] = cs1 ++ cs2 /\ *)
@@ -1468,8 +1524,8 @@ case B: (#b \in dom bt); rewrite /btExtend B in Gt.
 (*    case G: (good_chain (compute_chain bt (get_block bt k))); rewrite X. *)
 (*    - rewrite (btExtend_compute_chain b V' Vh' Hib' G) G; congr (_ :: _). *)
 (*      by apply: Hi; rewrite inE in D1; case/norP: D1. *)
-   
-     
+
+
 (* Partition LHS in Gt into the old stuff (which hasn't changed) and
   the only new blockchain. *)
 

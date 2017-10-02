@@ -507,10 +507,9 @@ case: t P P'=>[tx|] P P'; last first.
        the fact the blockTree <= can_bt. Also, may be you need to
        make sure that new_block doesn't "plug a hole".  *)
     (* Gt1 is false - btChain (btExtend can_bt new_block) = btChain can_bt *)
-
-    contradict Gt1; apply/negP; apply/negbT; apply/CFR_dual; left.
+    contradict Gt1; apply/negP; apply/negbT; apply/CFR_dual.
     admit.
-
+   
     (* HGood *)
     rewrite/good_bt in HGood *.
     move=>b; move/all_blocksP'=>InE.
