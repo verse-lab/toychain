@@ -1376,13 +1376,16 @@ Qed.
 
 (*[!!!]
 
-Partition the list of all blocks in all_blocks (btExtend cbt b) into p
-++ [:: b] ++ q using `keys_insert` and then reason about chains
-element-wise.
+Partition the list of all blocks in all_blocks (btExtend cbt b) into
 
-By `complete_bt_extend`, the chains from all blocks in (btExtend cbt
-b), except for new b, will remain the same, so you will only have to *)
-(*consider an outlier.
+p ++ [:: b] ++ q
+
+using `keys_insert` (see usages above) and then reason about chains
+block-wise.
+
+By `complete_bt_extend`, the chains from all of the blocks in
+(btExtend cbt b), except for new b, will remain the same, so you will
+only have to consider an outlier.
 
 *)
 
