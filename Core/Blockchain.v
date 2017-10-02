@@ -1482,6 +1482,30 @@ rewrite -!E in Sub SubC *.
 rewrite !btChain_alt in Gt.
 case B: (#b \in dom bt); rewrite /btExtend B in Gt.
 - (* Derive contradiction from Gt and SubC *)
+  admit. 
+
+  (* have V2: valid (# b \\-> b \+ cbt).  admit. *)
+(* have X: exists cs1 cs2, [seq x <- all_chains cbt | good_chain x] = cs1 ++ cs2 /\ *)
+(*                         [seq x <- all_chains (# b \\-> b \+ cbt) | good_chain x] = *)
+(*                         cs1 ++ [seq x <- [:: compute_chain (# b \\-> b \+ cbt) b] | good_chain x] ++ cs2. *)
+(* - have C: (#b \in dom cbt); last first. *)
+(*   rewrite /all_chains/all_blocks. *)
+(*   case: (@keys_insert _ _ (#b) b cbt V2)=>ks1[ks2][E1]E2. *)
+(*   rewrite E1 E2 !map_cat !filter_cat. *)
+(*   exists [seq x <- [seq compute_chain cbt b0 | b0 <- [seq get_block cbt k | k <- ks1]] | good_chain x]. *)
+(*   exists [seq x <- [seq compute_chain cbt b0 | b0 <- [seq get_block cbt k | k <- ks2]] | good_chain x]. *)
+(*   split=>//. *)
+(*   have Eb: # b \\-> b \+ cbt = btExtend cbt b. rewrite /btExtend. admit. *)
+(*   rewrite !Eb -cat1s !map_cat !filter_cat. *)
+(*   have D1 : #b \notin ks1. admit. (* By Eb *) *)
+(*   have D2 : #b \notin ks2. admit. (* By Eb *) *)
+(*   congr (_ ++ _). *)
+(*   - clear E1 E2; elim:ks1 D1=>//k ks Hi D1/=. *)
+(*     have X: get_block (btExtend cbt b) k = get_block cbt k. *)
+(*     - by rewrite /btExtend C/get_block.  *)
+(*    case G: (good_chain (compute_chain bt (get_block bt k))); rewrite X. *)
+(*    - rewrite (btExtend_compute_chain b V' Vh' Hib' G) G; congr (_ :: _). *)
+(*      by apply: Hi; rewrite inE in D1; case/norP: D1. *)
    
      
 (* Partition LHS in Gt into the old stuff (which hasn't changed) and
