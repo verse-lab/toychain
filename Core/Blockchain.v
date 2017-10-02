@@ -1482,8 +1482,8 @@ rewrite -!E in Sub SubC *.
 rewrite !btChain_alt in Gt.
 case B: (#b \in dom bt); rewrite /btExtend B in Gt.
 - (* Derive contradiction from Gt and SubC *)
-  admit. 
-have V2: valid (# b \\-> b \+ bt).  admit.
+   
+     
 (* Partition LHS in Gt into the old stuff (which hasn't changed) and
   the only new blockchain. *)
 
