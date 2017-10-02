@@ -1184,8 +1184,9 @@ have X: compute_chain' (free (# b) bt) c
   move/hashB_inj : Y=>?; subst pc.
   have T: exists m, n = m.+1.
   + rewrite Es in En.
-    (* Should be easy out of Hb, F and N. *)
-    admit. 
+    clear Hn Hi E' En H1 Vh; subst hs.
+    case: n H3=>//[|n]; last by exists n.
+    by move/esym/size0nil=>E; rewrite E in Dc. 
   case: T=>m Zn; rewrite Zn/= in Hn.
   rewrite Es in Hn.
   have X: # b \in seq.rem (# c) (keys_of bt)
@@ -1194,6 +1195,7 @@ have X: compute_chain' (free (# b) bt) c
   case: (find _ _) Hn=>[?|]; last by rewrite inE eqxx.
   by rewrite mem_rcons inE eqxx.
 
+(* The interesting inductive case! *)
 rewrite H3 X; congr (rcons)=>//.
 have U1: uniq (seq.rem (# c) hs) by rewrite rem_uniq// Es keys_uniq.
 have U2: uniq (keys_of (free (#c) bt)) by rewrite keys_uniq.
@@ -1209,7 +1211,7 @@ rewrite -(Hi pc b (free (#c) bt) (keys_of (free (# c) bt)) (erefl _)) ?validF//.
   by case:ifP=>///eqP/hashB_inj?; subst c; rewrite eqxx in N.
 rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2)//.
 by rewrite Es; apply: keys_rem2.  
-Admitted.
+Qed.
 
 Lemma compute_chain_prev bt b pb :
   valid bt -> validH bt -> #b \in dom bt ->
@@ -1342,6 +1344,8 @@ exists z.
 - rewrite Ch in Gc *; rewrite Ext.
   by move: (@btExtend_compute_chain_fold _ bs z V' Vh' Ib' Gc).
 Qed.
+
+
 
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
