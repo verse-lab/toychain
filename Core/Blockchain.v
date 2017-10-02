@@ -1345,12 +1345,52 @@ exists z.
   by move: (@btExtend_compute_chain_fold _ bs z V' Vh' Ib' Gc).
 Qed.
 
+Definition complete bt :=
+  (forall b : Block, b ∈ bt -> prevBlockHash b \in dom bt).
+
+Definition complete_chain (bt : BlockTree) (bc : Blockchain) :=
+  (forall b : Block, b \in bc -> #b \in dom bt /\ (prevBlockHash b) \in dom bt).
+
+Lemma complete_bt_extend_chain bt b new:
+  valid bt -> validH bt -> has_init_block bt ->
+  complete_chain bt (compute_chain bt b) ->
+  compute_chain bt b = compute_chain (btExtend bt new) b.
+Proof.
+(* TODO *)
+(* The proof should be somewhat simialr to `btExtend_chain_prefix` *)
+
+Admitted.
+
+
+Lemma complete_bt_extend bt a:
+  valid bt -> validH bt -> has_init_block bt ->
+  complete bt ->
+  forall b, b ∈ bt ->
+            compute_chain bt b = compute_chain (btExtend bt a) b.
+Proof.
+move=>V Vh IB Hc b.
+have X: complete_chain bt (compute_chain bt b)
+  by move=>z/(block_in_chain V) H; split=>//; move/Hc: H.
+by move=>D; apply: (complete_bt_extend_chain a V Vh IB X).
+Qed.
+
+(*[!!!]
+
+Partition the list of all blocks in all_blocks (btExtend cbt b) into p
+++ [:: b] ++ q using `keys_insert` and then reason about chains
+element-wise.
+
+By `complete_bt_extend`, the chains from all blocks in (btExtend cbt
+b), except for new b, will remain the same, so you will only have to *)
+(*consider an outlier.
+
+*)
 
 
 Lemma complete_bt_extend_gt cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
-  (forall b : Block, b ∈ cbt -> prevBlockHash b \in dom cbt) ->
+  complete cbt ->
   btChain (btExtend bt b) > btChain cbt ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend bt b) = btChain (btExtend cbt b).
