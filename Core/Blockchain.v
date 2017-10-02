@@ -1078,6 +1078,13 @@ elim: (all_chains bt)=>[|bc bcs Hi]/=; first by rewrite eqxx.
 by rewrite {1}/take_better_bc; case:ifP=>[/andP[->]|].
 Qed.
 
+Lemma compute_chain_prev bt b pb :
+  valid bt -> validH bt -> #b \in dom bt ->
+  prevBlockHash b = # pb ->
+  compute_chain bt b = rcons (compute_chain bt pb) b.                               
+Proof.
+Admitted.
+
 Lemma btExtend_mint_ext bt bc b ts :
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
@@ -1088,8 +1095,18 @@ Lemma btExtend_mint_ext bt bc b ts :
   compute_chain (btExtend bt b) b = rcons bc b.
 Proof.
 move=>pb V Vh Ib E HGood Hp Hv.
-
-Admitted.
+suff X: compute_chain (btExtend bt b) b =
+        rcons (compute_chain (btExtend bt b) pb) b.
+- rewrite E in HGood.
+  rewrite (btExtend_compute_chain b V Vh Ib HGood) in X.
+  by rewrite X -E.
+have V': valid (btExtend bt b) by rewrite -(btExtendV bt b).
+have Vh': validH (btExtend bt b) by apply:btExtendH.
+have D: #b \in dom (btExtend bt b).
+- move: V'; rewrite /btExtend; case:ifP=>X V'//.
+  by rewrite um_domPtUn inE V' eqxx.
+by apply: compute_chain_prev.
+Qed.
 
 Lemma chain_from_last bt c :
   valid bt -> validH bt -> has_init_block bt ->
