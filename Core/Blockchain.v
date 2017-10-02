@@ -445,7 +445,8 @@ Lemma keys_rem1 (bt : BlockTree) h1 h2 a :
   seq.rem h2 (keys_of (h1 \\-> a \+ bt)) =i keys_of (h1 \\-> a \+ free h2 bt).
 Proof.
 move=>V N z.
-have X: h1 \\-> a \+ free h2 bt = free h2 (h1 \\-> a \+ bt) by rewrite um_freePtUn2// N.
+have X: h1 \\-> a \+ free h2 bt = free h2 (h1 \\-> a \+ bt)
+  by rewrite um_freePtUn2// N.
 rewrite X keys_dom domF !inE.
 case B: (z == h2).
 - by move/eqP:B=>B; subst h2; rewrite rem_filter ?(keys_uniq _)// mem_filter/= eqxx.
@@ -1059,6 +1060,11 @@ move: (@good_chain_btExtend_fold _ xs b V Vh Ib G)=>G'.
 by move: (@btExtend_compute_chain _ x b V' Vh' Ib' G')=>->.
 Qed.
 
+
+(***********************************************************)
+(*******      <btExtend_mint and all it needs>     *********)
+(***********************************************************)
+
 Lemma btChain_is_largest bt c :
   c \in filter good_chain (all_chains bt) -> btChain bt >= c.
 Proof.
@@ -1078,22 +1084,50 @@ elim: (all_chains bt)=>[|bc bcs Hi]/=; first by rewrite eqxx.
 by rewrite {1}/take_better_bc; case:ifP=>[/andP[->]|].
 Qed.
 
+Lemma compute_chain_noblock bt b pb :
+  valid bt -> validH bt -> 
+  b \notin compute_chain bt pb ->
+  compute_chain bt pb = compute_chain (free (#b) bt) pb.
+Proof.
+Admitted.
+
 Lemma compute_chain_prev bt b pb :
   valid bt -> validH bt -> #b \in dom bt ->
   prevBlockHash b = # pb ->
-  #b != #pb ->
+  b \notin (compute_chain bt pb) ->
   compute_chain bt b = rcons (compute_chain bt pb) b.                               
 Proof.
 move=>V Vh D Hp Nh.
-
-ZZZZ
-Admitted.
+rewrite (compute_chain_noblock V Vh Nh).
+rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n b bt hs Es En V Vh D Hp Nh=>[|n Hi] b bt hs Es En V Vh D Hp Nh/=.
+- by rewrite -keys_dom -Es in D; move/esym/size0nil: En=>Z; rewrite Z in D.
+rewrite {1}Es keys_dom D Hp.
+have H1: valid (free (# b) bt) by rewrite validF.
+have H3: n = size (keys_of (free (# b) bt)).
+- by apply: size_free=>//;[by rewrite Es in En|by rewrite keys_dom].
+case B: (#pb \in dom bt); last first.
+- case: dom_find (B)=>//F _; rewrite F.
+  rewrite -H3; clear Hi En H3; case:n=>//=[|n]; first by case:ifP.
+  by rewrite keys_dom domF inE B; case:ifP; case: ifP.
+case: dom_find B=>// prev F _ _; rewrite F; congr (rcons _ _).
+move/Vh/hashB_inj: F=>?; subst prev.
+rewrite H3.
+have U1: uniq (seq.rem (# b) hs) by rewrite Es rem_uniq// keys_uniq.
+have U2: uniq (keys_of (free (# b) bt)) by rewrite keys_uniq.
+rewrite (compute_chain_equiv (free (#b) bt) pb
+                 (size (keys_of (free (# b) bt))) U1 U2)//.
+by rewrite Es; apply: keys_rem2.
+Qed.
 
 (* This axiom seems reasonable: it shouldn't be possible
-   to generate a block with the same hash as its predecessor. *)
+   to generate a block _from_ the chain it is supposed to tail. *)
 Axiom VAF_no_cycle :
-  forall b ts bc, VAF (proof b) ts bc ->
-    #b != #(last GenesisBlock bc).               
+  forall b ts bc, VAF (proof b) ts bc -> b \notin bc.               
 
 Lemma btExtend_mint_ext bt bc b ts :
   let pb := last GenesisBlock bc in
@@ -1115,8 +1149,9 @@ have Vh': validH (btExtend bt b) by apply:btExtendH.
 have D: #b \in dom (btExtend bt b).
 - move: V'; rewrite /btExtend; case:ifP=>X V'//.
   by rewrite um_domPtUn inE V' eqxx.
-have Hn : #b != #pb by apply: (VAF_no_cycle Hv). 
-by apply: compute_chain_prev.
+apply: compute_chain_prev=>//.
+move: (VAF_no_cycle Hv); rewrite E in HGood.
+by rewrite (btExtend_compute_chain b V Vh Ib HGood) E.
 Qed.
 
 Lemma chain_from_last bt c :
@@ -1165,6 +1200,10 @@ have HIn : rcons (btChain bt) b \in
 move/btChain_is_largest: HIn=>H; apply: (CFR_trans_eq1 H).
 by rewrite -cats1; apply: CFR_ext.
 Qed.
+
+(***********************************************************)
+(*******      </btExtend_mint and all it needs>     ********)
+(***********************************************************)
 
 Lemma good_chains_in_superset cbt bt bs :
   valid cbt -> validH cbt -> has_init_block cbt ->
