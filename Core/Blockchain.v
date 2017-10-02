@@ -1351,8 +1351,38 @@ Definition complete bt :=
 Definition complete_for_chain (bt : BlockTree) (bc : Blockchain) :=
   (forall b : Block, b \in bc -> #b \in dom bt /\ (prevBlockHash b) \in dom bt).
 
+
+Lemma complete_rm_complete bt b :
+  valid bt -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  if b == GenesisBlock
+  then compute_chain bt b = [:: GenesisBlock]
+  else complete_for_chain bt (compute_chain bt b).
+Proof.
+rewrite /compute_chain.
+have Ek: keys_of bt = keys_of bt by [].
+have Es: size (keys_of bt) = size (keys_of bt) by [].
+move: {-2}(size (keys_of bt)) Es=>n.
+move: {-2}(keys_of bt) Ek=>hs Es En.
+elim: n b bt hs Es En=>[|n Hi]/= b bt hs Es En V Vh Hb.
+- by rewrite /good_chain/=; case: ifP.
+subst hs; rewrite keys_dom=>Hg; case: ifP=>[/eqP Z|N].
+- subst b. rewrite (find_some Hb) init_hash Hb/=.
+  suff X: ((compute_chain' (free (# GenesisBlock) bt)
+                           GenesisBlock (seq.rem (# GenesisBlock) (keys_of bt)) n)) = [::].
+  + by rewrite X. 
+  clear Hg En Hi; case: n=>//=[|n]; first by case:ifP.
+  by rewrite mem_rem_uniq ?keys_uniq// inE eqxx. 
+have D: # b \in dom bt by case: ifP Hg.
+rewrite D in Hg *.
+have D': (prevBlockHash b) \in dom bt. admit.
+have N': (prevBlockHash b) != (#b).
+(* Prove out of Hg *)
+Admitted.
+
 Lemma complete_bt_extend_chain bt b new:
   valid bt -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
   complete_for_chain bt (compute_chain bt b) ->
   compute_chain bt b = compute_chain (btExtend bt new) b.
 Proof.
@@ -1363,6 +1393,10 @@ the block tree to draw blocks from shrinks as we proceed inductively
 by the size of available keys, yet still remains complete for the
 chain to be constructed.
 
+This is true only for good chains, as non-good ones can have a
+non-trivial cycle so the chain-completeness is not preserved as we
+walk along the cain to its beginning.
+
 *)
 
 Admitted.
@@ -1372,10 +1406,11 @@ Lemma complete_bt_extend bt a:
   valid bt -> validH bt -> has_init_block bt ->
   complete bt ->
   forall b, b ∈ bt ->
+            good_chain (compute_chain bt b) ->
             compute_chain bt b = compute_chain (btExtend bt a) b.
 Proof.
 move=>V Vh IB Hc b.
-move=>D; apply: (complete_bt_extend_chain a V Vh IB).
+move=>D G; apply: (complete_bt_extend_chain a V Vh IB)=>//.
 by move=>z/(block_in_chain V) H; split=>//; move/Hc: H.
 Qed.
 
