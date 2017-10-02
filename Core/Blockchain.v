@@ -1095,7 +1095,7 @@ have Ek: keys_of bt = keys_of bt by [].
 have Es: size (keys_of bt) = size (keys_of bt) by [].
 move: {-2}(size (keys_of bt)) Es=>n.
 move: {-2}(keys_of bt) Ek=>hs Es En.
-elim: n b bt hs Es En=>[|n Hi]/= b bt hs Es En V Vh Hb.
+elim: n c b bt hs Es En=>[|n Hi]/= c b bt hs Es En V Vh Hb.
 - suff X: size (keys_of (free (# b) bt)) = 0
     by rewrite X=>/=_; case:ifP=>_; case:ifP.
   suff X: bt = Unit by subst bt; rewrite free0 keys0.
@@ -1129,13 +1129,44 @@ case D: ((prevBlockHash c) \in dom bt); last first.
   by move/esym/size0nil: H3=>E; rewrite E in X. 
   
 (* Now an interesting, inductive, case *)
-case: dom_find D=>//pc F' _ _; rewrite F'=>Hn.
+case: dom_find D=>//pc F' _ _; rewrite F'=>Hn; rewrite -H3.
+rewrite mem_rcons inE in Hn; case/norP: Hn=>/negbTE N Hn.
+have Dc: #c \in keys_of (free (# b) bt).
+  + rewrite keys_dom domF inE.
+    case: ifP=>C; last by apply: (find_some F).
+    by move/eqP/hashB_inj : C N=>->; rewrite eqxx.
+
 (* Now need to unfold massage the RHS of the goal with compute_chain', so
    it would match the Hi with (bt := free (# c) bt, c := pc) etc *)
+have X: compute_chain' (free (# b) bt) c
+                       (keys_of (free (# b) bt))
+                       (size (keys_of (free (# b) bt))) =
+        rcons (compute_chain' (free (# b) (free (# c) bt)) pc
+                              (keys_of (free (# b) (free (# c) bt)))
+                              (size (keys_of (free (# b) (free (# c) bt))))) c.
+- rewrite freeF.
+  have Z: (#b == #c) = false
+    by apply/negP=>/eqP/hashB_inj=>?; subst c; rewrite eqxx in N.
+  rewrite Z. 
+  (* Given everything in the context, this should be a trivial lemma,
+     please extract it and prove (takig bt' = free (# b) bt) *)
+  admit.
 
-
-  
-(* ZZZZZ   *)
+rewrite H3 X; congr (rcons)=>//.
+have U1: uniq (seq.rem (# c) hs) by rewrite rem_uniq// Es keys_uniq.
+have U2: uniq (keys_of (free (#c) bt)) by rewrite keys_uniq.
+rewrite -(Hi pc b (free (#c) bt) (keys_of (free (# c) bt)) (erefl _)) ?validF//.
+- rewrite -H3.
+  rewrite ((compute_chain_equiv (free (# c) bt) pc n) U1 U2)//.
+  by rewrite Es; apply: keys_rem2.
+- (* prove out of H3 and N *)
+  rewrite Es in En; apply: (size_free V En).
+  by rewrite keys_dom; apply:(find_some F). 
+- by apply: validH_free. 
+- rewrite domF inE eq_sym Hb.
+  by case:ifP=>///eqP/hashB_inj?; subst c; rewrite eqxx in N.
+rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2)//.
+by rewrite Es; apply: keys_rem2.  
 Admitted.
 
 Lemma compute_chain_prev bt b pb :
