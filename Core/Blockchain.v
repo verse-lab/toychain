@@ -1348,16 +1348,22 @@ Qed.
 Definition complete bt :=
   (forall b : Block, b ∈ bt -> prevBlockHash b \in dom bt).
 
-Definition complete_chain (bt : BlockTree) (bc : Blockchain) :=
+Definition complete_for_chain (bt : BlockTree) (bc : Blockchain) :=
   (forall b : Block, b \in bc -> #b \in dom bt /\ (prevBlockHash b) \in dom bt).
 
 Lemma complete_bt_extend_chain bt b new:
   valid bt -> validH bt -> has_init_block bt ->
-  complete_chain bt (compute_chain bt b) ->
+  complete_for_chain bt (compute_chain bt b) ->
   compute_chain bt b = compute_chain (btExtend bt new) b.
 Proof.
 (* TODO *)
-(* The proof should be somewhat simialr to `btExtend_chain_prefix` *)
+(* The proof should be somewhat simialr to `btExtend_chain_prefix`:
+
+the block tree to draw blocks from shrinks as we proceed inductively
+by the size of available keys, yet still remains complete for the
+chain to be constructed.
+
+*)
 
 Admitted.
 
@@ -1369,9 +1375,8 @@ Lemma complete_bt_extend bt a:
             compute_chain bt b = compute_chain (btExtend bt a) b.
 Proof.
 move=>V Vh IB Hc b.
-have X: complete_chain bt (compute_chain bt b)
-  by move=>z/(block_in_chain V) H; split=>//; move/Hc: H.
-by move=>D; apply: (complete_bt_extend_chain a V Vh IB X).
+move=>D; apply: (complete_bt_extend_chain a V Vh IB).
+by move=>z/(block_in_chain V) H; split=>//; move/Hc: H.
 Qed.
 
 (*[!!!]
