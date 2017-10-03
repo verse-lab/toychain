@@ -1645,12 +1645,11 @@ Qed.
    but the proof shouldn't be that different from complete_bt_extend_eq  *)
 Lemma btExtend_within cbt bt b bs:
   valid cbt -> validH cbt -> has_init_block cbt ->
-  valid bt -> validH bt -> has_init_block cbt ->
+  valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
-  btChain (btExtend cbt b) > btChain (btExtend bt b) ->
+  btChain cbt >= btChain (btExtend bt b) ->
   cbt = foldl btExtend bt bs ->
-  (* Something is missing: need to have that `b` is not orphan in (btExtend bt b) *)
-  btChain cbt = btChain (btExtend bt b) -> False.
+  btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
 Admitted.
 
