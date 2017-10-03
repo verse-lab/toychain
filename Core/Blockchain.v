@@ -10,17 +10,20 @@ Unset Printing Implicit Defensive.
 
 (* A fomalization of a blockchain structure *)
 
-(* TODO: Rename me into something more appropriate, e.g., BlockTrees.v  *)
+(* TODO: Rename me into something more appropriate, e.g., Forrests.v  *)
 
 Definition Address := nat.
 Definition Timestamp := nat.
 Definition Hash := [ordType of nat].
 
+(************************************************************)
+(******************* <parameters> ***************************)
+(************************************************************)
+
 Parameter Stake : eqType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter hashT : Transaction -> Hash.
-Definition eq_tx t t' := hashT t == hashT t'.
 
 Record Block :=
   mkB {
@@ -30,36 +33,56 @@ Record Block :=
     proof : VProof;
   }.
 
+Definition Blockchain := seq Block.
+
+(* In fact, it's a forrest, as it also keeps orphan blocks *)
+Definition BlockTree := union_map Hash Block.
+
 Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
-Definition eq_block b b' := hashB b == hashB b'.
+Parameter stake : Address -> Blockchain -> Stake.
+Parameter genProof : Stake -> option VProof.
+Parameter blockValid : Block -> Blockchain -> bool.
+Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
+Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 
-Definition Blockchain := seq Block.
+(**************************
+ *  TxPool implementation *
+ **************************)
+Definition TxPool := seq Transaction.
+
+(* (* Transaction is valid and consistent with the given chain. *) *)
+Parameter txValid : Transaction -> Blockchain -> bool.
+Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
+
+(************************************************************)
+(********************* </parameters> ************************)
+(************************************************************)
+
+Definition eq_tx t t' := hashT t == hashT t'.
+
+Definition eq_block b b' := hashB b == hashB b'.
 
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* We might want to introduce a notion of time *)
-Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 
-Parameter stake : Address -> Blockchain -> Stake.
-Parameter genProof : Stake -> option VProof.
-
-Parameter blockValid : Block -> Blockchain -> bool.
-
-Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (CFR_gt A B).
 Notation "A >= B" := (A = B \/ A > B).
 
 Definition subchain (bc1 bc2 : Blockchain) :=
   exists p q, bc2 = p ++ bc1 ++ q.
 
-(* Axioms *)
-(* Is it realistic? *)
-Axiom CFR_subchain : forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
+(************************************************************)
+(*********************** <axioms> ***************************)
+(************************************************************)
+
 Axiom hashB_inj : injective hashB.
+
 Axiom hashT_inj : injective hashT.
-Axiom hashBT_noCollisions :
-  forall (b : Block) (t : Transaction), hashB b != hashT t.
+
+Notation "# b" := (hashB b) (at level 20).
+Notation "## b" := (hashB b \\-> tt) (at level 80).
 
 Module BlockEq.
 Lemma eq_blockP : Equality.axiom eq_block.
@@ -87,10 +110,14 @@ Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
 
+Axiom hashBT_noCollisions :
+  forall (b : Block) (t : Transaction), hashB b != hashT t.
 
-Axiom VAF_inj :
-  forall (v v' : VProof) (ts : Timestamp) (bc1 bc2 : Blockchain),
-    VAF v ts bc1 -> VAF v' ts bc2 -> v == v' /\ bc1 == bc2.
+Axiom VAF_Merkle :
+  forall (b : Block) ts (bc : Blockchain), VAF (proof b) ts bc -> b \notin bc.
+
+Axiom CFR_subchain :
+  forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
 Axiom CFR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
@@ -106,6 +133,16 @@ Axiom CFR_nrefl :
 Axiom CFR_trans :
   forall (A B C : Blockchain),
     A > B -> B > C -> A > C.
+
+(* Genesis block's predecessor is itself *)
+Hypothesis init_hash :
+  prevBlockHash GenesisBlock = #GenesisBlock.
+
+(************************************************************)
+(*********************** </axioms> **************************)
+(************************************************************)
+
+
 
 Lemma CFR_trans_eq (A B C : Blockchain):
     A >= B -> B >= C -> A >= C.
@@ -156,21 +193,11 @@ by move=>bc bc' H1 H2; move: (CFR_trans H1 H2); apply CFR_nrefl.
 Qed.
 
 
-(*****************************
- *  BlockTree implementation *
- *****************************)
+(******************************************************************)
+(*                BlockTree implementation                        *)
+(******************************************************************)
 
-(* Also keeps orphan blocks *)
-Definition BlockTree := union_map Hash Block.
-
-Notation "# b" := (hashB b) (at level 20).
-Notation "## b" := (hashB b \\-> tt) (at level 80).
-
-Definition btHasBlock (bt : BlockTree) (b : Block) :=
-  #b \in dom bt.
-
-(* Genesis block's predecessor is itself *)
-Hypothesis init_hash : (prevBlockHash GenesisBlock) = #GenesisBlock.
+Definition btHasBlock (bt : BlockTree) (b : Block) := #b \in dom bt.
 
 Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
 Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
@@ -1276,9 +1303,6 @@ Qed.
 
    TODO: Explain it's rationale in the wirting
  *)
-Axiom VAF_Merkle :
-  forall b ts bc, VAF (proof b) ts bc -> b \notin bc.
-
 Lemma btExtend_mint_ext bt bc b ts :
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
@@ -1692,20 +1716,3 @@ Admitted.
 
 End BtChainProperties.
 
-(**************************
- *  TxPool implementation *
- **************************)
-Definition TxPool := seq Transaction.
-
-(* (* Transaction is valid and consistent with the given chain. *) *)
-Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
-
-(* (* Axioms and other properties *) *)
-(* Axiom tpExtend_validAndConsistent : *)
-(*   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction), *)
-(*     tx \in (tpExtend pool bt tx) -> (txValid tx (btChain bt)). *)
-
-(* Axiom tpExtend_withDup_noEffect : *)
-(*   forall (bt : BlockTree) (pool : TxPool) (tx : Transaction), *)
-(*     tx \in pool -> (tpExtend pool bt tx) = pool. *)
