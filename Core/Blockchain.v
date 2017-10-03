@@ -1270,8 +1270,13 @@ by rewrite Es; apply: keys_rem2.
 Qed.
 
 (* This axiom seems reasonable: it shouldn't be possible
-   to generate a block _from_ the chain it is supposed to tail. *)
-Axiom VAF_no_cycle :
+   to generate a block _from_ the chain it is supposed to tail.
+   The name reflects the nature of this check in real life using
+   Merkle tree construction.
+
+   TODO: Explain it's rationale in the wirting
+ *)
+Axiom VAF_Merkle :
   forall b ts bc, VAF (proof b) ts bc -> b \notin bc.
 
 Lemma btExtend_mint_ext bt bc b ts :
@@ -1295,7 +1300,7 @@ have D: #b \in dom (btExtend bt b).
 - move: V'; rewrite /btExtend; case:ifP=>X V'//.
   by rewrite um_domPtUn inE V' eqxx.
 apply: compute_chain_prev=>//.
-move: (VAF_no_cycle Hv); rewrite E in HGood.
+move: (VAF_Merkle Hv); rewrite E in HGood.
 by rewrite (btExtend_compute_chain b V Vh Ib HGood) E.
 Qed.
 
@@ -1660,6 +1665,7 @@ move=>V Vh Hib Vl Vhl Hil Hg Hg' Gt P Ec Cont.
    either this block is already in the cbt, or now, but isn't
    contributing, due to goodness of the final tree. *)
 case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
+case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
 
 (* Ok, somebody minted a block, which does not contribute to cbt' *)
 (* blockchain, only to the local one. *)
