@@ -1648,9 +1648,15 @@ Lemma btExtend_within cbt bt b bs:
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
   btChain cbt >= btChain (btExtend bt b) ->
+  (* A new block added, so the new gain will be also a good chain,
+     and the largest in btExtend bt b *)
+  prevBlockHash b = # last GenesisBlock (btChain bt) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' Gt P Ec Cont.
+
+
 Admitted.
 
 
