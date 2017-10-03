@@ -1607,6 +1607,36 @@ have I: [:: GenesisBlock] \in cs1 ++ cs2.
 by apply: best_element_in.
 Qed.
 
+Lemma  foldr_take_better_max cs1 cs2 :
+  {subset cs1 <= cs2} ->
+  foldr take_better_alt [:: GenesisBlock] cs2 >=
+  foldr take_better_alt [:: GenesisBlock] cs1.
+Proof.
+Admitted.
+
+Lemma complete_bt_extend_eq cbt bt bs b :
+  valid cbt -> validH cbt -> has_init_block cbt ->
+  valid bt -> validH bt -> has_init_block bt ->
+  good_bt cbt -> good_bt (btExtend cbt b) ->
+  btChain (btExtend bt b) > btChain cbt ->
+  cbt = foldl btExtend bt bs ->
+  btChain (btExtend bt b) = btChain (btExtend cbt b).
+Proof.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' Gt Ec.
+case Nb: (#b \in dom cbt); last first.
+- move/negbT: Nb=>Nb.
+  by apply: (complete_bt_extend_gt' V Vh Hib Vl Vhl Hil Hg Nb Hg' Gt Ec).
+have Q : cbt = btExtend cbt b by rewrite /btExtend Nb.
+rewrite Q Ec in Gt.
+move: (btExtend_fold_comm bs [::b] Vl)=>/==>Z; rewrite Z in Gt.
+
+(* Boring stuff *)
+have G1 : valid (btExtend bt b) by rewrite -(btExtendV bt b).
+have G2 : validH (btExtend bt b) by apply: (btExtendH Vl Vhl).
+have G3 : has_init_block (btExtend bt b) by apply: (btExtendIB b Vl Vhl Hil).
+by move/CFR_dual: (btExtend_fold_sameOrBetter bs G1 G2 G3); rewrite Gt.
+Qed.
+
 Lemma btExtend_mint_one_gc bt b ts :
   let bt' := btExtend bt b in
   let pb := last GenesisBlock (btChain bt) in
