@@ -1664,6 +1664,17 @@ case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nre
 (* Ok, somebody minted a block, which does not contribute to cbt' *)
 (* blockchain, only to the local one. *)
 
+(* I see the following strategy:
+
+Due to goodnes of cbt and it being a superset of bt, any good chain in
+bt has the same one in cbt. The only new chain obtained in cbt by
+adding b, due to goodness, is the one that ends with b. And this
+should be the same chain in bt.
+
+And even since adding b to it didn't jump over cbt's blockchain,
+neither will assing b-ending chain to cbt.
+
+*)
 
 Admitted.
 
