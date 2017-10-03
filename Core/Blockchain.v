@@ -1674,6 +1674,8 @@ should be the same chain in bt.
 And even since adding b to it didn't jump over cbt's blockchain,
 neither will assing b-ending chain to cbt.
 
+All necessary facts should be available as lemmas above.
+
 *)
 
 Admitted.
