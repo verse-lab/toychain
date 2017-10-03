@@ -1447,7 +1447,21 @@ case X: (ch == compute_chain (btExtend bt b) b)=>/=.
   subst ch; case W: (good_chain (compute_chain bt z)).
     by move: (btExtend_compute_chain b V Vh Ib W)=>->.
   (* There's a contradiction: W, Y and minting *)
+  (* Direct contradiction if bt is good_bt *)
 
+Admitted.
+
+Lemma btExtend_mint_one_gc_superset bt cbt b bs ts :
+  let cbt' := btExtend cbt b in
+  let pb := last GenesisBlock (btChain bt) in
+  valid bt -> validH bt -> has_init_block bt ->
+  valid cbt -> validH cbt -> has_init_block cbt ->
+  cbt = foldl btExtend bt bs ->
+  good_bt cbt ->
+  prevBlockHash b = # pb ->
+  VAF (proof b) ts (btChain bt) = true ->
+  good_chains cbt' =i (compute_chain cbt' b) :: good_chains cbt.
+Proof.
 Admitted.
 
 Definition take_better_alt bc2 bc1 := if (bc2 > bc1) then bc2 else bc1.
@@ -1485,20 +1499,25 @@ Lemma btExtend_within cbt bt b bs:
 Proof.
 Admitted.
 
-Lemma complete_bt_extend_gt cbt bt bs b :
+Lemma complete_bt_extend_gt cbt bt bs b ts :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
+  let pb := last GenesisBlock (btChain bt) in
+  prevBlockHash b = # pb ->
+  VAF (proof b) ts (btChain bt) = true ->
   good_bt cbt ->
   btChain (btExtend bt b) > btChain cbt ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend bt b) = btChain (btExtend cbt b).
 Proof.
-move=>V Vh Hib V' Vh' Hib' HGood Gt E.
+move=>V Vh Ib V' Vh' Ib' pb Hp Hv HGood Gt E.
 move: (btExtend_dom_fold bs V')=>Sub.
-move: (btExtend_good_chains_fold bs V' Vh' Hib')=>SubC.
+move: (btExtend_good_chains_fold bs V' Vh' Ib')=>SubC.
 rewrite -!E in Sub SubC *.
-rewrite !btChain_alt in Gt.
-case B: (#b \in dom bt); rewrite /btExtend B in Gt.
+  move: (good_chains_subset_geq V' Vh' Ib' V Vh Ib SubC)=>H1.
+  move: (btExtend_mint_one_gc V' Vh' Ib' Hp Hv)=>H2.
+
+case B: (#b \in dom bt).
 - (* Derive contradiction from Gt and SubC *)
   admit.
 
