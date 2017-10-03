@@ -1607,13 +1607,6 @@ have I: [:: GenesisBlock] \in cs1 ++ cs2.
 by apply: best_element_in.
 Qed.
 
-Lemma  foldr_take_better_max cs1 cs2 :
-  {subset cs1 <= cs2} ->
-  foldr take_better_alt [:: GenesisBlock] cs2 >=
-  foldr take_better_alt [:: GenesisBlock] cs1.
-Proof.
-Admitted.
-
 Lemma complete_bt_extend_eq cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
@@ -1637,57 +1630,6 @@ have G3 : has_init_block (btExtend bt b) by apply: (btExtendIB b Vl Vhl Hil).
 by move/CFR_dual: (btExtend_fold_sameOrBetter bs G1 G2 G3); rewrite Gt.
 Qed.
 
-Lemma btExtend_mint_one_gc bt b ts :
-  let bt' := btExtend bt b in
-  let pb := last GenesisBlock (btChain bt) in
-  valid bt -> validH bt -> has_init_block bt ->
-  prevBlockHash b = # pb ->
-  VAF (proof b) ts (btChain bt) = true ->
-  good_chains bt' =i (compute_chain bt' b) :: good_chains bt.
-Proof.
-move=>bt' lst V Vh Ib Hp Hv ch; subst bt';
-rewrite in_cons !mem_filter.
-case X: (ch == compute_chain (btExtend bt b) b)=>/=.
-- move/eqP: X (btExtend_mint_good V Vh Ib (btChain_good bt) Hp Hv)=>->->/=.
-  apply/mapP; exists b; last done.
-  apply/all_blocksP'.
-  by apply (btExtendH V Vh).
-  by rewrite/btExtend; case: ifP=>//; rewrite/btHasBlock;
-     rewrite um_domPtUnE um_validPtUn V /==>H; apply/negP; rewrite H.
-- case Y: (good_chain ch)=>//=; apply/mapP; case: ifP=>H; apply/mapP.
-  by (have: (ch \in good_chains bt) by rewrite/good_chains mem_filter Y)=>H';
-     move: (btExtend_good_chains_fold [::b] V Vh Ib)=>/= S;
-     specialize (S ch H'); move: S; rewrite mem_filter; move/andP=>[].
-  apply/mapP; move=>[z]; move/all_blocksP'=>H';
-  specialize (H' (@btExtendH _ b V Vh)).
-  case: (btExtend_in_either V H'); clear H'; last first.
-  by move/eqP=>Eq; subst z; move/eqP; rewrite X.
-  move/all_blocksP'=>H'; specialize (H' Vh).
-  move=>Cc; move: H; move/mapP=>[]; exists z=>//.
-  case Z: (b == z).
-    by move/eqP in Z; subst z ch; contradict X; rewrite eqxx.
-  subst ch; case W: (good_chain (compute_chain bt z)).
-    by move: (btExtend_compute_chain b V Vh Ib W)=>->.
-  (* There's a contradiction: W, Y and minting *)
-  (* Direct contradiction if bt is good_bt *)
-
-Admitted.
-
-Lemma btExtend_mint_one_gc_superset bt cbt b bs ts :
-  let cbt' := btExtend cbt b in
-  let pb := last GenesisBlock (btChain bt) in
-  valid bt -> validH bt -> has_init_block bt ->
-  valid cbt -> validH cbt -> has_init_block cbt ->
-  cbt = foldl btExtend bt bs ->
-  good_bt cbt ->
-  prevBlockHash b = # pb ->
-  VAF (proof b) ts (btChain bt) = true ->
-  good_chains cbt' =i (compute_chain cbt' b) :: good_chains cbt.
-Proof.
-Admitted.
-
-
-
 Lemma good_chains_subset_geq bt bt':
   valid bt -> validH bt -> has_init_block bt ->
   valid bt' -> validH bt' -> has_init_block bt' ->
@@ -1699,10 +1641,12 @@ by specialize (S (btChain bt) (btChain_in_good_chains Ib));
    apply btChain_is_largest.
 Qed.
 
+(* This is likely to be missing some important assumptions,
+   but the proof shouldn't be that different from complete_bt_extend_eq  *)
 Lemma btExtend_within cbt bt b bs:
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block cbt ->
-  good_bt cbt ->
+  good_bt cbt -> good_bt (btExtend cbt b) ->
   btChain (btExtend cbt b) > btChain (btExtend bt b) ->
   cbt = foldl btExtend bt bs ->
   (* Something is missing: need to have that `b` is not orphan in (btExtend bt b) *)
@@ -1710,100 +1654,6 @@ Lemma btExtend_within cbt bt b bs:
 Proof.
 Admitted.
 
-Lemma complete_bt_extend_gt cbt bt bs b ts :
-  valid cbt -> validH cbt -> has_init_block cbt ->
-  valid bt -> validH bt -> has_init_block bt ->
-  let pb := last GenesisBlock (btChain bt) in
-  prevBlockHash b = # pb ->
-  VAF (proof b) ts (btChain bt) = true ->
-  good_bt cbt ->
-  btChain (btExtend bt b) > btChain cbt ->
-  cbt = foldl btExtend bt bs ->
-  btChain (btExtend bt b) = btChain (btExtend cbt b).
-Proof.
-move=>V Vh Ib V' Vh' Ib' pb Hp Hv HGood Gt E.
-move: (btExtend_dom_fold bs V')=>Sub.
-move: (btExtend_good_chains_fold bs V' Vh' Ib')=>SubC.
-rewrite -!E in Sub SubC *.
-  move: (good_chains_subset_geq V' Vh' Ib' V Vh Ib SubC)=>H1.
-  move: (btExtend_mint_one_gc V' Vh' Ib' Hp Hv)=>H2.
-
-case B: (#b \in dom bt).
-- (* Derive contradiction from Gt and SubC *)
-  admit.
-
-  (* have V2: valid (# b \\-> b \+ cbt).  admit. *)
-(* have X: exists cs1 cs2, [seq x <- all_chains cbt | good_chain x] = cs1 ++ cs2 /\ *)
-(*                         [seq x <- all_chains (# b \\-> b \+ cbt) | good_chain x] = *)
-(*                         cs1 ++ [seq x <- [:: compute_chain (# b \\-> b \+ cbt) b] | good_chain x] ++ cs2. *)
-(* - have C: (#b \in dom cbt); last first. *)
-(*   rewrite /all_chains/all_blocks. *)
-(*   case: (@keys_insert _ _ (#b) b cbt V2)=>ks1[ks2][E1]E2. *)
-(*   rewrite E1 E2 !map_cat !filter_cat. *)
-(*   exists [seq x <- [seq compute_chain cbt b0 | b0 <- [seq get_block cbt k | k <- ks1]] | good_chain x]. *)
-(*   exists [seq x <- [seq compute_chain cbt b0 | b0 <- [seq get_block cbt k | k <- ks2]] | good_chain x]. *)
-(*   split=>//. *)
-(*   have Eb: # b \\-> b \+ cbt = btExtend cbt b. rewrite /btExtend. admit. *)
-(*   rewrite !Eb -cat1s !map_cat !filter_cat. *)
-(*   have D1 : #b \notin ks1. admit. (* By Eb *) *)
-(*   have D2 : #b \notin ks2. admit. (* By Eb *) *)
-(*   congr (_ ++ _). *)
-(*   - clear E1 E2; elim:ks1 D1=>//k ks Hi D1/=. *)
-(*     have X: get_block (btExtend cbt b) k = get_block cbt k. *)
-(*     - by rewrite /btExtend C/get_block.  *)
-(*    case G: (good_chain (compute_chain bt (get_block bt k))); rewrite X. *)
-(*    - rewrite (btExtend_compute_chain b V' Vh' Hib' G) G; congr (_ :: _). *)
-(*      by apply: Hi; rewrite inE in D1; case/norP: D1. *)
-
-
-(* Partition LHS in Gt into the old stuff (which hasn't changed) and
-  the only new blockchain. *)
-
-(* rewrite /all_chains in Gt. rewrite -!seq.map_comp in Gt. *)
-(* case: (@keys_insert _ _ (#b) b bt V2)=>ks1[ks2][E1]E2; rewrite E2 in Gt. *)
-(* rewrite map_cat/= - cat1s/= in Gt.  Search _ (_ ++ _) (_::_). *)
-
-(*
-1. [DONE] All _good_ chains in bt are also in cbt as the same.
-2. btChain (btExtend bt b) is good -> btChain (btExtend bt b) is also
-   a chain in btChain (btExtend cbt b).
-
-*)
-
-
-
-(*
-
-The reasoning is out of definition of btChain via foldr
-
-So you need to show that:
-
-1. btChain (btExtend bt b) is larger than any chain from cbt;
-   => Easy from hypothesis Gt
-
-2. Any _good_ chain in bt from a block b is exactly the same chain in
-   cbt from the block b. This might be non-trivial, out of expansion
-   via foldl ... bs, but the lemmas like `btExtend_chain_prefix` and
-   `btExtend_chain_good` might be helpful (expanded transitively for
-   foldl)
-   => DONE: btExtend_compute_chain_fold
-
-3. A new chain in (btExtend bt b) builds on an old chain -- perhaps,
-   this should be passed as a hypothesis.;
-   => This is true ONLY when b is a new_block (cbt has no gaps, but bt might)
-   => See btExtend_mint_ext
-   => So yes, hypothesis should be that b is a newly minted block
-
-4. Therefore there should be a counterpart in cbt.
-   => DONE: good_chains_in_superset
-
-Baiscally, for the remaining three tricky subgoals you will have to
-build a small toolset for reasoning about btChain and relating
-its result to a specific `good` chain in a current block-tree.
-re
- *)
-
-Admitted.
 
 End BtChainProperties.
 
