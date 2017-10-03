@@ -46,12 +46,10 @@ Parameter blockValid : Block -> Blockchain -> bool.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 
-(**************************
- *  TxPool implementation *
- **************************)
+(************         Transaction pools        **************)
 Definition TxPool := seq Transaction.
 
-(* (* Transaction is valid and consistent with the given chain. *) *)
+(* Transaction is valid and consistent with the given chain *)
 Parameter txValid : Transaction -> Blockchain -> bool.
 Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 
