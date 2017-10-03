@@ -1415,6 +1415,85 @@ Lemma good_chains_subset bt :
   { subset good_chains bt <= all_chains bt }.
 Proof. by move=>ch; rewrite mem_filter; move/andP=>[]. Qed.
 
+Lemma btExtnend_new_block cbt b :
+  valid cbt ->
+  # b \notin dom cbt ->
+  b \in all_blocks (btExtend cbt b).
+Proof.
+move=>V N; move: (V); rewrite (btExtendV _ b)=>V'.
+move/negbTE: N=>N.
+rewrite /btExtend !N in V' *.
+case:(@keys_insert _ _ (#b) b cbt V')=>ks1[ks2][_].
+rewrite /all_blocks=>->.
+apply/mapP; exists (#b); last first.
+- by rewrite /get_block findUnL// um_domPt inE eqxx um_findPt.
+by rewrite mem_cat orbC inE eqxx.
+Qed.
+
+Lemma btExtend_get_block bt b k :
+  valid bt -> #b \notin dom bt -> k != #b ->
+  get_block (btExtend bt b) k = get_block bt k.
+Proof.
+move=>V D N; rewrite /get_block/btExtend (negbTE D).
+rewrite findUnL; last by move: (btExtendV bt b); rewrite /btExtend(negbTE D)=><-.
+by rewrite um_domPt inE eq_sym (negbTE N).
+Qed.
+
+Lemma btExtend_good_split cbt b :
+  valid cbt -> validH cbt -> has_init_block cbt ->
+  good_bt cbt -> #b \notin dom cbt -> good_bt (btExtend cbt b) ->
+  exists cs1 cs2, 
+    [seq c | c <- all_chains cbt & good_chain c] = cs1 ++ cs2 /\
+    [seq c | c <- all_chains (btExtend cbt b) & good_chain c] =
+    cs1 ++ [:: compute_chain (btExtend cbt b) b] ++ cs2.
+Proof.
+move=>V Vh Hib Hg N Hg'.
+have G: good_chain (compute_chain (btExtend cbt b) b).
+- by apply: (Hg' b); apply: btExtnend_new_block=>//.
+have Eb: btExtend cbt b = (#b \\-> b \+ cbt) by rewrite /btExtend (negbTE N).  
+move: (V); rewrite (btExtendV _ b)=>V'; rewrite !Eb in V' *.
+move: (@keys_insert _ _ (#b) b cbt V')=>[ks1][ks2][Ek]Ek'.
+(* Massaging the left part *)
+set get_chain := [eta compute_chain cbt] \o [eta get_block cbt].
+rewrite {1}/all_chains/all_blocks -!seq.map_comp Ek map_cat filter_cat.
+rewrite -/get_chain map_cat.
+exists [seq c | c <- [seq get_chain i | i <- ks1] & good_chain c],
+       [seq c | c <- [seq get_chain i | i <- ks2] & good_chain c]; split=>//.
+rewrite /all_chains/all_blocks Ek' !map_cat/= -cat1s.
+have [N1 N2] : (#b \notin ks1) /\ (#b \notin ks2).
+- have U : uniq (ks1 ++ # b :: ks2) by rewrite -Ek'; apply:keys_uniq. 
+  rewrite cat_uniq/= in U; case/andP: U=>_/andP[]H1 H2.
+  case/andP:H2=>->_; split=>//; by case/norP: H1.
+have [D1 D2] : {subset ks1 <= dom cbt} /\ {subset ks2 <= dom cbt}.
+- by split=>k; rewrite -keys_dom Ek mem_cat=>->//; rewrite orbC.  
+rewrite !filter_cat !map_cat; congr (_ ++ _). clear Ek Ek'.
+- rewrite -!Eb;elim: ks1 N1 D1=>//k ks Hi/= N1 D1.
+  have Dk: k \in dom cbt by apply: (D1 k); rewrite inE eqxx.
+  have Nk: k != #b by apply/negbT/negP=>/eqP=>?; subst k; rewrite inE eqxx in N1 .
+  rewrite !(btExtend_get_block V N Nk); rewrite /get_chain/=.
+  set bk := (get_block cbt k).
+  have Gk: good_chain (compute_chain cbt bk).
+  apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
+  rewrite !(btExtend_compute_chain b V Vh Hib Gk) !Gk/=.
+  congr (_ :: _); apply: Hi; first by rewrite inE in N1; case/norP:N1.
+  by move=>z=>D; apply: D1; rewrite inE D orbC.
+rewrite -[(compute_chain _ b) :: _]cat1s; congr (_ ++ _)=>/=; rewrite -!Eb.
+- suff D: (get_block (btExtend cbt b) (# b)) = b by rewrite D G. 
+  by rewrite /get_block/btExtend (negbTE N) findUnL ?V'// um_domPt inE eqxx um_findPt. 
+clear Ek Ek'.
+elim: ks2 N2 D2=>//k ks Hi/= N2 D2.
+have Dk: k \in dom cbt by apply: (D2 k); rewrite inE eqxx.
+have Nk: k != #b by apply/negbT/negP=>/eqP=>?; subst k; rewrite inE eqxx in N2.
+rewrite !(btExtend_get_block V N Nk); rewrite /get_chain/=.
+set bk := (get_block cbt k).
+have Gk: good_chain (compute_chain cbt bk).
+apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
+rewrite !(btExtend_compute_chain b V Vh Hib Gk) !Gk/=.
+congr (_ :: _); apply: Hi; first by rewrite inE in N2; case/norP:N2.
+by move=>z=>D; apply: D2; rewrite inE D orbC.  
+Qed.
+  
+
 Lemma btExtend_mint_one_gc bt b ts :
   let bt' := btExtend bt b in
   let pb := last GenesisBlock (btChain bt) in
