@@ -1668,13 +1668,16 @@ case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nre
 
 Due to goodnes of cbt and it being a superset of bt, any good chain in
 bt has the same one in cbt. The only new chain obtained in cbt by
-adding b, due to goodness, is the one that ends with b. 
+adding b, due to goodness, is the one that ends with b.
 
-But, amongst other good chains that cbt got, there was already one 
-that is larger than the one ending with b (or any super-chain of it in 
+But, amongst other good chains that cbt got, there was already one
+that is larger than the one ending with b (or any super-chain of it in
 bt, as b could "plug a hole" in it), so this chain will be larger than
-the largest good chain in (btExtend bt b), and, hence, larger than
-the only one new added chain in (bcExtend cbt b)
+the largest good chain in (btExtend bt b), and, hence, larger than the
+only one new added chain in (bcExtend cbt b).
+
+Use the chain-splitting lemma `btExtend_good_split` to inspect
+individual elements in cbt.
 
 *)
 
