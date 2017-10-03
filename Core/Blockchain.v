@@ -1601,7 +1601,7 @@ set bc := btChain (btExtend bt b) in H1 Gt *.
 have Gt' : bc > [::GenesisBlock].
 - rewrite /good_chains mem_filter in H1.
   case/andP:H1; move/good_init/CFR_dual; case=>//H _.
-  subst bc. rewrite H in Gt. Check good_init.
+  subst bc. rewrite H in Gt. 
   move: (btChain_in_good_chains Hib); rewrite /good_chains mem_filter.
   by case/andP=>/good_init; rewrite Gt.
 clear Vl Vhl Hil Ec. (* Let's forget about bt. *)
@@ -1612,7 +1612,7 @@ have I: [:: GenesisBlock] \in cs1 ++ cs2.
 by apply: best_element_in.
 Qed.
 
-Lemma complete_bt_extend_eq cbt bt bs b :
+Lemma btExtend_with_new cbt bt bs b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->

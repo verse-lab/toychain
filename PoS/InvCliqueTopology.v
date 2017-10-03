@@ -458,7 +458,7 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite -foldl_btExtend_last ?(c3 _ _ F)// -cats1 foldl_cat/=.
     set can_bt := foldl btExtend blockTree (blocksFor proc w)
         in Gt C1 C2 C3 HBc HGood *.
-    by apply: complete_bt_extend_eq=>//;
+    by apply: btExtend_with_new=>//;
        [by apply: (c3 _ _ F)|by apply: (c4 _ _ F)|by apply: (c5 _ _ F)].
 
     (* HCliq *)
