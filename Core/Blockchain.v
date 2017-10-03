@@ -1655,6 +1655,14 @@ Lemma btExtend_within cbt bt b bs:
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
 move=>V Vh Hib Vl Vhl Hil Hg Hg' Gt P Ec Cont.
+(* We need to show that adding this block to cbt cannot provoke 
+   a blockchain larger than it already had and has. In other words,
+   either this block is already in the cbt, or now, but isn't
+   contributing, due to goodness of the final tree. *)
+case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
+
+(* Ok, somebody minted a block, which does not contribute to cbt' *)
+(* blockchain, only to the local one. *)
 
 
 Admitted.
