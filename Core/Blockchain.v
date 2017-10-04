@@ -1876,4 +1876,19 @@ by move=>_ X; apply (CFR_nrefl X).
 by move=>_ H'; apply (CFR_nrefl (CFR_trans H H')).
 Qed.
 
+Lemma btExtend_can_eq cbt bt b bs ts:
+  valid cbt -> validH cbt -> has_init_block cbt ->
+  valid bt -> validH bt -> has_init_block bt ->
+  good_bt cbt -> good_bt (btExtend cbt b) ->
+  btChain cbt >= btChain (btExtend bt b) ->
+  prevBlockHash b = # last GenesisBlock (btChain bt) ->
+  VAF (proof b) ts (btChain bt) ->
+  cbt = foldl btExtend bt bs ->
+  btChain (btExtend cbt b) = btChain cbt.
+Proof.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' Geq P Vf Ec.
+case: (btExtend_sameOrBetter b V Vh Hib)=>//H1.
+by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' Geq P Vf Ec H1). 
+Qed.
+
 End BtChainProperties.
