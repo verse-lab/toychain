@@ -1796,6 +1796,10 @@ have G3 : has_init_block (btExtend bt b) by apply: (btExtendIB b Vl Vhl Hil).
 by move/CFR_dual: (btExtend_fold_sameOrBetter bs G1 G2 G3); rewrite Gt.
 Qed.
 
+Lemma geq_genesis bt :
+  btChain bt >= [:: GenesisBlock].
+Proof. rewrite btChain_alt; apply foldr_better_mono. Qed.
+
 Lemma good_chains_subset_geq bt bt':
   valid bt -> validH bt -> has_init_block bt ->
   valid bt' -> validH bt' -> has_init_block bt' ->
@@ -1844,8 +1848,9 @@ contradict Cont; apply/negP/negbT/CFR_dual.
 rewrite btChain_alt Eg' in Gt' E *; rewrite btChain_alt Eg in Geq *.
 
 (* These seem reasonable *)
-suff X: btChain (btExtend bt b) = compute_chain (btExtend bt b) b.
+
 suff X': compute_chain (btExtend bt b) b = compute_chain (btExtend cbt b) b.
+suff X: btChain (btExtend bt b) = compute_chain (btExtend bt b) b.
 suff Y: (btChain (btExtend bt b) > [:: GenesisBlock]).
 
 case: Geq=>[Eq|Gt].
@@ -1855,6 +1860,8 @@ by left; rewrite -X' -X -Eq -Eg;
   rewrite catA -Eg /= foldl_cat /=;
   rewrite{2}/take_better_alt; case: ifP=>//=.
 by rewrite -X' -X; apply (lesser_elim Y Gt).
+
+by move: (CFR_trans_eq2 (btExtend_mint Vl Vhl Hil P Vf) (geq_genesis bt)).
 Qed.
 
 End BtChainProperties.
