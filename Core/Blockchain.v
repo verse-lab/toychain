@@ -1470,6 +1470,10 @@ rewrite findUnL; last by move: (btExtendV bt b); rewrite /btExtend(negbTE D)=><-
 by rewrite um_domPt inE eq_sym (negbTE N).
 Qed.
 
+Lemma good_chain_rcons bc b :
+  good_chain bc -> good_chain (rcons bc b).
+Proof. by move=>Gc; elim: bc Gc=>//. Qed.
+
 Lemma btExtend_good_split cbt b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   good_bt cbt -> #b \notin dom cbt -> good_bt (btExtend cbt b) ->
@@ -1796,10 +1800,6 @@ have G3 : has_init_block (btExtend bt b) by apply: (btExtendIB b Vl Vhl Hil).
 by move/CFR_dual: (btExtend_fold_sameOrBetter bs G1 G2 G3); rewrite Gt.
 Qed.
 
-Lemma geq_genesis bt :
-  btChain bt >= [:: GenesisBlock].
-Proof. rewrite btChain_alt; apply foldr_better_mono. Qed.
-
 Lemma good_chains_subset_geq bt bt':
   valid bt -> validH bt -> has_init_block bt ->
   valid bt' -> validH bt' -> has_init_block bt' ->
@@ -1811,9 +1811,15 @@ by specialize (S (btChain bt) (btChain_in_good_chains Ib));
    apply btChain_is_largest.
 Qed.
 
-Lemma good_chain_rcons bc b :
-  good_chain bc -> good_chain (rcons bc b).
-Proof. by move=>Gc; elim: bc Gc=>//. Qed.
+Lemma geq_genesis bt :
+  btChain bt >= [:: GenesisBlock].
+Proof. rewrite btChain_alt; apply foldr_better_mono. Qed.
+
+Lemma in_ext bt b : valid bt -> b ∈ btExtend bt b.
+Proof.
+by move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=;
+   rewrite um_domPtUnE um_validPtUn V /==>H; apply/negP; rewrite H.
+Qed.
 
 Lemma btExtend_within cbt bt b bs ts:
   valid cbt -> validH cbt -> has_init_block cbt ->
@@ -1830,38 +1836,44 @@ case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nre
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
 move: (btExtend_mint_good Vl Vhl Hil (btChain_good bt) P Vf)=>Gb.
 move: (CFR_trans_eq2 Cont Geq)=>Gt'.
-have F: (btExtend cbt b) = foldl btExtend (btExtend bt b) bs.
-  by rewrite Ec -foldl1 btExtend_fold_comm.
-
-have v1: (valid (btExtend cbt b)) by rewrite -btExtendV.
-have v2: (validH (btExtend cbt b)) by apply btExtendH.
-have v3: (has_init_block (btExtend cbt b)) by apply btExtendIB.
 
 have v1': (valid (btExtend bt b)) by rewrite -btExtendV.
 have v2': (validH (btExtend bt b)) by apply btExtendH.
 have v3': (has_init_block (btExtend bt b)) by apply btExtendIB.
 
-have E: (btChain (btExtend bt b) \in good_chains (btExtend cbt b)).
-  by move: (good_chains_in_superset v1 v2 v3 v1' v2' v3' F)=>S;
-     specialize (S (btChain (btExtend bt b)) (btChain_in_good_chains v3')).
-contradict Cont; apply/negP/negbT/CFR_dual.
-rewrite btChain_alt Eg' in Gt' E *; rewrite btChain_alt Eg in Geq *.
+have R: (btChain (btExtend bt b) =
+         foldr take_better_alt [:: GenesisBlock] (good_chains (btExtend bt b)))
+  by rewrite btChain_alt.
+rewrite !btChain_alt Eg Eg' -R in Geq Gt' Cont.
 
-(* These seem reasonable *)
+have H0: compute_chain (btExtend bt b) b \in good_chains (btExtend bt b).
+  rewrite/good_chains mem_filter Gb /=;
+  rewrite/all_chains; apply/mapP; exists b=>//;
+  apply/all_blocksP'; by [apply btExtendH| apply in_ext].
+move: (btChain_is_largest H0)=>H; clear H0.
+move: (CFR_trans_eq2 Gt' H)=>Gt; clear H.
 
-suff X': compute_chain (btExtend bt b) b = compute_chain (btExtend cbt b) b.
-suff X: btChain (btExtend bt b) = compute_chain (btExtend bt b) b.
-suff Y: (btChain (btExtend bt b) > [:: GenesisBlock]).
+have Eq: compute_chain (btExtend bt b) b = compute_chain (btExtend cbt b) b.
+rewrite Ec -(@foldl1 _ _ btExtend (foldl _ _ _)) btExtend_fold_comm /= //.
+apply/eqP; rewrite eq_sym; apply/eqP; apply btExtend_compute_chain_fold=>//.
 
-case: Geq=>[Eq|Gt].
-by left; rewrite -X' -X -Eq -Eg;
-  rewrite !foldl_foldr_better;
-  rewrite (@foldl_better_extract (foldl take_better_alt [:: GenesisBlock] (good_chains cbt)) cs1 cs2);
-  rewrite catA -Eg /= foldl_cat /=;
-  rewrite{2}/take_better_alt; case: ifP=>//=.
-by rewrite -X' -X; apply (lesser_elim Y Gt).
+rewrite Eq in Gt. move: Gt.
+rewrite foldl_foldr_better.
+rewrite (foldl_better_extract (compute_chain (btExtend cbt b) b) cs1 cs2).
+rewrite catA (@foldl_cat _ _ _ [:: GenesisBlock] (cs1 ++ cs2)) /=.
+rewrite{1}/take_better_alt; case: ifP=>//;
+last by move=>_ X; apply (CFR_nrefl X).
+rewrite -Eq in Gt' Cont *=>H; clear Eq; move=>_.
 
-by move: (CFR_trans_eq2 (btExtend_mint Vl Vhl Hil P Vf) (geq_genesis bt)).
+(* Cont and H are contradictory *)
+move: Cont.
+rewrite foldl_foldr_better.
+rewrite (foldl_better_extract (compute_chain (btExtend bt b) b) cs1 cs2).
+rewrite catA (@foldl_cat _ _ _ [:: GenesisBlock] (cs1 ++ cs2)) /=.
+rewrite -foldl_foldr_better in H *.
+rewrite{1}/take_better_alt; case: ifP.
+by move=>_ X; apply (CFR_nrefl X).
+by move=>_ H'; apply (CFR_nrefl (CFR_trans H H')).
 Qed.
 
 End BtChainProperties.

@@ -532,8 +532,8 @@ case: t P P'=>[tx|] P P'; last first.
     move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt. 
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
-    by move: (@btExtend_within can_bt _ new_block _ C1 C2
-               C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Gt P H Gt1).
+    by move: (@btExtend_within can_bt _ new_block _ (ts q) C1 C2
+               C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Gt P Y H Gt1).
    
     (* HCliq *)
     procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
