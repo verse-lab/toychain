@@ -1065,6 +1065,10 @@ Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
   foldl f init [:: val] = f init val.
 Proof. done. Qed.
 
+Lemma foldr1 {A B : Type} (f : A -> B -> B) (fin : B) (val : A) :
+  foldr f fin [:: val] = f val fin.
+Proof. done. Qed.
+
 Lemma good_chain_btExtend bt X b :
   valid bt -> validH bt -> has_init_block bt ->
   good_chain (compute_chain bt b) ->
@@ -1442,7 +1446,7 @@ Lemma good_chains_subset bt :
   { subset good_chains bt <= all_chains bt }.
 Proof. by move=>ch; rewrite mem_filter; move/andP=>[]. Qed.
 
-Lemma btExtnend_new_block cbt b :
+Lemma btExtend_new_block cbt b :
   valid cbt ->
   # b \notin dom cbt ->
   b \in all_blocks (btExtend cbt b).
@@ -1469,14 +1473,14 @@ Qed.
 Lemma btExtend_good_split cbt b :
   valid cbt -> validH cbt -> has_init_block cbt ->
   good_bt cbt -> #b \notin dom cbt -> good_bt (btExtend cbt b) ->
-  exists cs1 cs2, 
+  exists cs1 cs2,
     good_chains cbt = cs1 ++ cs2 /\
     good_chains (btExtend cbt b) = cs1 ++ [:: compute_chain (btExtend cbt b) b] ++ cs2.
 Proof.
 move=>V Vh Hib Hg N Hg'.
 have G: good_chain (compute_chain (btExtend cbt b) b).
-- by apply: (Hg' b); apply: btExtnend_new_block=>//.
-have Eb: btExtend cbt b = (#b \\-> b \+ cbt) by rewrite /btExtend (negbTE N).  
+- by apply: (Hg' b); apply: btExtend_new_block=>//.
+have Eb: btExtend cbt b = (#b \\-> b \+ cbt) by rewrite /btExtend (negbTE N).
 move: (V); rewrite (btExtendV _ b)=>V'; rewrite !Eb in V' *.
 move: (@keys_insert _ _ (#b) b cbt V')=>[ks1][ks2][Ek]Ek'.
 (* Massaging the left part *)
@@ -1487,11 +1491,11 @@ exists [seq c <- [seq get_chain i | i <- ks1] | good_chain c],
        [seq c <- [seq get_chain i | i <- ks2] | good_chain c]; split=>//.
 rewrite /all_chains/all_blocks Ek' /= -cat1s.
 have [N1 N2] : (#b \notin ks1) /\ (#b \notin ks2).
-- have U : uniq (ks1 ++ # b :: ks2) by rewrite -Ek'; apply:keys_uniq. 
+- have U : uniq (ks1 ++ # b :: ks2) by rewrite -Ek'; apply:keys_uniq.
   rewrite cat_uniq/= in U; case/andP: U=>_/andP[]H1 H2.
   case/andP:H2=>->_; split=>//; by case/norP: H1.
 have [D1 D2] : {subset ks1 <= dom cbt} /\ {subset ks2 <= dom cbt}.
-- by split=>k; rewrite -keys_dom Ek mem_cat=>->//; rewrite orbC.  
+- by split=>k; rewrite -keys_dom Ek mem_cat=>->//; rewrite orbC.
 rewrite !map_cat !filter_cat ; congr (_ ++ _); clear Ek Ek'.
 - rewrite -!Eb;elim: ks1 N1 D1=>//k ks Hi/= N1 D1.
   have Dk: k \in dom cbt by apply: (D1 k); rewrite inE eqxx.
@@ -1504,8 +1508,8 @@ rewrite !map_cat !filter_cat ; congr (_ ++ _); clear Ek Ek'.
   congr (_ :: _); apply: Hi; first by rewrite inE in N1; case/norP:N1.
   by move=>z=>D; apply: D1; rewrite inE D orbC.
 rewrite -[(compute_chain _ b) :: _]cat1s; congr (_ ++ _)=>/=; rewrite -!Eb.
-- suff D: (get_block (btExtend cbt b) (# b)) = b by rewrite D G. 
-  by rewrite /get_block/btExtend (negbTE N) findUnL ?V'// um_domPt inE eqxx um_findPt. 
+- suff D: (get_block (btExtend cbt b) (# b)) = b by rewrite D G.
+  by rewrite /get_block/btExtend (negbTE N) findUnL ?V'// um_domPt inE eqxx um_findPt.
 elim: ks2 N2 D2=>//k ks Hi/= N2 D2.
 have Dk: k \in dom cbt by apply: (D2 k); rewrite inE eqxx.
 have Nk: k != #b by apply/negbT/negP=>/eqP=>?; subst k; rewrite inE eqxx in N2.
@@ -1515,7 +1519,7 @@ have Gk: good_chain (compute_chain cbt bk).
 apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
 rewrite !(btExtend_compute_chain b V Vh Hib Gk) !Gk/=.
 congr (_ :: _); apply: Hi; first by rewrite inE in N2; case/norP:N2.
-by move=>z=>D; apply: D2; rewrite inE D orbC.  
+by move=>z=>D; apply: D2; rewrite inE D orbC.
 Qed.
 
 Definition take_better_alt bc2 bc1 := if (bc2 > bc1) then bc2 else bc1.
@@ -1535,13 +1539,13 @@ Lemma best_chain_in cs :
   foldr take_better_alt [:: GenesisBlock] cs = [:: GenesisBlock] \/
   foldr take_better_alt [:: GenesisBlock] cs \in cs.
 Proof.
-elim: cs=>[|c cs Hi]; [by left|]. 
+elim: cs=>[|c cs Hi]; [by left|].
 rewrite /take_better_alt/=; case:ifP; rewrite -/take_better_alt=>X.
 - by right; rewrite inE eqxx.
 case/CFR_dual: X=>X.
 - by rewrite !X in Hi *; right; rewrite inE eqxx.
 by case: Hi=>H; [left| right]=>//; rewrite inE orbC H.
-Qed.  
+Qed.
 
 Lemma foldr_better_mono bc cs : foldr take_better_alt bc cs >= bc.
 Proof.
@@ -1554,7 +1558,7 @@ Lemma best_element_in bc cs1 cs2 bc' :
   bc > [:: GenesisBlock] ->
   bc > foldr take_better_alt [:: GenesisBlock] (cs1 ++ cs2) ->
   bc \in cs1 ++ [:: bc'] ++ cs2 ->
-  bc = foldr take_better_alt [:: GenesisBlock] (cs1 ++ [:: bc'] ++ cs2).       
+  bc = foldr take_better_alt [:: GenesisBlock] (cs1 ++ [:: bc'] ++ cs2).
 Proof.
 move=>Gt H1 H2.
 have G: forall c, c \in cs1 ++ cs2 -> bc > c.
@@ -1564,7 +1568,7 @@ have G: forall c, c \in cs1 ++ cs2 -> bc > c.
   + rewrite inE; case/orP; first by move/eqP=>?; subst z.
     by move/Hi: (CFR_trans G2 G1)=>G3; move/G3.
   rewrite inE; case/orP; last by move/(Hi G2).
-  move/eqP=>?; subst z; case/CFR_dual: G1=>G1; first by rewrite !G1 in G2.  
+  move/eqP=>?; subst z; case/CFR_dual: G1=>G1; first by rewrite !G1 in G2.
   by apply: (CFR_trans G2 G1).
 have [G1 G2]: ((forall z, z \in cs1 -> bc > z) /\
                forall z, z \in cs2 -> bc > z).
@@ -1580,13 +1584,13 @@ have Z: bc = bc'.
   rewrite inE in H2; case/orP: H2.
   + move/eqP=>Z; subst c; move: (G1 bc).
     by rewrite inE eqxx/==>/(_ is_true_true)/CFR_nrefl.
-  rewrite mem_cat; case/orP=>// G.  
+  rewrite mem_cat; case/orP=>// G.
   by move: (G1 bc); rewrite inE orbC G/==>/(_ is_true_true)/CFR_nrefl.
-subst bc'; clear H1 H2.  
+subst bc'; clear H1 H2.
 (* Ok, here comes the final blow *)
 suff C: bc = foldr take_better_alt [:: GenesisBlock] ([:: bc] ++ cs2).
 - rewrite foldr_cat -C; clear C.
-  elim: cs1 G1=>//c cs Hi G1; rewrite /take_better_alt/=-/take_better_alt. 
+  elim: cs1 G1=>//c cs Hi G1; rewrite /take_better_alt/=-/take_better_alt.
   case: ifP=>G.
   - move: (CFR_trans_eq2 G (foldr_better_mono bc cs))=>G'.
     move: (G1 c). rewrite inE eqxx/==>/(_ is_true_true) G3.
@@ -1597,11 +1601,137 @@ suff C: bc = foldr take_better_alt [:: GenesisBlock] ([:: bc] ++ cs2).
 clear G1 cs1.
 simpl; rewrite {1}/take_better_alt.
 suff C: bc > foldr take_better_alt [:: GenesisBlock] cs2 by rewrite C.
-elim: cs2 G2=>//=c cs Hi G. 
+elim: cs2 G2=>//=c cs Hi G.
 rewrite {1}/take_better_alt; case: ifP=>C.
 - by move: (G c); rewrite inE eqxx/=; move/(_ is_true_true).
 apply: Hi=>z T; move: (G z); rewrite inE T orbC/=.
 by move/(_ is_true_true).
+Qed.
+
+Lemma better_comm bc x y :
+  take_better_alt (take_better_alt bc x) y =
+  take_better_alt (take_better_alt bc y) x.
+Proof.
+rewrite/take_better_alt.
+case X: (bc > x); case Y: (bc > y).
+  by rewrite X.
+case/CFR_dual: Y=>H.
+  by subst bc; rewrite X.
+  by move: (CFR_trans H X)=>->.
+case/CFR_dual: X=>H.
+  by subst bc; rewrite Y; case: ifP=>//=.
+  by move: (CFR_trans H Y)=>->; case: ifP=>//=;
+     move=>H'; move: (CFR_nrefl (CFR_trans H H')).
+case/CFR_dual: X; case/CFR_dual: Y.
+  by move=>->->; case: ifP=>//=.
+  by move=>H Eq; subst bc; rewrite H; case: ifP=>//=;
+     move=>H'; move: (CFR_nrefl (CFR_trans H H')).
+  by move=>-> H; rewrite H; case: ifP=>//=;
+     move=>H'; move: (CFR_nrefl (CFR_trans H H')).
+case: ifP; case: ifP=>//=.
+  by move=>H H'; move: (CFR_nrefl (CFR_trans H H')).
+case/CFR_dual=>X; case/CFR_dual=>Y//.
+  by move: (CFR_nrefl (CFR_trans X Y)).
+Qed.
+
+Lemma better_comm' x y :
+  take_better_alt x y = take_better_alt y x.
+Proof.
+rewrite/take_better_alt; case: ifP; case: ifP; do? by [].
+by move=>H1 H2; move: (CFR_nrefl (CFR_trans H1 H2)).
+move/CFR_dual=>H1/CFR_dual H2; case: H1; case: H2; do? by [].
+by move=>H1 H2; move: (CFR_nrefl (CFR_trans H1 H2)).
+Qed.
+
+Lemma foldl_better_comm bc cs1 cs2 :
+  foldl take_better_alt (foldl take_better_alt bc cs1)
+    cs2 =
+  foldl take_better_alt (foldl take_better_alt bc cs2)
+    cs1.
+Proof.
+elim/last_ind: cs1=>[|xs x Hi]/=; first done.
+rewrite -cats1 !foldl_cat -Hi; clear Hi.
+elim/last_ind: cs2=>[|ys y Hi]/=; first done.
+rewrite -cats1 !foldl_cat Hi /=; apply better_comm.
+Qed.
+
+Lemma foldl_better_comm_cat bc cs1 cs2 :
+  foldl take_better_alt bc (cs1 ++ cs2) =
+  foldl take_better_alt bc (cs2 ++ cs1).
+Proof. rewrite !foldl_cat; apply foldl_better_comm. Qed.
+
+Lemma foldl_foldr_better bc cs :
+  foldr take_better_alt bc cs =
+  foldl take_better_alt bc cs.
+Proof.
+elim: cs=>//[x xs Hi].
+rewrite -(@cat1s _ x xs) foldr_cat foldl_cat /=.
+rewrite better_comm' -(@foldl1 _ _ _ bc x).
+by rewrite -foldr1 foldl_better_comm /= Hi.
+Qed.
+
+Lemma foldl_better_reduce bc cs :
+  bc > [:: GenesisBlock] ->
+  foldl take_better_alt bc cs =
+  take_better_alt bc (foldl take_better_alt [:: GenesisBlock] cs).
+Proof.
+move=>Gt; elim/last_ind: cs=>/=[|cs c Hi].
+  by rewrite/take_better_alt Gt.
+rewrite -cats1 !foldl_cat /= Hi.
+rewrite{1 2 4}/take_better_alt.
+case X: (bc > foldl take_better_alt [:: GenesisBlock] cs).
+- case: ifP.
+  by move=>Y; rewrite{1}/take_better_alt; case: ifP=>//=;
+     case: ifP; do? by [rewrite X|rewrite Y].
+  case/CFR_dual=>Y.
+    by subst c; rewrite{1 3}/take_better_alt; case: ifP=>//=;
+       case: ifP=>//= Y; move: (CFR_nrefl (CFR_trans X Y)).
+    rewrite{1 3}/take_better_alt; case: ifP.
+      by case: ifP=>//= Z;
+         [move: (CFR_nrefl (CFR_trans X (CFR_trans Z Y))) |
+          move=>Y'; move: (CFR_nrefl (CFR_trans Y Y'))].
+      case: ifP=>//=.
+        by move=>Z; move: (CFR_nrefl (CFR_trans X (CFR_trans Z Y))).
+- case/CFR_dual: X=>H.
+  by rewrite H; case: ifP=>//= X;
+     rewrite/take_better_alt X /=; case: ifP=>//=; by rewrite X.
+  case: ifP.
+  * move=>X; case: ifP=>//=.
+      by rewrite{1}/take_better_alt X=>H'; move: (CFR_nrefl (CFR_trans H H')).
+  * rewrite{1}/take_better_alt X /=; case/CFR_dual=>Y.
+      by subst bc; move: (CFR_nrefl H).
+      by rewrite{2}/take_better_alt X /=.
+  case/CFR_dual=>X;
+  rewrite{1 3}/take_better_alt; case: ifP; case: ifP=>//=.
+    by rewrite X; move=>Y; move: (CFR_nrefl Y).
+    by rewrite X; move=>_ H'; move: (CFR_nrefl (CFR_trans H H')).
+    by move=>X'; move: (CFR_nrefl (CFR_trans X X')).
+    by move=>_ H'; move: (CFR_nrefl (CFR_trans H (CFR_trans H' X))).
+  by move=>X'; move: (CFR_nrefl (CFR_trans X X')).
+Qed.
+
+Lemma lesser_elim bc cs1 cs2 :
+  bc > [:: GenesisBlock] ->
+  foldr take_better_alt [:: GenesisBlock] (cs1 ++ cs2) > bc ->
+  foldr take_better_alt [:: GenesisBlock] (cs1 ++ cs2) >=
+  foldr take_better_alt [:: GenesisBlock] (cs1 ++ [:: bc] ++ cs2).
+Proof.
+rewrite !foldl_foldr_better=>H G.
+rewrite (@foldl_better_comm_cat [:: GenesisBlock] cs1 ([:: bc] ++ cs2)).
+rewrite (@foldl_cat _ _ _ [:: GenesisBlock] ([:: bc] ++ cs2)).
+rewrite /= better_comm'.
+have X: take_better_alt bc [:: GenesisBlock] = bc.
+  by rewrite/take_better_alt H.
+rewrite X.
+rewrite -(@foldl_cat _ _ take_better_alt bc).
+rewrite (@foldl_better_comm_cat bc cs2 cs1).
+set cs := (cs1 ++ cs2) in G *.
+rewrite (@foldl_better_reduce bc)=>//.
+rewrite{2}/take_better_alt; case: ifP.
+  by move=>G'; move: (CFR_nrefl (CFR_trans G G')).
+  case/CFR_dual=>[Eq|_].
+   by rewrite Eq in G; move: (CFR_nrefl G).
+   by left.
 Qed.
 
 Lemma complete_bt_extend_gt' cbt bt bs b :
@@ -1623,7 +1753,7 @@ set bc := btChain (btExtend bt b) in H1 Gt *.
 have Gt' : bc > [::GenesisBlock].
 - rewrite /good_chains mem_filter in H1.
   case/andP:H1; move/good_init/CFR_dual; case=>//H _.
-  subst bc. rewrite H in Gt. 
+  subst bc. rewrite H in Gt.
   move: (btChain_in_good_chains Hib); rewrite /good_chains mem_filter.
   by case/andP=>/good_init; rewrite Gt.
 clear Vl Vhl Hil Ec. (* Let's forget about bt. *)
@@ -1668,60 +1798,47 @@ by specialize (S (btChain bt) (btChain_in_good_chains Ib));
    apply btChain_is_largest.
 Qed.
 
-(* This is likely to be missing some important assumptions,
-   but the proof shouldn't be that different from complete_bt_extend_eq  *)
-Lemma btExtend_within cbt bt b bs:
+Lemma good_chain_rcons bc b :
+  good_chain bc -> good_chain (rcons bc b).
+Proof. by move=>Gc; elim: bc Gc=>//. Qed.
+
+Lemma btExtend_within cbt bt b bs ts:
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
   btChain cbt >= btChain (btExtend bt b) ->
-  (* A new block added, so the new gain will be also a good chain,
-     and the largest in btExtend bt b *)
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
+  VAF (proof b) ts (btChain bt) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
-move=>V Vh Hib Vl Vhl Hil Hg Hg' Gt P Ec Cont.
-(* We need to show that adding this block to cbt cannot provoke 
-   a blockchain larger than it already had and has. In other words,
-   either this block is already in the cbt, or now, but isn't
-   contributing, due to goodness of the final tree. *)
-
-
-(* Ok, somebody minted a block, which does not contribute to cbt' *)
-(* blockchain, only to the local one. *)
-
-(* I see the following strategy:
-
-Due to goodnes of cbt and it being a superset of bt, any good chain in
-bt has the same one in cbt. The only new chain obtained in cbt by
-adding b, due to goodness, is the one that ends with b.
-
-But, amongst other good chains that cbt got, there was already one
-that is larger than the one ending with b (or any super-chain of it in
-bt, as b could "plug a hole" in it), so this chain will be larger than
-the largest good chain in (btExtend bt b), and, hence, larger than the
-only one new added chain in (bcExtend cbt b).
-
-Use the chain-splitting lemma `btExtend_good_split` to inspect
-individual elements in cbt.
-
-*)
-
+move=>V Vh Hib Vl Vhl Hil Hg Hg' Geq P Vf Ec Cont.
 case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
+move: (btExtend_mint_good Vl Vhl Hil (btChain_good bt) P Vf)=>Gb.
+move: (CFR_trans_eq2 Cont Geq)=>Gt'.
+have F: (btExtend cbt b) = foldl btExtend (btExtend bt b) bs.
+  by rewrite Ec -foldl1 btExtend_fold_comm.
 
-have Gb: good_chain (compute_chain (btExtend bt b) b).
- (* Use `btExtend_mint_ext Vl Vhl Hil`.  *).
- (* follows from the fact that we attach to btChain *)
+have v1: (valid (btExtend cbt b)) by rewrite -btExtendV.
+have v2: (validH (btExtend cbt b)) by apply btExtendH.
+have v3: (has_init_block (btExtend cbt b)) by apply btExtendIB.
 
-(* Okay, this is no necessarily (btChain (btExtend cbt b)), but it is
-   the only chain added to cbt, and it is not larger than (btChain
-   (btExtend cbt b)), hence derive the contradiction. *)
+have v1': (valid (btExtend bt b)) by rewrite -btExtendV.
+have v2': (validH (btExtend bt b)) by apply btExtendH.
+have v3': (has_init_block (btExtend bt b)) by apply btExtendIB.
 
-
-Admitted.
-
+have E: (btChain (btExtend bt b) \in good_chains (btExtend cbt b)).
+  by move: (good_chains_in_superset v1 v2 v3 v1' v2' v3' F)=>S;
+     specialize (S (btChain (btExtend bt b)) (btChain_in_good_chains v3')).
+contradict Cont; apply/negP/negbT/CFR_dual.
+rewrite btChain_alt Eg' in Gt' E *; rewrite btChain_alt Eg in Geq *.
+case: Geq=>[Eq|Gt].
+- (* Eq is false due to mint_ext and Nb *) admit.
+- suff X: btChain (btExtend bt b) = compute_chain (btExtend cbt b) b.
+  have Y: (btChain (btExtend bt b) > [:: GenesisBlock]).
+    admit.
+  by rewrite -X; apply (lesser_elim Y Gt).
+Qed.
 
 End BtChainProperties.
-
