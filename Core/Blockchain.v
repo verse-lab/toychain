@@ -1394,41 +1394,24 @@ Lemma tx_valid_last_ind c b prefix:
   tx_valid_chain' (b :: c) prefix.
 Proof. by move=>/=->->. Qed.
 
-(* Fixpoint tx_valid_chain' (bc prefix : seq Block) := *)
-(*   if bc is b :: bc' *)
-(*   then [&& all [pred t | txValid t prefix] (txs b) & *)
-(*         tx_valid_chain' bc' (rcons prefix b)] *)
-(*   else true. *)
+Lemma tx_valid_last' c b p :
+  all [pred t | txValid t c] (txs b) ->
+  tx_valid_chain' c p -> tx_valid_chain' (rcons c b) p.
+Proof.
 
 Lemma tx_valid_last c b :
   tx_valid_block c b -> tx_valid_chain c -> tx_valid_chain (rcons c b).
 Proof.
-(* move=>H1. *)
-(* have P : all [pred t | txValid t c] (txs b) by []. *)
-(* clear H1; rewrite /tx_valid_chain. *)
-(* elim: c [::] b P=>//=; last first. *)
-
-(* have X: forall z, all [pred t | txValid t [::]] (txs z). *)
-(* - move=>z; apply/allP=>t/= _; apply txValid_nil. *)
-(* move: [::] X=>acc X. *)
-(* elim: c acc b X P=>//[|x xs Hi]/=prefix b X P H; rewrite ?X//=. *)
-(* apply: (Hi (rcons prefix x) b)=>//. *)
-(* apply: (Hi (rcons prefix x) b)=>//. *)
-(* Focus 2.  *)
-
-(* - rewrite X. *)
-
-  
-(* elim: c P=>//=. *)
-
-
-(* move: [::] b P=>acc. *)
-(* elim: c acc=>//[pr b|x xs Hi pr b P H1 H2]//=; first by move=>->. *)
-
-
-(* - rewrite andbC/==>_ _; apply/allP=>t/=_. apply: txalid *)
-(* (* move=>H1 H2. *) *)
-Admitted.
+move=>H1.
+have P : all [pred t | txValid t c] (txs b) by [].
+have Z: c = [::] ++ c by rewrite ?cats0 ?cat0s.
+rewrite Z in P; rewrite /tx_valid_chain; clear Z.
+move: [::] P => p.
+elim: {-1}c p H1.
+- by move=>p _ /= A _; rewrite cats0 in A; rewrite A.
+move=>x xs Hi p T A/=/andP[Z1 Z2]; rewrite Z1//=.
+by apply: (Hi (rcons p x) T _ Z2); rewrite cat_rcons.
+Qed.
 
 Lemma btExtend_mint_good_valid bt b ts :
   let bc := btChain bt in
