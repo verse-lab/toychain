@@ -1390,9 +1390,9 @@ Definition tx_valid_block bc b := all [pred t | txValid t bc] (txs b).
 Lemma tx_valid_last c b :
   tx_valid_block c b -> tx_valid_chain c -> tx_valid_chain (rcons c b).
 Proof.
-(* rewrite /tx_valid_chain. *)
-(* elim/last_ind: c=>//[|xs x Hi]/=. *)
-(* rewrite andbC/==>_ _. apply/allP=>t/=_. admit. (* Axiom *) *)
+rewrite /tx_valid_chain.
+elim/last_ind: c=>//[|xs x Hi]/=.
+- rewrite andbC/==>_ _; apply/allP=>t/=_. admit. (* Axiom *)
 (* move=>H1 H2. *)
 Admitted.
 
@@ -1401,14 +1401,13 @@ Lemma btExtend_mint_good_valid bt b ts :
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
   tx_valid_block bc b ->
-  tx_valid_chain bc ->
   good_chain bc ->
   prevBlockHash b = #pb ->
   VAF (proof b) ts bc ->
   good_chain (compute_chain (btExtend bt b) b) /\
   tx_valid_chain (compute_chain (btExtend bt b) b).
 Proof.
-move=>bc pb V Vh Ib Tb Tc Gc Hp Hv.
+move=>bc pb V Vh Ib Tb Gc Hp Hv.
 (have: bc \in all_chains bt by move: (btChain_in_bt Ib))=>InC.
 (have: bc = compute_chain bt pb by move: (chain_from_last V Vh Ib InC))=>C.
 move: (btExtend_mint_ext V Vh Ib C Gc Hp Hv)=>->; subst bc.
@@ -1418,6 +1417,7 @@ have: (good_chain (btChain bt) = true)by [].
 rewrite/good_chain/=; case X': (btChain _)=>[|h t]; first done.
 move/eqP=>Eq; subst h; rewrite X' rcons_cons in X; case: X=> ??.
 subst x xs; split=>//.
+move: (btChain_tx_valid bt)=>Tc.
 rewrite !X' in Tb Tc; rewrite -rcons_cons.
 by apply: tx_valid_last.
 Qed.
@@ -1880,7 +1880,7 @@ move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec Cont.
 case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
 Check btExtend_mint_good_valid Vl Vhl Hil.
-move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_tx_valid bt) (btChain_good bt) P Vf)=>[Gb Tb].
+move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_good bt) P Vf)=>[Gb Tb].
 move: (CFR_trans_eq2 Cont Geq)=>Gt'.
 
 have v1': (valid (btExtend bt b)) by rewrite -btExtendV.
