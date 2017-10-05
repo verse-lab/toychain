@@ -41,7 +41,7 @@ Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
 Parameter genProof : Address -> Blockchain -> option VProof.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
-Parameter CFR_gt : Blockchain -> Blockchain -> bool.
+Parameter FCR : Blockchain -> Blockchain -> bool.
 
 (************         Transaction pools        **************)
 Definition TxPool := seq Transaction.
@@ -62,7 +62,7 @@ Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* We might want to introduce a notion of time *)
 
-Notation "A > B" := (CFR_gt A B).
+Notation "A > B" := (FCR A B).
 Notation "A >= B" := (A = B \/ A > B).
 
 Definition subchain (bc1 bc2 : Blockchain) :=
