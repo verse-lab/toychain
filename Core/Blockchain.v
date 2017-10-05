@@ -427,12 +427,22 @@ Qed.
 Definition good_chain (bc : Blockchain) :=
   if bc is h :: _ then h == GenesisBlock else false.
 
+(* Transaction validity *)
+Fixpoint tx_valid_chain' (bc prefix : seq Block) :=
+  if bc is b :: bc'
+  then [&& all [pred t | txValid t prefix] (txs b) &
+        tx_valid_chain' bc' (rcons prefix b)]
+  else true.
+           
+Definition tx_valid_chain bc := tx_valid_chain' bc [::].
+
 Definition all_chains bt := [seq compute_chain bt b | b <- all_blocks bt].
 
-Definition good_chains bt := [seq ch <- all_chains bt | good_chain ch].
+Definition good_chains bt := [seq c <- all_chains bt | good_chain c && tx_valid_chain c].
 
 (* Get the blockchain *)
-Definition take_better_bc bc2 bc1 := if (good_chain bc2) && (bc2 > bc1) then bc2 else bc1.
+Definition take_better_bc bc2 bc1 :=
+  if (good_chain bc2 && tx_valid_chain bc2) && (bc2 > bc1) then bc2 else bc1.
 
 Definition btChain bt : Blockchain :=
   foldr take_better_bc [:: GenesisBlock] (all_chains bt).
