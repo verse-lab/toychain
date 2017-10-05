@@ -40,7 +40,6 @@ Definition BlockTree := union_map Hash Block.
 
 Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
-Parameter stake : Address -> Blockchain -> Stake.
 Parameter genProof : Address -> Blockchain -> option VProof.
 Parameter blockValid : Block -> Blockchain -> bool.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
