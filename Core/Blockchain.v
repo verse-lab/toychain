@@ -41,7 +41,7 @@ Definition BlockTree := union_map Hash Block.
 Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
 Parameter stake : Address -> Blockchain -> Stake.
-Parameter genProof : Stake -> option VProof.
+Parameter genProof : Address -> Blockchain -> option VProof.
 Parameter blockValid : Block -> Blockchain -> bool.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
@@ -1396,11 +1396,6 @@ Lemma tx_valid_last_ind c b prefix:
   tx_valid_chain' c (rcons prefix b) ->
   tx_valid_chain' (b :: c) prefix.
 Proof. by move=>/=->->. Qed.
-
-Lemma tx_valid_last' c b p :
-  all [pred t | txValid t c] (txs b) ->
-  tx_valid_chain' c p -> tx_valid_chain' (rcons c b) p.
-Proof.
 
 Lemma tx_valid_last c b :
   tx_valid_block c b -> tx_valid_chain c -> tx_valid_chain (rcons c b).
