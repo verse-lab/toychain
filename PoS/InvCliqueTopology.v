@@ -422,7 +422,7 @@ case: t P P'=>[tx|] P P'; last first.
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
       (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
       move: (@btExtend_mint_good_valid _ new_block (ts q) (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z (btChain_tx_valid blockTree) (btChain_good blockTree) Hp Y)=>Gc.
+              (c5 _ _ F) Z  (btChain_good blockTree) Hp Y)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
       move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
@@ -502,7 +502,7 @@ case: t P P'=>[tx|] P P'; last first.
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
       (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
       move: (@btExtend_mint_good_valid _ new_block (ts q) (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z (btChain_tx_valid blockTree) (btChain_good blockTree) Hp Y)=>Gc.
+              (c5 _ _ F) Z (btChain_good blockTree) Hp Y)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
       move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
