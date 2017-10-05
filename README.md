@@ -7,7 +7,7 @@ An Coq implementation of a minimalistic blockchain-based consensus protocol.
 ### Requirements
 
 * Coq 8.6 (available from https://coq.inria.fr/download), also works
-  with 8.5pl2
+  with Coq 8.5pl2
 * Mathematical Components 1.6.1 (http://math-comp.github.io/math-comp/)
 
 ### Building
