@@ -20,6 +20,7 @@ Definition Hash := [ordType of nat].
 (******************* <parameters> ***************************)
 (************************************************************)
 
+Parameter Stake : eqType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter hashT : Transaction -> Hash.
@@ -39,9 +40,11 @@ Definition BlockTree := union_map Hash Block.
 
 Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
-Parameter genProof : Address -> Blockchain -> option VProof.
+Parameter stake : Address -> Blockchain -> Stake.
+Parameter genProof : Stake -> option VProof.
+Parameter blockValid : Block -> Blockchain -> bool.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
-Parameter FCR : Blockchain -> Blockchain -> bool.
+Parameter CFR_gt : Blockchain -> Blockchain -> bool.
 
 (************         Transaction pools        **************)
 Definition TxPool := seq Transaction.
@@ -62,7 +65,7 @@ Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* We might want to introduce a notion of time *)
 
-Notation "A > B" := (FCR A B).
+Notation "A > B" := (CFR_gt A B).
 Notation "A >= B" := (A = B \/ A > B).
 
 Definition subchain (bc1 bc2 : Blockchain) :=
@@ -427,22 +430,12 @@ Qed.
 Definition good_chain (bc : Blockchain) :=
   if bc is h :: _ then h == GenesisBlock else false.
 
-(* Transaction validity *)
-Fixpoint tx_valid_chain' (bc prefix : seq Block) :=
-  if bc is b :: bc'
-  then [&& all [pred t | txValid t prefix] (txs b) &
-        tx_valid_chain' bc' (rcons prefix b)]
-  else true.
-           
-Definition tx_valid_chain bc := tx_valid_chain' bc [::].
-
 Definition all_chains bt := [seq compute_chain bt b | b <- all_blocks bt].
 
-Definition good_chains bt := [seq c <- all_chains bt | good_chain c && tx_valid_chain c].
+Definition good_chains bt := [seq ch <- all_chains bt | good_chain ch].
 
 (* Get the blockchain *)
-Definition take_better_bc bc2 bc1 :=
-  if (good_chain bc2 && tx_valid_chain bc2) && (bc2 > bc1) then bc2 else bc1.
+Definition take_better_bc bc2 bc1 := if (good_chain bc2) && (bc2 > bc1) then bc2 else bc1.
 
 Definition btChain bt : Blockchain :=
   foldr take_better_bc [:: GenesisBlock] (all_chains bt).
