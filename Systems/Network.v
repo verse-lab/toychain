@@ -4,7 +4,7 @@ From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
 Require Import Relations.
-Require Import Protocol Blockchain States.
+Require Import Protocol Chains Forests States.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

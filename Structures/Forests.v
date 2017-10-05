@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
-Require Import SeqFacts BlockchainProperties.
+Require Import SeqFacts Chains.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -41,32 +41,32 @@ Definition BlockTree := union_map Hash Block.
 Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
 Parameter genProof : Address -> Blockchain -> option VProof.
-Parameter blockValid : Block -> Blockchain -> bool.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
-Parameter CFR_gt : Blockchain -> Blockchain -> bool.
+Parameter FCR : Blockchain -> Blockchain -> bool.
 
 (************         Transaction pools        **************)
 Definition TxPool := seq Transaction.
 
 (* Transaction is valid and consistent with the given chain *)
 Parameter txValid : Transaction -> Blockchain -> bool.
-Hypothesis txValid_nil : forall t, txValid t [::]. 
 Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 
 (************************************************************)
 (********************* </parameters> ************************)
 (************************************************************)
 
+(* We might want to introduce a notion of time *)
+
+Notation "A > B" := (FCR A B).
+Notation "A >= B" := (A = B \/ A > B).
+Notation "# b" := (hashB b) (at level 20).
+Notation "## b" := (hashB b \\-> tt) (at level 80).
+
 Definition eq_tx t t' := hashT t == hashT t'.
 
 Definition eq_block b b' := hashB b == hashB b'.
 
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
-
-(* We might want to introduce a notion of time *)
-
-Notation "A > B" := (CFR_gt A B).
-Notation "A >= B" := (A = B \/ A > B).
 
 Definition subchain (bc1 bc2 : Blockchain) :=
   exists p q, bc2 = p ++ bc1 ++ q.
@@ -75,12 +75,18 @@ Definition subchain (bc1 bc2 : Blockchain) :=
 (*********************** <axioms> ***************************)
 (************************************************************)
 
-Axiom hashB_inj : injective hashB.
+(* 1.  Genesis block properties *)
+Hypothesis init_hash : prevBlockHash GenesisBlock = #GenesisBlock.
 
-Axiom hashT_inj : injective hashT.
+Hypothesis init_tx : txs GenesisBlock = [::].
 
-Notation "# b" := (hashB b) (at level 20).
-Notation "## b" := (hashB b \\-> tt) (at level 80).
+(* 2.  Transaction validation *)
+Hypothesis txValid_nil : forall t, txValid t [::]. 
+
+(* 3.  Hashes *)
+Hypothesis hashB_inj : injective hashB.
+
+Hypothesis hashT_inj : injective hashT.
 
 Module BlockEq.
 Lemma eq_blockP : Equality.axiom eq_block.
@@ -108,70 +114,68 @@ Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
 End TxEq.
 Export TxEq.
 
-Axiom hashBT_noCollisions :
-  forall (b : Block) (t : Transaction), hashB b != hashT t.
 
-Axiom VAF_Merkle :
+(* 4.  VAF *)
+
+(* This axiom seems reasonable: it shouldn't be possible
+   to generate a block _from_ the chain it is supposed to tail.
+   The name reflects the nature of this check in real life using
+   Merkle tree construction. *)
+
+Hypothesis VAF_Merkle :
   forall (b : Block) ts (bc : Blockchain), VAF (proof b) ts bc -> b \notin bc.
 
-Axiom CFR_subchain :
+(* 2. FCR *)
+
+Hypothesis FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
-Axiom CFR_ext :
+Hypothesis FCR_ext :
   forall (bc : Blockchain) (b : Block) (ext : seq Block),
     bc ++ (b :: ext) > bc.
 
-Axiom CFR_rel :
+Hypothesis FCR_rel :
   forall (A B : Blockchain),
     A = B \/ A > B \/ B > A.
 
-Axiom CFR_nrefl :
+Hypothesis FCR_nrefl :
   forall (bc : Blockchain), bc > bc -> False.
 
-Axiom CFR_trans :
-  forall (A B C : Blockchain),
-    A > B -> B > C -> A > C.
-
-(* Genesis block's predecessor is itself *)
-Hypothesis init_hash :
-  prevBlockHash GenesisBlock = #GenesisBlock.
-
-Hypothesis init_tx : txs GenesisBlock = [::].
+Hypothesis FCR_trans :
+  forall (A B C : Blockchain), A > B -> B > C -> A > C.
 
 (************************************************************)
 (*********************** </axioms> **************************)
 (************************************************************)
 
-
-
-Lemma CFR_trans_eq (A B C : Blockchain):
+Lemma FCR_trans_eq (A B C : Blockchain):
     A >= B -> B >= C -> A >= C.
 Proof.
 case=>H1[]H2.
 - by subst C B; left.
 - by subst B; right.
 - by subst C; right.
-by right; apply: (CFR_trans H1).
+by right; apply: (FCR_trans H1).
 Qed.
 
-Lemma CFR_trans_eq1 (A B C : Blockchain):
+Lemma FCR_trans_eq1 (A B C : Blockchain):
     A >= B -> B > C -> A > C.
-Proof. by move=>[]H1 H2; [by subst B|]; apply: (CFR_trans H1). Qed.
+Proof. by move=>[]H1 H2; [by subst B|]; apply: (FCR_trans H1). Qed.
 
-Lemma CFR_trans_eq2 (A B C : Blockchain):
+Lemma FCR_trans_eq2 (A B C : Blockchain):
     A > B -> B >= C -> A > C.
-Proof. by move=>H1[]H2; [by subst B|]; apply: (CFR_trans H1). Qed.
+Proof. by move=>H1[]H2; [by subst B|]; apply: (FCR_trans H1). Qed.
 
-Lemma CFR_dual :
+Lemma FCR_dual :
   forall (A B : Blockchain),
     (A > B = false) <-> (B >= A).
 Proof.
 split=>H.
-* move: (CFR_rel A B); rewrite H; case; case; do? by [|right];
+* move: (FCR_rel A B); rewrite H; case; case; do? by [|right];
   by move=>/eqP H'; left; apply/eqP; rewrite eq_sym.
 * case: H.
-  by move=>->; case X: (A > A); by [|move: (CFR_nrefl X)].
-  by move=>H; case X: (A > B); by [|move: (CFR_nrefl (CFR_trans H X))].
+  by move=>->; case X: (A > A); by [|move: (FCR_nrefl X)].
+  by move=>H; case X: (A > B); by [|move: (FCR_nrefl (FCR_trans H X))].
 Qed.
 
 Lemma Geq_trans :
@@ -182,14 +186,14 @@ move=> A B C H1 H2; case: H1; case: H2.
 by move=><- <-; left.
 by move=>H ->; right.
 by move=><-; right.
-by move=>H1 H2; move: (CFR_trans H2 H1); right.
+by move=>H1 H2; move: (FCR_trans H2 H1); right.
 Qed.
 
-Lemma CFR_excl :
+Lemma FCR_excl :
   forall (bc bc' : Blockchain),
     bc > bc' -> bc' > bc -> False.
 Proof.
-by move=>bc bc' H1 H2; move: (CFR_trans H1 H2); apply CFR_nrefl.
+by move=>bc bc' H1 H2; move: (FCR_trans H1 H2); apply FCR_nrefl.
 Qed.
 
 
@@ -705,7 +709,7 @@ Lemma btExtend_chain_grows bt a b :
   valid bt -> validH bt ->
   compute_chain (btExtend bt a) b >= compute_chain bt b.
 Proof.
-move=>V H; apply: CFR_subchain.
+move=>V H; apply: FCR_subchain.
 by case: (btExtend_chain_prefix a b V H)=>p<-; exists p, [::]; rewrite cats0.
 Qed.
 
@@ -787,7 +791,7 @@ Lemma good_init bc :
   good_chain bc -> [:: GenesisBlock] > bc = false.
 Proof.
 rewrite /good_chain. case: bc=>//h t/eqP->.
-by apply/CFR_dual; apply: CFR_subchain; exists [::], t.
+by apply/FCR_dual; apply: FCR_subchain; exists [::], t.
 Qed.
 
 (* This is going to be used for proving X1 in btExtend_sameOrBetter *)
@@ -812,7 +816,7 @@ case E: (#b == h).
     by move/(_ is_true_true); case : dom_find=>//.
   rewrite !X init_chain//; clear X; rewrite /take_better_bc/=.
   case: ifP=>[/andP[X1 X2]|X]/=; rewrite (good_init Gb) andbC//=.
-  + by right; apply: (CFR_trans_eq2 X2).
+  + by right; apply: (FCR_trans_eq2 X2).
 (* Now check if h \in dom bt *)
 case D: (h \in dom bt); last first.
 - rewrite /get_block (findUnL _ V) um_domPt inE E.
@@ -828,13 +832,13 @@ have P : exists p, p ++ (compute_chain bt c) = compute_chain (# b \\-> b \+ bt) 
 case:P=>p E; rewrite /take_better_bc.
 case G1: (good_chain (compute_chain bt c))=>/=; last first.
 - case G2: (good_chain (compute_chain (# b \\-> b \+ bt) c))=>//=.
-  by case: ifP=>///andP[_ X]; right; apply: (CFR_trans_eq2 X).
+  by case: ifP=>///andP[_ X]; right; apply: (FCR_trans_eq2 X).
 (* Now need a fact about goodness monotonicity *)
 move: (btExtend_compute_chain b (validR V) Vh H G1).
 rewrite /btExtend (negbTE B)=>->; rewrite G1/=.
 case:ifP=>[/andP[X1' X1]|X1]; case: ifP=>[/andP[X2' X2]|X2]=>//; do?[by left].
-- by right; apply: (CFR_trans_eq2 X1 Gt).
-by rewrite X2'/= in X1; move/CFR_dual: X1. 
+- by right; apply: (FCR_trans_eq2 X1 Gt).
+by rewrite X2'/= in X1; move/FCR_dual: X1. 
 Qed.
 
 Lemma tx_valid_init : tx_valid_chain [:: GenesisBlock].
@@ -902,7 +906,7 @@ do? [apply good_chain_foldr_init=>//]; [by apply/negbT| |]; last first.
 - apply: good_chain_foldr; rewrite ?good_foldr_init ?tx_valid_foldr_init//.
 simpl; rewrite {1 3}/f'/bc_fun/=/take_better_bc/=.
 case:ifP=>///andP[B1 B2]. right.
-apply: (CFR_trans_eq2 B2).
+apply: (FCR_trans_eq2 B2).
 by apply: better_chains_foldr=>//=; [by apply/negbT|by left | |]; do?[rewrite ?tx_valid_init ?eqxx//].
 Qed.
 
@@ -943,7 +947,7 @@ case: Hi; case: H.
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
 by move=>->; right.
-by move=>H1 H2; move: (CFR_trans H1 H2); right.
+by move=>H1 H2; move: (FCR_trans H1 H2); right.
 Qed.
 
 (* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
@@ -964,7 +968,7 @@ by move=>H1 H2; rewrite H2 in H1; right.
 apply btExtendH_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold].
 apply btExtendIB_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold].
 by move=>->; right.
-by move=>H1 H2; move: (CFR_trans H1 H2); right.
+by move=>H1 H2; move: (FCR_trans H1 H2); right.
 Qed.
 
 Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
@@ -973,9 +977,9 @@ Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
 Proof.
 move=>V Vh Ib;
 move: (btExtend_sameOrBetter b V Vh Ib); case.
-by move=>->; apply: (CFR_nrefl).
+by move=>->; apply: (FCR_nrefl).
 move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
-by move: (CFR_nrefl (CFR_trans H X)).
+by move: (FCR_nrefl (FCR_trans H X)).
 Qed.
 
 Lemma btExtend_fold_not_worse (bt : BlockTree) (bs : seq Block) :
@@ -983,8 +987,8 @@ Lemma btExtend_fold_not_worse (bt : BlockTree) (bs : seq Block) :
     ~ (btChain bt > btChain (foldl btExtend bt bs)).
 Proof.
 move=>V Vh Ib; move: (btExtend_fold_sameOrBetter bs V Vh Ib); case.
-by move=><-; apply: CFR_nrefl.
-by apply: CFR_excl.
+by move=><-; apply: FCR_nrefl.
+by apply: FCR_excl.
 Qed.
 
 Lemma btExtend_seq_same bt b bs:
@@ -1035,15 +1039,15 @@ rewrite -cat1s foldl_cat btExtend_fold_comm in HGt' *.
 rewrite foldl_cat /= -foldl_cat in HGt' *.
 move=>H'; case: HGt; case: HGt'; case: H; case: H'; move=>h0 h1 h2 h3.
 - by left; rewrite h1 h3.
-- rewrite h3 in h2; rewrite h2 in h0; contradict h0; apply: CFR_nrefl.
+- rewrite h3 in h2; rewrite h2 in h0; contradict h0; apply: FCR_nrefl.
 - by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
-- by rewrite -h2 h3 in h0; contradict h0; apply: CFR_nrefl.
+- by rewrite -h2 h3 in h0; contradict h0; apply: FCR_nrefl.
 - by left; apply/eqP; rewrite eq_sym; rewrite -h3 in h1; apply/eqP.
 - by rewrite -h3 in h1; rewrite -h1 in h2;
   contradict h2; apply btExtend_fold_not_worse.
-- by rewrite -h3 in h0; rewrite h0 in h2; contradict h2; apply: CFR_nrefl.
-- by rewrite h3 in h2; move: (CFR_trans h0 h2)=>C;
-  contradict C; apply: CFR_nrefl.
+- by rewrite -h3 in h0; rewrite h0 in h2; contradict h2; apply: FCR_nrefl.
+- by rewrite h3 in h2; move: (FCR_trans h0 h2)=>C;
+  contradict C; apply: FCR_nrefl.
 - by right; rewrite h1.
 - by right; rewrite h1.
 - by rewrite -h0 in h1; contradict h1; apply btExtend_fold_not_worse.
@@ -1056,7 +1060,7 @@ have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
         >= btChain (btExtend bt b)) by apply: btExtend_fold_sameOrBetter.
 case=>[|H].
 by move=><-; right.
-by right; move: (CFR_trans h2 H).
+by right; move: (FCR_trans h2 H).
 done.
 Qed.
 
@@ -1075,7 +1079,7 @@ Qed.
 
 Lemma bc_spre_gt bc bc' :
   [bc <<< bc'] -> bc' > bc.
-Proof. by case=>h; case=>t=>eq; rewrite eq; apply CFR_ext. Qed.
+Proof. by case=>h; case=>t=>eq; rewrite eq; apply FCR_ext. Qed.
 
 Lemma ohead_hash b0 (bt : seq Block) :
   b0 \in bt ->
@@ -1146,9 +1150,9 @@ rewrite /btChain/good_chains; elim: (all_chains bt) c=>//=bc bcs Hi c.
 case: ifP=>X/=; last by rewrite {1 3}/take_better_bc X=>/Hi.
 rewrite inE; case/orP; last first.
 - rewrite {1 3}/take_better_bc X=>/Hi=>{Hi}Hi.
-  by case: ifP=>//=Y; right; apply:(CFR_trans_eq2 Y Hi).
+  by case: ifP=>//=Y; right; apply:(FCR_trans_eq2 Y Hi).
 move/eqP=>?; subst c; rewrite {1 3}/take_better_bc X/=.
-by case: ifP=>//=Y; [by left|by move/CFR_dual: Y].
+by case: ifP=>//=Y; [by left|by move/FCR_dual: Y].
 Qed.
 
 Lemma btChain_good bt : good_chain (btChain bt).
@@ -1336,13 +1340,6 @@ rewrite (compute_chain_equiv (free (#b) bt) pb
 by rewrite Es; apply: keys_rem2.
 Qed.
 
-(* This axiom seems reasonable: it shouldn't be possible
-   to generate a block _from_ the chain it is supposed to tail.
-   The name reflects the nature of this check in real life using
-   Merkle tree construction.
-
-   TODO: Explain it's rationale in the wirting
- *)
 Lemma btExtend_mint_ext bt bc b ts :
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
@@ -1462,8 +1459,8 @@ have HIn : rcons (btChain bt) b \in
   rewrite /get_block; case:ifP V'=>X V'; last by rewrite um_findPtUn.
   case: dom_find X=>//b' F _ _; move/Vh/hashB_inj :(F)=> ?.
   by subst b'; rewrite F.
-move/btChain_is_largest: HIn=>H; apply: (CFR_trans_eq1 H).
-by rewrite -cats1; apply: CFR_ext.
+move/btChain_is_largest: HIn=>H; apply: (FCR_trans_eq1 H).
+by rewrite -cats1; apply: FCR_ext.
 Qed.
 
 (***********************************************************)
@@ -1603,7 +1600,7 @@ Proof.
 elim: cs=>[|c cs Hi]; [by left|].
 rewrite /take_better_alt/=; case:ifP; rewrite -/take_better_alt=>X.
 - by right; rewrite inE eqxx.
-case/CFR_dual: X=>X.
+case/FCR_dual: X=>X.
 - by rewrite !X in Hi *; right; rewrite inE eqxx.
 by case: Hi=>H; [left| right]=>//; rewrite inE orbC H.
 Qed.
@@ -1612,7 +1609,7 @@ Lemma foldr_better_mono bc cs : foldr take_better_alt bc cs >= bc.
 Proof.
 elim: cs=>//=[|c cs Hi/=]; first by left.
 rewrite {1 3}/take_better_alt; case: ifP=>G//.
-by right; apply:(CFR_trans_eq2 G Hi).
+by right; apply:(FCR_trans_eq2 G Hi).
 Qed.
 
 Lemma best_element_in bc cs1 cs2 bc' :
@@ -1627,10 +1624,10 @@ have G: forall c, c \in cs1 ++ cs2 -> bc > c.
   rewrite {1}/take_better_alt in H; move: H.
   case:ifP=>//G1 G2.
   + rewrite inE; case/orP; first by move/eqP=>?; subst z.
-    by move/Hi: (CFR_trans G2 G1)=>G3; move/G3.
+    by move/Hi: (FCR_trans G2 G1)=>G3; move/G3.
   rewrite inE; case/orP; last by move/(Hi G2).
-  move/eqP=>?; subst z; case/CFR_dual: G1=>G1; first by rewrite !G1 in G2.
-  by apply: (CFR_trans G2 G1).
+  move/eqP=>?; subst z; case/FCR_dual: G1=>G1; first by rewrite !G1 in G2.
+  by apply: (FCR_trans G2 G1).
 have [G1 G2]: ((forall z, z \in cs1 -> bc > z) /\
                forall z, z \in cs2 -> bc > z).
 - split=>z H; move: (G z); rewrite mem_cat H/=; first by move/(_ is_true_true).
@@ -1640,23 +1637,23 @@ have Z: bc = bc'.
 - suff C: bc \in [:: bc'] ++ cs2.
   + elim: (cs2) C G2=>//=[|c cs Hi C G2]; first by rewrite inE=>/eqP.
     rewrite inE in C; case/orP:C; first by move/eqP.
-    by move/G2; move/CFR_nrefl.
+    by move/G2; move/FCR_nrefl.
   elim: (cs1) G1 H2=>//=c cs Hi G1 H2.
   rewrite inE in H2; case/orP: H2.
   + move/eqP=>Z; subst c; move: (G1 bc).
-    by rewrite inE eqxx/==>/(_ is_true_true)/CFR_nrefl.
+    by rewrite inE eqxx/==>/(_ is_true_true)/FCR_nrefl.
   rewrite mem_cat; case/orP=>// G.
-  by move: (G1 bc); rewrite inE orbC G/==>/(_ is_true_true)/CFR_nrefl.
+  by move: (G1 bc); rewrite inE orbC G/==>/(_ is_true_true)/FCR_nrefl.
 subst bc'; clear H1 H2.
 (* Ok, here comes the final blow *)
 suff C: bc = foldr take_better_alt [:: GenesisBlock] ([:: bc] ++ cs2).
 - rewrite foldr_cat -C; clear C.
   elim: cs1 G1=>//c cs Hi G1; rewrite /take_better_alt/=-/take_better_alt.
   case: ifP=>G.
-  - move: (CFR_trans_eq2 G (foldr_better_mono bc cs))=>G'.
+  - move: (FCR_trans_eq2 G (foldr_better_mono bc cs))=>G'.
     move: (G1 c). rewrite inE eqxx/==>/(_ is_true_true) G3.
-    by move: (CFR_nrefl (CFR_trans G' G3)).
-  by case/CFR_dual: G=>G;
+    by move: (FCR_nrefl (FCR_trans G' G3)).
+  by case/FCR_dual: G=>G;
      apply: Hi=>z T; move: (G1 z); rewrite inE T orbC/=;
      by move/(_ is_true_true).
 clear G1 cs1.
@@ -1676,32 +1673,32 @@ Proof.
 rewrite/take_better_alt.
 case X: (bc > x); case Y: (bc > y).
   by rewrite X.
-case/CFR_dual: Y=>H.
+case/FCR_dual: Y=>H.
   by subst bc; rewrite X.
-  by move: (CFR_trans H X)=>->.
-case/CFR_dual: X=>H.
+  by move: (FCR_trans H X)=>->.
+case/FCR_dual: X=>H.
   by subst bc; rewrite Y; case: ifP=>//=.
-  by move: (CFR_trans H Y)=>->; case: ifP=>//=;
-     move=>H'; move: (CFR_nrefl (CFR_trans H H')).
-case/CFR_dual: X; case/CFR_dual: Y.
+  by move: (FCR_trans H Y)=>->; case: ifP=>//=;
+     move=>H'; move: (FCR_nrefl (FCR_trans H H')).
+case/FCR_dual: X; case/FCR_dual: Y.
   by move=>->->; case: ifP=>//=.
   by move=>H Eq; subst bc; rewrite H; case: ifP=>//=;
-     move=>H'; move: (CFR_nrefl (CFR_trans H H')).
+     move=>H'; move: (FCR_nrefl (FCR_trans H H')).
   by move=>-> H; rewrite H; case: ifP=>//=;
-     move=>H'; move: (CFR_nrefl (CFR_trans H H')).
+     move=>H'; move: (FCR_nrefl (FCR_trans H H')).
 case: ifP; case: ifP=>//=.
-  by move=>H H'; move: (CFR_nrefl (CFR_trans H H')).
-case/CFR_dual=>X; case/CFR_dual=>Y//.
-  by move: (CFR_nrefl (CFR_trans X Y)).
+  by move=>H H'; move: (FCR_nrefl (FCR_trans H H')).
+case/FCR_dual=>X; case/FCR_dual=>Y//.
+  by move: (FCR_nrefl (FCR_trans X Y)).
 Qed.
 
 Lemma better_comm' x y :
   take_better_alt x y = take_better_alt y x.
 Proof.
 rewrite/take_better_alt; case: ifP; case: ifP; do? by [].
-by move=>H1 H2; move: (CFR_nrefl (CFR_trans H1 H2)).
-move/CFR_dual=>H1/CFR_dual H2; case: H1; case: H2; do? by [].
-by move=>H1 H2; move: (CFR_nrefl (CFR_trans H1 H2)).
+by move=>H1 H2; move: (FCR_nrefl (FCR_trans H1 H2)).
+move/FCR_dual=>H1/FCR_dual H2; case: H1; case: H2; do? by [].
+by move=>H1 H2; move: (FCR_nrefl (FCR_trans H1 H2)).
 Qed.
 
 Lemma foldl_better_comm bc cs1 cs2 :
@@ -1744,31 +1741,31 @@ case X: (bc > foldl take_better_alt [:: GenesisBlock] cs).
 - case: ifP.
   by move=>Y; rewrite{1}/take_better_alt; case: ifP=>//=;
      case: ifP; do? by [rewrite X|rewrite Y].
-  case/CFR_dual=>Y.
+  case/FCR_dual=>Y.
     by subst c; rewrite{1 3}/take_better_alt; case: ifP=>//=;
-       case: ifP=>//= Y; move: (CFR_nrefl (CFR_trans X Y)).
+       case: ifP=>//= Y; move: (FCR_nrefl (FCR_trans X Y)).
     rewrite{1 3}/take_better_alt; case: ifP.
       by case: ifP=>//= Z;
-         [move: (CFR_nrefl (CFR_trans X (CFR_trans Z Y))) |
-          move=>Y'; move: (CFR_nrefl (CFR_trans Y Y'))].
+         [move: (FCR_nrefl (FCR_trans X (FCR_trans Z Y))) |
+          move=>Y'; move: (FCR_nrefl (FCR_trans Y Y'))].
       case: ifP=>//=.
-        by move=>Z; move: (CFR_nrefl (CFR_trans X (CFR_trans Z Y))).
-- case/CFR_dual: X=>H.
+        by move=>Z; move: (FCR_nrefl (FCR_trans X (FCR_trans Z Y))).
+- case/FCR_dual: X=>H.
   by rewrite H; case: ifP=>//= X;
      rewrite/take_better_alt X /=; case: ifP=>//=; by rewrite X.
   case: ifP.
   * move=>X; case: ifP=>//=.
-      by rewrite{1}/take_better_alt X=>H'; move: (CFR_nrefl (CFR_trans H H')).
-  * rewrite{1}/take_better_alt X /=; case/CFR_dual=>Y.
-      by subst bc; move: (CFR_nrefl H).
+      by rewrite{1}/take_better_alt X=>H'; move: (FCR_nrefl (FCR_trans H H')).
+  * rewrite{1}/take_better_alt X /=; case/FCR_dual=>Y.
+      by subst bc; move: (FCR_nrefl H).
       by rewrite{2}/take_better_alt X /=.
-  case/CFR_dual=>X;
+  case/FCR_dual=>X;
   rewrite{1 3}/take_better_alt; case: ifP; case: ifP=>//=.
-    by rewrite X; move=>Y; move: (CFR_nrefl Y).
-    by rewrite X; move=>_ H'; move: (CFR_nrefl (CFR_trans H H')).
-    by move=>X'; move: (CFR_nrefl (CFR_trans X X')).
-    by move=>_ H'; move: (CFR_nrefl (CFR_trans H (CFR_trans H' X))).
-  by move=>X'; move: (CFR_nrefl (CFR_trans X X')).
+    by rewrite X; move=>Y; move: (FCR_nrefl Y).
+    by rewrite X; move=>_ H'; move: (FCR_nrefl (FCR_trans H H')).
+    by move=>X'; move: (FCR_nrefl (FCR_trans X X')).
+    by move=>_ H'; move: (FCR_nrefl (FCR_trans H (FCR_trans H' X))).
+  by move=>X'; move: (FCR_nrefl (FCR_trans X X')).
 Qed.
 
 Lemma foldl_better_extract bc cs1 cs2 :
@@ -1798,9 +1795,9 @@ rewrite (@foldl_better_comm_cat bc cs2 cs1).
 set cs := (cs1 ++ cs2) in G *.
 rewrite (@foldl_better_reduce bc)=>//.
 rewrite{2}/take_better_alt; case: ifP.
-  by move=>G'; move: (CFR_nrefl (CFR_trans G G')).
-  case/CFR_dual=>[Eq|_].
-   by rewrite Eq in G; move: (CFR_nrefl G).
+  by move=>G'; move: (FCR_nrefl (FCR_trans G G')).
+  case/FCR_dual=>[Eq|_].
+   by rewrite Eq in G; move: (FCR_nrefl G).
    by left.
 Qed.
 
@@ -1822,7 +1819,7 @@ have H1: btChain (btExtend bt b) \in good_chains (btExtend cbt b).
 set bc := btChain (btExtend bt b) in H1 Gt *.
 have Gt' : bc > [::GenesisBlock].
 - rewrite /good_chains mem_filter in H1.
-  case/andP:H1; case/andP=>/good_init/CFR_dual; case=>//H _.
+  case/andP:H1; case/andP=>/good_init/FCR_dual; case=>//H _.
   subst bc; rewrite H in Gt.
   move: (btChain_in_good_chains Hib); rewrite /good_chains mem_filter.
   by case/andP; case/andP=>/good_init; rewrite Gt.
@@ -1855,7 +1852,7 @@ move: (btExtend_fold_comm bs [::b] Vl)=>/==>Z; rewrite Z in Gt.
 have G1 : valid (btExtend bt b) by rewrite -(btExtendV bt b).
 have G2 : validH (btExtend bt b) by apply: (btExtendH Vl Vhl).
 have G3 : has_init_block (btExtend bt b) by apply: (btExtendIB b Vl Vhl Hil).
-by move/CFR_dual: (btExtend_fold_sameOrBetter bs G1 G2 G3); rewrite Gt.
+by move/FCR_dual: (btExtend_fold_sameOrBetter bs G1 G2 G3); rewrite Gt.
 Qed.
 
 Lemma good_chains_subset_geq bt bt':
@@ -1891,10 +1888,10 @@ Lemma btExtend_within cbt bt b bs ts:
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
 move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec Cont.
-case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
+case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: FCR_nrefl Cont.
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
 move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_good bt) P Vf)=>[Gb Tb].
-move: (CFR_trans_eq2 Cont Geq)=>Gt'.
+move: (FCR_trans_eq2 Cont Geq)=>Gt'.
 
 have v1': (valid (btExtend bt b)) by rewrite -btExtendV.
 have v2': (validH (btExtend bt b)) by apply btExtendH.
@@ -1910,7 +1907,7 @@ have H0: compute_chain (btExtend bt b) b \in good_chains (btExtend bt b).
   rewrite/all_chains; apply/mapP; exists b=>//;
   apply/all_blocksP'; by [apply btExtendH| apply in_ext].
 move: (btChain_is_largest H0)=>H; clear H0.
-move: (CFR_trans_eq2 Gt' H)=>Gt; clear H.
+move: (FCR_trans_eq2 Gt' H)=>Gt; clear H.
 
 have Eq: compute_chain (btExtend bt b) b = compute_chain (btExtend cbt b) b.
 rewrite Ec -(@foldl1 _ _ btExtend (foldl _ _ _)) btExtend_fold_comm /= //.
@@ -1921,7 +1918,7 @@ rewrite foldl_foldr_better.
 rewrite (foldl_better_extract (compute_chain (btExtend cbt b) b) cs1 cs2).
 rewrite catA (@foldl_cat _ _ _ [:: GenesisBlock] (cs1 ++ cs2)) /=.
 rewrite{1}/take_better_alt; case: ifP=>//;
-last by move=>_ X; apply (CFR_nrefl X).
+last by move=>_ X; apply (FCR_nrefl X).
 rewrite -Eq in Gt' Cont *=>H; clear Eq; move=>_.
 
 (* Cont and H are contradictory *)
@@ -1931,8 +1928,8 @@ rewrite (foldl_better_extract (compute_chain (btExtend bt b) b) cs1 cs2).
 rewrite catA (@foldl_cat _ _ _ [:: GenesisBlock] (cs1 ++ cs2)) /=.
 rewrite -foldl_foldr_better in H *.
 rewrite{1}/take_better_alt; case: ifP.
-by move=>_ X; apply (CFR_nrefl X).
-by move=>_ H'; apply (CFR_nrefl (CFR_trans H H')).
+by move=>_ X; apply (FCR_nrefl X).
+by move=>_ H'; apply (FCR_nrefl (FCR_trans H H')).
 Qed.
 
 Lemma btExtend_can_eq cbt bt b bs ts:

@@ -3,8 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap.
-Require Import Blockchain Protocol Semantics States BlockchainProperties SeqFacts.
-Require Import InvMisc.
+Require Import SeqFacts Protocol Chains Forests States Network InvMisc.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -522,7 +521,7 @@ case: t P P'=>[tx|] P P'; last first.
     (* HGt *)
     move=>n bc st; rewrite/localState; simplw w=>-> _.
     rewrite findU c1 /=; case: ifP.
-    by move/eqP=>Eq[Eq']; subst n st; rewrite/has_chain=>/eqP<-; apply CFR_dual.
+    by move/eqP=>Eq[Eq']; subst n st; rewrite/has_chain=>/eqP<-; apply FCR_dual.
     by move=>_ F'; move: (HGt n bc _ F').
 
     split; [split|].
@@ -533,7 +532,7 @@ case: t P P'=>[tx|] P P'; last first.
 
     (* HBc *)
     rewrite HBc in Gt *.
-    move: (HExt _ _ F)=>/= H; move/CFR_dual:Gt=>Gt. 
+    move: (HExt _ _ F)=>/= H; move/FCR_dual:Gt=>Gt. 
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
     by move: (@btExtend_within can_bt _ new_block _ (ts q) C1 C2
