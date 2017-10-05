@@ -243,10 +243,13 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
             let: prevBlock := (last GenesisBlock bc) in
             let: block := mkB (height prevBlock + 1) (hashB prevBlock) allowedTxs pf in
 
-            let: newBt := (btExtend bt block) in
-            let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
-            let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
-            pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
+            if tx_valid_block (btChain bt) block then
+              let: newBt := (btExtend bt block) in
+              let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
+              let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
+              pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
+            else
+              pair st emitZero
 
           else
             pair st emitZero
@@ -266,6 +269,7 @@ Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : T
     id s1 = id (procInt s1 t ts).1.
 Proof.
 case=> n1 p1 b1 t1 [] =>//; simpl; case hP: (genProof _)=>ts //; case vP: (VAF _)=>//.
+case tV: (tx_valid_block _ _)=>//.
 Qed.
 
 Lemma procMsg_valid :
@@ -286,6 +290,7 @@ move=>s1 t ts.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: (genProof _); last done.
 move=>Pf; case: (VAF _ _ _); last done.
+case tV: (tx_valid_block _ _)=>//.
 by rewrite/blockTree/=; apply btExtendV.
 Qed.
 
@@ -309,6 +314,7 @@ move=>s1 t ts v vh.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: (genProof _); last done.
 move=>Pf; case: (VAF _ _ _); last done.
+case tV: (tx_valid_block _ _)=>//.
 by rewrite/blockTree/=; apply btExtendH.
 Qed.
 
@@ -334,6 +340,7 @@ move=>s1 t ts v vh.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: (genProof _); last done.
 move=>Pf; case: (VAF _ _ _); last done.
+case tV: (tx_valid_block _ _)=>//.
 by apply btExtendIB.
 Qed.
 
@@ -415,6 +422,7 @@ Lemma procInt_peers_uniq :
 Proof.
 move=>s1 t ts; case: s1=>n prs bt txp; rewrite /peers/procInt=>Up.
 case: t=>//; case hP: (genProof _)=>//; case vP: (VAF _)=>//.
+case tV: (tx_valid_block _ _)=>//.
 Qed.
 
 Inductive local_step (s1 s2 : State) : Prop :=
