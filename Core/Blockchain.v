@@ -48,6 +48,7 @@ Definition TxPool := seq Transaction.
 
 (* Transaction is valid and consistent with the given chain *)
 Parameter txValid : Transaction -> Blockchain -> bool.
+Hypothesis txValid_nil : forall t, txValid t [::]. 
 Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 
 (************************************************************)
@@ -1387,13 +1388,46 @@ Qed.
 
 Definition tx_valid_block bc b := all [pred t | txValid t bc] (txs b).
 
+Lemma tx_valid_last_ind c b prefix:
+  all [pred t | txValid t prefix] (txs b) ->
+  tx_valid_chain' c (rcons prefix b) ->
+  tx_valid_chain' (b :: c) prefix.
+Proof. by move=>/=->->. Qed.
+
+(* Fixpoint tx_valid_chain' (bc prefix : seq Block) := *)
+(*   if bc is b :: bc' *)
+(*   then [&& all [pred t | txValid t prefix] (txs b) & *)
+(*         tx_valid_chain' bc' (rcons prefix b)] *)
+(*   else true. *)
+
 Lemma tx_valid_last c b :
   tx_valid_block c b -> tx_valid_chain c -> tx_valid_chain (rcons c b).
 Proof.
-rewrite /tx_valid_chain.
-elim/last_ind: c=>//[|xs x Hi]/=.
-- rewrite andbC/==>_ _; apply/allP=>t/=_. admit. (* Axiom *)
-(* move=>H1 H2. *)
+(* move=>H1. *)
+(* have P : all [pred t | txValid t c] (txs b) by []. *)
+(* clear H1; rewrite /tx_valid_chain. *)
+(* elim: c [::] b P=>//=; last first. *)
+
+(* have X: forall z, all [pred t | txValid t [::]] (txs z). *)
+(* - move=>z; apply/allP=>t/= _; apply txValid_nil. *)
+(* move: [::] X=>acc X. *)
+(* elim: c acc b X P=>//[|x xs Hi]/=prefix b X P H; rewrite ?X//=. *)
+(* apply: (Hi (rcons prefix x) b)=>//. *)
+(* apply: (Hi (rcons prefix x) b)=>//. *)
+(* Focus 2.  *)
+
+(* - rewrite X. *)
+
+  
+(* elim: c P=>//=. *)
+
+
+(* move: [::] b P=>acc. *)
+(* elim: c acc=>//[pr b|x xs Hi pr b P H1 H2]//=; first by move=>->. *)
+
+
+(* - rewrite andbC/==>_ _; apply/allP=>t/=_. apply: txalid *)
+(* (* move=>H1 H2. *) *)
 Admitted.
 
 Lemma btExtend_mint_good_valid bt b ts :
@@ -1879,7 +1913,6 @@ Proof.
 move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec Cont.
 case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
-Check btExtend_mint_good_valid Vl Vhl Hil.
 move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_good bt) P Vf)=>[Gb Tb].
 move: (CFR_trans_eq2 Cont Geq)=>Gt'.
 
