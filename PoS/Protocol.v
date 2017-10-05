@@ -178,7 +178,6 @@ Definition Init (n : nid) : State :=
   Node n [:: n] (#GenesisBlock \\-> GenesisBlock) [::].
 Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
 
-(* Please, explain what happens at each transition *)
 Definition procMsg (st: State) (from : nid) (msg: Message) (ts: Timestamp) :=
     let: (Node n prs bt pool) := st in
     match msg with
