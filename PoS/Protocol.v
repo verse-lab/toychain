@@ -236,7 +236,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
     | MintT =>
       let: bc := (btChain bt) in
-      let: attempt := genProof(stake n bc) in
+      let: attempt := genProof n bc in
       match attempt with
       | Some(pf) =>
           if VAF pf ts bc then

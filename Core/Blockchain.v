@@ -20,7 +20,6 @@ Definition Hash := [ordType of nat].
 (******************* <parameters> ***************************)
 (************************************************************)
 
-Parameter Stake : eqType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter hashT : Transaction -> Hash.
@@ -40,8 +39,7 @@ Definition BlockTree := union_map Hash Block.
 
 Parameter GenesisBlock : Block.
 Parameter hashB : Block -> Hash.
-Parameter stake : Address -> Blockchain -> Stake.
-Parameter genProof : Stake -> option VProof.
+Parameter genProof : Address -> Blockchain -> option VProof.
 Parameter blockValid : Block -> Blockchain -> bool.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 Parameter CFR_gt : Blockchain -> Blockchain -> bool.
