@@ -1385,16 +1385,30 @@ elim: n b bt hs Es En D F=>[|n Hi] b bt hs Es En D F/=.
 by rewrite Es keys_dom D; case (find _ _)=>[?|]//; rewrite last_rcons.
 Qed.
 
-Lemma btExtend_mint_good bt b ts :
+Definition tx_valid_block bc b := all [pred t | txValid t bc] (txs b).
+
+Lemma tx_valid_last c b :
+  tx_valid_block c b -> tx_valid_chain c -> tx_valid_chain (rcons c b).
+Proof.
+(* rewrite /tx_valid_chain. *)
+(* elim/last_ind: c=>//[|xs x Hi]/=. *)
+(* rewrite andbC/==>_ _. apply/allP=>t/=_. admit. (* Axiom *) *)
+(* move=>H1 H2. *)
+Admitted.
+
+Lemma btExtend_mint_good_valid bt b ts :
   let bc := btChain bt in
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
+  tx_valid_block bc b ->
+  tx_valid_chain bc ->
   good_chain bc ->
   prevBlockHash b = #pb ->
   VAF (proof b) ts bc ->
-  good_chain (compute_chain (btExtend bt b) b).
+  good_chain (compute_chain (btExtend bt b) b) /\
+  tx_valid_chain (compute_chain (btExtend bt b) b).
 Proof.
-move=>bc pb V Vh Ib Gc Hp Hv.
+move=>bc pb V Vh Ib Tb Tc Gc Hp Hv.
 (have: bc \in all_chains bt by move: (btChain_in_bt Ib))=>InC.
 (have: bc = compute_chain bt pb by move: (chain_from_last V Vh Ib InC))=>C.
 move: (btExtend_mint_ext V Vh Ib C Gc Hp Hv)=>->; subst bc.
@@ -1402,26 +1416,32 @@ rewrite/good_chain. case X: (rcons _ _)=>[|x xs].
 contradict X; elim: (btChain bt)=>//.
 have: (good_chain (btChain bt) = true)by [].
 rewrite/good_chain/=; case X': (btChain _)=>[|h t]; first done.
-by move/eqP=>Eq; subst h; rewrite X' rcons_cons in X; case: X=>-> _.
+move/eqP=>Eq; subst h; rewrite X' rcons_cons in X; case: X=> ??.
+subst x xs; split=>//.
+rewrite !X' in Tb Tc; rewrite -rcons_cons.
+by apply: tx_valid_last.
 Qed.
 
 Lemma btExtend_mint bt b ts :
   let pb := last GenesisBlock (btChain bt) in
   valid bt -> validH bt -> has_init_block bt ->
+  tx_valid_block (btChain bt) b ->
   prevBlockHash b = # pb ->
   VAF (proof b) ts (btChain bt) = true ->
   btChain (btExtend bt b) > btChain bt.
 Proof.
-move=>lst V Vh Ib mint Hv.
+move=>lst V Vh Ib T mint Hv.
 have HGood: good_chain (rcons (btChain bt) b).
 - by move: (btChain_good bt); rewrite {1}/good_chain; case (btChain bt).
+have Hvalid: tx_valid_chain (rcons (btChain bt) b).
+- by move: (btChain_tx_valid bt); apply: tx_valid_last. 
 have E: compute_chain (btExtend bt b) b = rcons (btChain bt) b.
 - apply: (@btExtend_mint_ext _ (btChain bt) b _ V Vh
                              Ib _ (btChain_good bt) mint Hv).
   by move/(chain_from_last V Vh Ib): (btChain_in_bt Ib).
 have HIn : rcons (btChain bt) b \in
-           filter good_chain (all_chains (btExtend bt b)).
-- rewrite mem_filter HGood/=-E/all_chains; apply/mapP.
+           filter (fun c => good_chain c && tx_valid_chain c) (all_chains (btExtend bt b)).
+- rewrite mem_filter HGood Hvalid/=-E/all_chains; apply/mapP.
   have V' : valid (btExtend bt b) by rewrite -btExtendV.
   exists b=>//; rewrite /all_blocks/btExtend in V'*; apply/mapP; exists (#b).
   + by rewrite keys_dom; case:ifP V'=>X V'//; rewrite um_domPtUn inE eqxx andbC.
@@ -1436,26 +1456,9 @@ Qed.
 (*******      </btExtend_mint and all it needs>     ********)
 (***********************************************************)
 
-Lemma good_chains_in_superset cbt bt bs :
-  valid cbt -> validH cbt -> has_init_block cbt ->
-  valid bt -> validH bt -> has_init_block bt ->
-  cbt = foldl btExtend bt bs ->
-  {subset good_chains bt <= good_chains cbt }.
-Proof.
-move=>V Vh Ib V' Vh' Ib' Ext; move: (btExtend_dom_fold bs V')=>Sub;
-rewrite/good_chains; move=>ch; rewrite !mem_filter; move/andP=>[Gc] HCh.
-apply/andP; split=>//.
-move: HCh; move/mapP=>[z] IBt Ch; apply/mapP.
-exists z.
-- apply/all_blocksP; move/all_blocksP: IBt; rewrite/is_block_in;
-  move=>[h] F; move: (Vh' _ _ F)=>Eq; exists h; subst h;
-  by rewrite Ext; move: (@btExtend_find_fold _ _ bs V' F).
-- rewrite Ch in Gc *; rewrite Ext.
-  by move: (@btExtend_compute_chain_fold _ bs z V' Vh' Ib' Gc).
-Qed.
-
 Definition good_bt bt :=
-  forall b, b \in all_blocks bt -> good_chain (compute_chain bt b).
+  forall b, b \in all_blocks bt ->
+            good_chain (compute_chain bt b) && tx_valid_chain (compute_chain bt b).
 
 Lemma btExtend_good_chains_fold  bt bs:
   valid bt -> validH bt -> has_init_block bt ->
@@ -1474,7 +1477,8 @@ rewrite/good_chains/all_chains=>/mapP[b]H1 H2; apply/mapP; exists b.
   rewrite F=>?; subst b'. move/Vh: F=>?; subst z.
   rewrite /get_block; case:dom_find (D')=>//b' F _ _.
   by rewrite F; move/(@btExtendH_fold _ bs V Vh): F=>/hashB_inj.
-by rewrite btExtend_compute_chain_fold=>//; rewrite -H2.
+rewrite btExtend_compute_chain_fold=>//; rewrite -H2.
+by case/andP: G.
 Qed.
 
 Lemma good_chains_subset bt :
@@ -1518,7 +1522,9 @@ Lemma btExtend_good_split cbt b :
 Proof.
 move=>V Vh Hib Hg N Hg'.
 have G: good_chain (compute_chain (btExtend cbt b) b).
-- by apply: (Hg' b); apply: btExtend_new_block=>//.
+- by case/andP: (Hg' b (btExtend_new_block V N)).
+have T: tx_valid_chain (compute_chain (btExtend cbt b) b).
+- by case/andP: (Hg' b (btExtend_new_block V N)).
 have Eb: btExtend cbt b = (#b \\-> b \+ cbt) by rewrite /btExtend (negbTE N).
 move: (V); rewrite (btExtendV _ b)=>V'; rewrite !Eb in V' *.
 move: (@keys_insert _ _ (#b) b cbt V')=>[ks1][ks2][Ek]Ek'.
@@ -1526,8 +1532,8 @@ move: (@keys_insert _ _ (#b) b cbt V')=>[ks1][ks2][Ek]Ek'.
 set get_chain := [eta compute_chain cbt] \o [eta get_block cbt].
 rewrite /good_chains{1}/all_chains/all_blocks -!seq.map_comp Ek map_cat filter_cat.
 rewrite -/get_chain.
-exists [seq c <- [seq get_chain i | i <- ks1] | good_chain c],
-       [seq c <- [seq get_chain i | i <- ks2] | good_chain c]; split=>//.
+exists [seq c <- [seq get_chain i | i <- ks1] | good_chain c & tx_valid_chain c],
+       [seq c <- [seq get_chain i | i <- ks2] | good_chain c & tx_valid_chain c]; split=>//.
 rewrite /all_chains/all_blocks Ek' /= -cat1s.
 have [N1 N2] : (#b \notin ks1) /\ (#b \notin ks2).
 - have U : uniq (ks1 ++ # b :: ks2) by rewrite -Ek'; apply:keys_uniq.
@@ -1541,22 +1547,24 @@ rewrite !map_cat !filter_cat ; congr (_ ++ _); clear Ek Ek'.
   have Nk: k != #b by apply/negbT/negP=>/eqP=>?; subst k; rewrite inE eqxx in N1 .
   rewrite !(btExtend_get_block V N Nk); rewrite /get_chain/=.
   set bk := (get_block cbt k).
-  have Gk: good_chain (compute_chain cbt bk).
-  apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
-  rewrite !(btExtend_compute_chain b V Vh Hib Gk) !Gk/=.
+  have Gk: good_chain (compute_chain cbt bk) && tx_valid_chain (compute_chain cbt bk).
+  - by apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
+  case/andP: (Gk)=>Gg Gt.  
+  rewrite !(btExtend_compute_chain b V Vh Hib Gg) !Gk/=.
   congr (_ :: _); apply: Hi; first by rewrite inE in N1; case/norP:N1.
   by move=>z=>D; apply: D1; rewrite inE D orbC.
 rewrite -[(compute_chain _ b) :: _]cat1s; congr (_ ++ _)=>/=; rewrite -!Eb.
-- suff D: (get_block (btExtend cbt b) (# b)) = b by rewrite D G.
+- suff D: (get_block (btExtend cbt b) (# b)) = b by rewrite D G T.
   by rewrite /get_block/btExtend (negbTE N) findUnL ?V'// um_domPt inE eqxx um_findPt.
 elim: ks2 N2 D2=>//k ks Hi/= N2 D2.
 have Dk: k \in dom cbt by apply: (D2 k); rewrite inE eqxx.
 have Nk: k != #b by apply/negbT/negP=>/eqP=>?; subst k; rewrite inE eqxx in N2.
 rewrite !(btExtend_get_block V N Nk); rewrite /get_chain/=.
 set bk := (get_block cbt k).
-have Gk: good_chain (compute_chain cbt bk).
-apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
-rewrite !(btExtend_compute_chain b V Vh Hib Gk) !Gk/=.
+have Gk: good_chain (compute_chain cbt bk) && tx_valid_chain (compute_chain cbt bk).
+- by apply: Hg; apply/mapP; exists k=>//; by rewrite keys_dom.
+case/andP: (Gk)=>Gg Gt.  
+rewrite !(btExtend_compute_chain b V Vh Hib Gg) !Gk/=.
 congr (_ :: _); apply: Hi; first by rewrite inE in N2; case/norP:N2.
 by move=>z=>D; apply: D2; rewrite inE D orbC.
 Qed.
@@ -1571,7 +1579,7 @@ Lemma btChain_alt bt:
 Proof.
 rewrite /btChain/take_better_bc/take_better_alt/good_chains.
 elim: (all_chains bt)=>//c cs/= Hi.
-by case C: (good_chain c)=>//=; rewrite !Hi.
+by case C: (good_chain c && tx_valid_chain c)=>//=; rewrite !Hi.
 Qed.
 
 Lemma best_chain_in cs :
@@ -1800,15 +1808,16 @@ have H1: btChain (btExtend bt b) \in good_chains (btExtend cbt b).
 set bc := btChain (btExtend bt b) in H1 Gt *.
 have Gt' : bc > [::GenesisBlock].
 - rewrite /good_chains mem_filter in H1.
-  case/andP:H1; move/good_init/CFR_dual; case=>//H _.
-  subst bc. rewrite H in Gt.
+  case/andP:H1; case/andP=>/good_init/CFR_dual; case=>//H _.
+  subst bc; rewrite H in Gt.
   move: (btChain_in_good_chains Hib); rewrite /good_chains mem_filter.
-  by case/andP=>/good_init; rewrite Gt.
+  by case/andP; case/andP=>/good_init; rewrite Gt.
 clear Vl Vhl Hil Ec. (* Let's forget about bt. *)
 case: (btExtend_good_split V Vh Hib Hg Nb Hg')=>cs1[cs2][E1]E2.
 rewrite !btChain_alt in Gt *; rewrite E1 in Gt; rewrite !E2 in H1 *.
 have I: [:: GenesisBlock] \in cs1 ++ cs2.
-- by rewrite -E1 mem_filter/= eqxx; apply:all_chains_init.
+- rewrite -E1 mem_filter/= eqxx/=; apply/andP; split=>//; last by apply:all_chains_init.
+  by rewrite /tx_valid_chain/= init_tx/=.
 by apply: best_element_in.
 Qed.
 
@@ -1860,16 +1869,18 @@ Lemma btExtend_within cbt bt b bs ts:
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
+  tx_valid_block (btChain bt) b ->
   btChain cbt >= btChain (btExtend bt b) ->
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
   VAF (proof b) ts (btChain bt) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
-move=>V Vh Hib Vl Vhl Hil Hg Hg' Geq P Vf Ec Cont.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec Cont.
 case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: CFR_nrefl Cont.
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
-move: (btExtend_mint_good Vl Vhl Hil (btChain_good bt) P Vf)=>Gb.
+Check btExtend_mint_good_valid Vl Vhl Hil.
+move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_tx_valid bt) (btChain_good bt) P Vf)=>[Gb Tb].
 move: (CFR_trans_eq2 Cont Geq)=>Gt'.
 
 have v1': (valid (btExtend bt b)) by rewrite -btExtendV.
@@ -1882,7 +1893,7 @@ have R: (btChain (btExtend bt b) =
 rewrite !btChain_alt Eg Eg' -R in Geq Gt' Cont.
 
 have H0: compute_chain (btExtend bt b) b \in good_chains (btExtend bt b).
-  rewrite/good_chains mem_filter Gb /=;
+  rewrite/good_chains mem_filter Gb Tb /=;
   rewrite/all_chains; apply/mapP; exists b=>//;
   apply/all_blocksP'; by [apply btExtendH| apply in_ext].
 move: (btChain_is_largest H0)=>H; clear H0.
@@ -1915,15 +1926,16 @@ Lemma btExtend_can_eq cbt bt b bs ts:
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
+  tx_valid_block (btChain bt) b ->
   btChain cbt >= btChain (btExtend bt b) ->
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
   VAF (proof b) ts (btChain bt) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) = btChain cbt.
 Proof.
-move=>V Vh Hib Vl Vhl Hil Hg Hg' Geq P Vf Ec.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec.
 case: (btExtend_sameOrBetter b V Vh Hib)=>//H1.
-by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' Geq P Vf Ec H1). 
+by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec H1). 
 Qed.
 
 End BtChainProperties.
