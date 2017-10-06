@@ -12,7 +12,6 @@ Definition Hash := [ordType of nat].
 
 Record Block {Transaction VProof : eqType} :=
   mkB {
-    height : nat;
     prevBlockHash : Hash;
     txs : seq Transaction;
     proof : VProof;
@@ -20,15 +19,13 @@ Record Block {Transaction VProof : eqType} :=
 
 Definition eq_block {T P : eqType} (b b' : @Block T P) :=
   match (b, b') with
-  | (mkB h p t pf, mkB h' p' t' pf') =>
-    [&& h == h', p == p', t == t' & pf == pf']
+  | (mkB p t pf, mkB p' t' pf') =>
+    [&& p == p', t == t' & pf == pf']
   end.
       
 Lemma eq_blockP {T P : eqType} : Equality.axiom (@eq_block T P).
 Proof.
-case=> h p t pf; case=> h' p' t' pf'; rewrite /eq_block/=.
-case H1: (h == h'); [move/eqP: H1=>?; subst h'| constructor 2];
-  last by case=>?; subst h';rewrite eqxx in H1.
+case=> p t pf; case=> p' t' pf'; rewrite /eq_block/=.
 case H2: (p == p'); [move/eqP: H2=>?; subst p'| constructor 2];
   last by case=>?; subst p';rewrite eqxx in H2.
 case H3: (t == t'); [move/eqP: H3=>?; subst t'| constructor 2];

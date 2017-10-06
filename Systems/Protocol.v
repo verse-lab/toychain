@@ -241,7 +241,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
           if VAF pf ts bc then
             let: allowedTxs := [seq t <- pool | txValid t bc] in
             let: prevBlock := (last GenesisBlock bc) in
-            let: block := mkB (height prevBlock + 1) (hashB prevBlock) allowedTxs pf in
+            let: block := mkB (hashB prevBlock) allowedTxs pf in
 
             if tx_valid_block (btChain bt) block then
               let: newBt := (btExtend bt block) in

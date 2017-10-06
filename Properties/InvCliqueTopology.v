@@ -393,8 +393,7 @@ case: t P P'=>[tx|] P P'; last first.
   case Z: (tx_valid_block _ _).
   (* This is the only interesting case - when a new block is minted *)
   set new_block :=
-    {| height := height (last GenesisBlock (btChain blockTree)) + 1;
-       prevBlockHash := # last GenesisBlock (btChain blockTree);
+    {| prevBlockHash := # last GenesisBlock (btChain blockTree);
        txs := [seq t <- txPool | txValid t (btChain blockTree)];
        proof := pf
     |}.
