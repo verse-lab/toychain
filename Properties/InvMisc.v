@@ -60,24 +60,6 @@ Definition GStable w :=
   exists (bc : Blockchain), forall (n : nid),
       holds n w (has_chain bc).
 
-(* Definition all_available (n : nid) (w : World) : seq Block := *)
-(*   let inv_hashes := *)
-(*     flatten [seq msg_hashes (msg p) | *)
-(*              p <- inFlightMsgs w & (dst p == n) && (msg_type (msg p) == MInv)] in *)
-(*   let gds_hashes := *)
-(*       flatten [seq msg_hashes (msg p) | *)
-(*                p <- inFlightMsgs w & *)
-(*                [&& (src p == n), *)
-(*                 (msg_type (msg p) == MGetData) & *)
-(*                 (n \in msg_from (msg p))]] in   *)
-(*   undup (invs ++ gds). *)
-
-(* Definition available b n w := hashB b \in all_available n w. *)
-
-(*
-* For simplicity, we assume all nodes are directly connected.
-* This could be changed to incorporate a more realistic broadcast setting.
-*)
 Definition available_rel (b : Block) (n : nid) (w : World) :=
   exists (p : Packet),
     p \in inFlightMsgs w /\
@@ -93,48 +75,3 @@ Definition block_for_hash n (w : World) (h : Hash) : Block :=
        then b else GenesisBlock
   else GenesisBlock.
                                             
-
-
-(* Lemma availableP b n w : *)
-(*   reflect (available_rel b n w) (available b n w). *)
-(* Proof. *)
-(* case A: (available b n w); [constructor 1 | constructor 2]; move: A; *)
-(* rewrite/available/all_available mem_undup -flatten_cat. *)
-(* move/flattenP; case=>h0; rewrite mem_cat; move/orP; case; *)
-(* move/mapP; case=>p0; rewrite mem_filter; rewrite/available_rel. *)
-(* - move/andP=>[]/andP[] H1 H2 H3 H4 H5; *)
-(*   exists p0; split; first done. *)
-(*   case Msg: (msg p0)=>[|||||pr sh|]; do? by contradict H2; rewrite/msg_type Msg. *)
-(*   left. exists pr, sh. split; first done. split; first by move/eqP in H1. *)
-(*   by move: H5; rewrite H4 /msg_hashes Msg. *)
-(* - move/andP=>[]/andP[]/andP[] H1 H2 H3 H4 H5 H6; *)
-(*   exists p0; split; first done. *)
-(*   case Msg: (msg p0)=>[||||||pr h]; do? by contradict H2; rewrite/msg_type Msg. *)
-(*   right. exists h. split. *)
-(*   by move: H3; rewrite /msg_from Msg mem_seq1; move/eqP=><-. *)
-(*   split. *)
-(*   by move/eqP in H1. *)
-(*   by move: H6; rewrite H5 /msg_hashes Msg mem_seq1; move/eqP. *)
-(* (* available b n w = false *) *)
-(* move/flattenP. apply impliesPn; constructor. *)
-(* case=>p [] iF; case. *)
-(* - move=>[pr] [sh] [H1] [H2] H3. exists sh; last done. *)
-(*   rewrite mem_cat; apply/orP. left. *)
-(*   apply/mapP. exists p. rewrite mem_filter; apply/andP; split; last done. *)
-(*   apply/andP; split; by [move/eqP in H2 | rewrite/msg_type H1]. *)
-(*   by rewrite /msg_hashes H1. *)
-(* - move=>[hash] [H1] [H2] H3. exists [:: hash]; last first. *)
-(*   by rewrite mem_seq1; move/eqP in H3. *)
-(*   rewrite mem_cat; apply/orP. right. *)
-(*   apply/mapP. exists p. rewrite mem_filter; apply/andP; split; last done. *)
-(*   apply/andP; split. *)
-(*     apply/andP; split; by [move/eqP in H2 | rewrite/msg_type H1]. *)
-(*     by rewrite/msg_from H1 mem_seq1. *)
-(*   by rewrite /msg_hashes H1. *)
-(* Qed. *)
-
-(* Definition availableFor n w := *)
-(*   undup [seq msg_block (msg p) | p <- inFlightMsgs w & *)
-(*                                  dst p == n && *)
-(*                                  available (msg_block (msg p)) n w]. *)
-

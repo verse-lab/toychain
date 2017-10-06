@@ -1,6 +1,11 @@
 # Toychain
 
-An Coq implementation of a minimalistic blockchain-based consensus protocol.
+A Coq implementation of a minimalistic blockchain-based consensus
+protocol.
+
+These source files are for the manuscript "Mechanising Blockchain
+Consensus" by G. Pirlea and I. Sergey, submitted for publication at
+CPP 2018.
 
 ## Building the Project
 
@@ -27,10 +32,4 @@ The top-level structure consists of the following folders:
 
 * `Properties` - proved properties of the protocol, e.g., eventual
   consistency for a clique-like network topology;
-
-### Obsolete development
-
-* `Obsolete` -- properties that might or might not hold, as were
-  verified out of many optimistically assumed axioms at the beginning
-  of the project.
 
