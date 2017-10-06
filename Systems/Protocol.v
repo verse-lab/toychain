@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
-Require Import Chains Forests.
+Require Import Chains Blocks Forests.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -16,7 +16,7 @@ Inductive Message :=
   | NullMsg
   | AddrMsg of peers_t
   | ConnectMsg 
-  | BlockMsg of Block
+  | BlockMsg of block
   | TxMsg of Transaction
   | InvMsg of seq Hash
   | GetDataMsg of Hash.
@@ -65,7 +65,7 @@ Definition msg_type (msg : Message) : MessageType :=
   | GetDataMsg _ => MGetData
   end.
 
-Definition msg_block (msg : Message) : Block :=
+Definition msg_block (msg : Message) : block :=
   match msg with
   | BlockMsg b => b
   | _ => GenesisBlock
@@ -385,7 +385,7 @@ by move: (procMsg_non_block_nc_blockTree s1 from ts neq)=><-.
 Qed.
 
 Lemma procMsg_known_block_nc_blockTree :
-  forall (s1 : State) from (b : Block) (ts : Timestamp),
+  forall (s1 : State) from (b : block) (ts : Timestamp),
     let: s2 := (procMsg s1 from (BlockMsg b) ts).1 in
     let: bt := blockTree s1 in
     b ∈ bt -> bt = blockTree s2.
@@ -394,7 +394,7 @@ move=>s1 from  b ts biT; destruct s1=>/=; rewrite/blockTree in biT.
 by apply (btExtend_withDup_noEffect biT).
 Qed.
 
-Lemma procMsg_known_block_nc_btChain (s1 : State) from (b : Block) (ts : Timestamp) :
+Lemma procMsg_known_block_nc_btChain (s1 : State) from (b : block) (ts : Timestamp) :
   let: s2 := (procMsg s1 from (BlockMsg b) ts).1 in
   let: bc := btChain (blockTree s1) in
   valid (blockTree s1) -> has_init_block (blockTree s1) ->
@@ -405,13 +405,13 @@ by move: (procMsg_known_block_nc_blockTree from ts (btChain_mem2 V H biC))=><-.
 Qed.
 
 Lemma procMsg_block_btExtend_bt :
-  forall (s1 : State) from (b : Block) (ts: Timestamp),
+  forall (s1 : State) from (b : block) (ts: Timestamp),
   let: s2 := (procMsg s1 from (BlockMsg b) ts).1 in
   blockTree s2 = btExtend (blockTree s1) b.
 Proof. by move=>s1 b ts; destruct s1. Qed.
 
 Lemma procMsg_block_btExtend_btChain :
-  forall (s1 : State) from (b : Block) (ts: Timestamp),
+  forall (s1 : State) from (b : block) (ts: Timestamp),
   let: s2 := (procMsg s1 from (BlockMsg b) ts).1 in
   btChain (blockTree s2) = btChain (btExtend (blockTree s1) b).
 Proof. by move=>s1 b ts; destruct s1. Qed.

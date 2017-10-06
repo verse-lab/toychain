@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap.
-Require Import SeqFacts Protocol Chains Forests States Network.
+Require Import SeqFacts Protocol Chains Blocks Forests States Network.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

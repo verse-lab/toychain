@@ -3,14 +3,12 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
 Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding.
-Require Import SeqFacts Chains.
+Require Import SeqFacts Chains Blocks.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* A fomalization of a blockchain structure *)
-
-(* TODO: Rename me into something more appropriate, e.g., Forrests.v  *)
+(* A fomalization of a block forests *)
 
 Definition Address := nat.
 Definition Timestamp := nat.
@@ -20,26 +18,18 @@ Definition Hash := [ordType of nat].
 (******************* <parameters> ***************************)
 (************************************************************)
 
-Parameter Stake : eqType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter hashT : Transaction -> Hash.
 
-Record Block :=
-  mkB {
-    height : nat;
-    prevBlockHash : Hash;
-    txs : seq Transaction;
-    proof : VProof;
-  }.
-
-Definition Blockchain := seq Block.
+Definition block := @Block Transaction VProof.
+Definition Blockchain := seq block.
 
 (* In fact, it's a forrest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map Hash Block.
+Definition BlockTree := union_map Hash block.
 
-Parameter GenesisBlock : Block.
-Parameter hashB : Block -> Hash.
+Parameter GenesisBlock : block.
+Parameter hashB : block -> Hash.
 Parameter genProof : Address -> Blockchain -> option VProof.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 Parameter FCR : Blockchain -> Blockchain -> bool.
@@ -88,33 +78,6 @@ Hypothesis hashB_inj : injective hashB.
 
 Hypothesis hashT_inj : injective hashT.
 
-Module BlockEq.
-Lemma eq_blockP : Equality.axiom eq_block.
-Proof.
-move=> b b'. rewrite/eq_block. apply: (iffP idP).
-- by move/eqP; apply: hashB_inj.
-  - move=> eq. by rewrite eq.
-Qed.
-
-Canonical Block_eqMixin := Eval hnf in EqMixin eq_blockP.
-Canonical Block_eqType := Eval hnf in EqType Block Block_eqMixin.
-End BlockEq.
-Export BlockEq.
-
-Module TxEq.
-Lemma eq_txP : Equality.axiom eq_tx.
-Proof.
-move=> t t'. rewrite/eq_tx. apply: (iffP idP).
-  - by move/eqP; apply: hashT_inj.
-  - by move=> eq; rewrite eq.
-Qed.
-
-Canonical Tx_eqMixin := Eval hnf in EqMixin eq_txP.
-Canonical Tx_eqType := Eval hnf in EqType Transaction Tx_eqMixin.
-End TxEq.
-Export TxEq.
-
-
 (* 4.  VAF *)
 
 (* This axiom seems reasonable: it shouldn't be possible
@@ -123,7 +86,7 @@ Export TxEq.
    Merkle tree construction. *)
 
 Hypothesis VAF_Merkle :
-  forall (b : Block) ts (bc : Blockchain), VAF (proof b) ts bc -> b \notin bc.
+  forall (b : block) ts (bc : Blockchain), VAF (proof b) ts bc -> b \notin bc.
 
 (* 2. FCR *)
 
@@ -131,7 +94,7 @@ Hypothesis FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
 Hypothesis FCR_ext :
-  forall (bc : Blockchain) (b : Block) (ext : seq Block),
+  forall (bc : Blockchain) (b : block) (ext : seq block),
     bc ++ (b :: ext) > bc.
 
 Hypothesis FCR_rel :
@@ -201,7 +164,7 @@ Qed.
 (*                BlockTree implementation                        *)
 (******************************************************************)
 
-Definition btHasBlock (bt : BlockTree) (b : Block) := #b \in dom bt.
+Definition btHasBlock (bt : BlockTree) (b : block) := #b \in dom bt.
 
 Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
 Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
@@ -216,13 +179,13 @@ Definition has_init_block (bt : BlockTree) :=
 Definition validH (bt : BlockTree) :=
   forall h b, find h bt = Some b -> h = hashB b.
 
-Lemma validH_free bt (b : Block) :
+Lemma validH_free bt (b : block) :
   validH bt -> validH (free (# b) bt).
 Proof. by move=>Vh h c; rewrite findF;case: ifP=>//_ /Vh. Qed.
 
 (* How can we assert there are no cycles? *)
 (* You only add "fresh blocks" *)
-Definition btExtend (bt : BlockTree) (b : Block) :=
+Definition btExtend (bt : BlockTree) (b : block) :=
   if #b \in dom bt then bt else #b \\-> b \+ bt.
 
 Lemma btExtendH bt b : valid bt -> validH bt -> validH (btExtend bt b).
@@ -336,12 +299,12 @@ Lemma btExtend_idemp bt b :
 Proof. by move=>V; rewrite {2}/btExtend btExtend_in. Qed.
 
 (* Just a reformulation *)
-Lemma btExtend_preserve (bt : BlockTree) (ob b : Block) :
+Lemma btExtend_preserve (bt : BlockTree) (ob b : block) :
   valid bt ->
   hashB ob \in (dom bt) -> hashB ob \in dom (btExtend bt b).
 Proof. by move=>V/(btExtend_dom b V). Qed.
 
-Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : Block):
+Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : block):
   hashB b \in dom bt -> bt = (btExtend bt b).
 Proof. by rewrite /btExtend=>->. Qed.
 
@@ -437,7 +400,7 @@ Definition good_chain (bc : Blockchain) :=
   if bc is h :: _ then h == GenesisBlock else false.
 
 (* Transaction validity *)
-Fixpoint tx_valid_chain' (bc prefix : seq Block) :=
+Fixpoint tx_valid_chain' (bc prefix : seq block) :=
   if bc is b :: bc'
   then [&& all [pred t | txValid t prefix] (txs b) &
         tx_valid_chain' bc' (rcons prefix b)]
@@ -463,7 +426,7 @@ End BlockTreeProperties.
 
 Section BtChainProperties.
 
-Lemma btExtend_blocks (bt : BlockTree) (b : Block) : valid bt ->
+Lemma btExtend_blocks (bt : BlockTree) (b : block) : valid bt ->
   {subset all_blocks bt <= all_blocks (btExtend bt b)}.
 Proof.
 move=>V z/all_blocksP=>[[k]F]; apply/all_blocksP.
@@ -472,7 +435,7 @@ rewrite findUnR ?N/=; last by rewrite gen_validPtUn/= V N.
 by move/find_some: (F)=>->.
 Qed.
 
-Lemma compute_chain_no_block' bt (pb : Block) (hs : seq Hash) n :
+Lemma compute_chain_no_block' bt (pb : block) (hs : seq Hash) n :
   # pb \notin hs -> compute_chain' bt pb hs n = [::].
 Proof. by case: n=>//=[|?]; move/negbTE=>->. Qed.
 
@@ -486,7 +449,7 @@ rewrite (keysUn_size V) um_keysPt/= addnC addn1 in S.
 by case: S.
 Qed.
 
-Lemma compute_chain_equiv  bt (pb : Block) (hs1 hs2 : seq Hash) n :
+Lemma compute_chain_equiv  bt (pb : block) (hs1 hs2 : seq Hash) n :
   uniq hs1 -> uniq hs2 -> hs1 =i hs2 ->
   compute_chain' bt pb hs1 n = compute_chain' bt pb hs2 n.
 Proof.
@@ -525,7 +488,7 @@ case C: (z \in keys_of bt); first by rewrite (rem_neq B' C).
 by apply/negP=>/mem_rem=>E; rewrite E in C.
 Qed.
 
-Lemma compute_chain_notin' bt (b b' : Block) (hs : seq Hash) n :
+Lemma compute_chain_notin' bt (b b' : block) (hs : seq Hash) n :
   valid bt -> (# b) \notin hs -> b \notin compute_chain' bt b' hs n.
 Proof.
 elim: n b b' bt hs=>[|n Hi] b b' bt hs V B/=; first by case:ifP.
@@ -765,7 +728,7 @@ move=> bc' rest Hi/=. rewrite inE=>/orP[].
 by case/Hi/orP=>->//; rewrite ![_||true]orbC.
 Qed.
 
-Lemma btChain_mem2 (bt : BlockTree) (b : Block) :
+Lemma btChain_mem2 (bt : BlockTree) (b : block) :
   valid bt -> has_init_block bt ->
   b \in btChain bt -> b ∈ bt.
 Proof.
@@ -775,7 +738,7 @@ case/mapP:H2=>b0 _ Z; subst bc.
 by apply: (@block_in_chain _ b0).
 Qed.
 
-Lemma btChain_mem (bt : BlockTree) (b : Block) :
+Lemma btChain_mem (bt : BlockTree) (b : block) :
   valid bt -> has_init_block bt ->
   b ∉ bt -> b \notin btChain bt.
 Proof.
@@ -911,7 +874,7 @@ by apply: better_chains_foldr=>//=; [by apply/negbT|by left | |]; do?[rewrite ?t
 Qed.
 
 
-Lemma btExtend_fold_comm (bt : BlockTree) (bs bs' : seq Block) :
+Lemma btExtend_fold_comm (bt : BlockTree) (bs bs' : seq block) :
     valid bt ->
     foldl btExtend (foldl btExtend bt bs) bs' =
     foldl btExtend (foldl btExtend bt bs') bs.
@@ -923,7 +886,7 @@ rewrite -cats1 !foldl_cat -Hi /=; apply btExtend_comm.
 by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-.
 Qed.
 
-Lemma btExtend_fold_preserve (ob : Block) bt bs:
+Lemma btExtend_fold_preserve (ob : block) bt bs:
     valid bt -> # ob \in (dom bt) ->
     # ob \in dom (foldl btExtend bt bs).
 Proof.
@@ -951,7 +914,7 @@ by move=>H1 H2; move: (FCR_trans H1 H2); right.
 Qed.
 
 (* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
-Lemma btExtend_monotone_btChain (bs ext : seq Block) bt:
+Lemma btExtend_monotone_btChain (bs ext : seq block) bt:
     valid bt -> validH bt -> has_init_block bt ->
     btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
 Proof.
@@ -971,7 +934,7 @@ by move=>->; right.
 by move=>H1 H2; move: (FCR_trans H1 H2); right.
 Qed.
 
-Lemma btExtend_not_worse (bt : BlockTree) (b : Block) :
+Lemma btExtend_not_worse (bt : BlockTree) (b : block) :
     valid bt -> validH bt -> has_init_block bt ->
     ~ (btChain bt > btChain (btExtend bt b)).
 Proof.
@@ -982,7 +945,7 @@ move=>H; case X: (btChain bt > btChain (btExtend bt b)); last done.
 by move: (FCR_nrefl (FCR_trans H X)).
 Qed.
 
-Lemma btExtend_fold_not_worse (bt : BlockTree) (bs : seq Block) :
+Lemma btExtend_fold_not_worse (bt : BlockTree) (bs : seq block) :
     valid bt -> validH bt -> has_init_block bt ->
     ~ (btChain bt > btChain (foldl btExtend bt bs)).
 Proof.
@@ -1022,7 +985,7 @@ by move=>Con; contradict Con; apply btExtend_fold_not_worse.
 Qed.
 
 Lemma btExtend_seq_sameOrBetter_fref :
-  forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
+  forall (bc : Blockchain) (bt : BlockTree) (b : block) (bs : seq block),
     valid bt -> validH bt -> has_init_block bt ->
     b \in bs -> bc >= btChain bt ->
     bc >= btChain (foldl btExtend bt bs) ->
@@ -1066,7 +1029,7 @@ Qed.
 
 (* Trivial sub-case of the original lemma; for convenience *)
 Lemma btExtend_seq_sameOrBetter_fref' :
-  forall (bc : Blockchain) (bt : BlockTree) (b : Block) (bs : seq Block),
+  forall (bc : Blockchain) (bt : BlockTree) (b : block) (bs : seq block),
     valid bt -> validH bt -> has_init_block bt ->
     b \in bs -> bc >= btChain bt ->
     bc = btChain (foldl btExtend bt bs) ->
@@ -1081,7 +1044,7 @@ Lemma bc_spre_gt bc bc' :
   [bc <<< bc'] -> bc' > bc.
 Proof. by case=>h; case=>t=>eq; rewrite eq; apply FCR_ext. Qed.
 
-Lemma ohead_hash b0 (bt : seq Block) :
+Lemma ohead_hash b0 (bt : seq block) :
   b0 \in bt ->
   ohead [seq b <- bt | hashB b == hashB b0] = Some b0.
 Proof.
@@ -1385,7 +1348,7 @@ elim: n b bt hs Es En D F=>[|n Hi] b bt hs Es En D F/=.
 by rewrite Es keys_dom D; case (find _ _)=>[?|]//; rewrite last_rcons.
 Qed.
 
-Definition tx_valid_block bc b := all [pred t | txValid t bc] (txs b).
+Definition tx_valid_block bc (b : block) := all [pred t | txValid t bc] (txs b).
 
 Lemma tx_valid_last_ind c b prefix:
   all [pred t | txValid t prefix] (txs b) ->
