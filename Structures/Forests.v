@@ -20,21 +20,22 @@ Definition Hash := [ordType of nat].
 
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
-Parameter hashT : Transaction -> Hash.
 
 Definition block := @Block Transaction VProof.
+Parameter GenesisBlock : block.
+
 Definition Blockchain := seq block.
 
 (* In fact, it's a forrest, as it also keeps orphan blocks *)
 Definition BlockTree := union_map Hash block.
 
-Parameter GenesisBlock : block.
+Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 Parameter genProof : Address -> Blockchain -> option VProof.
 Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
 Parameter FCR : Blockchain -> Blockchain -> bool.
 
-(************         Transaction pools        **************)
+(* Transaction pools *)
 Definition TxPool := seq Transaction.
 
 (* Transaction is valid and consistent with the given chain *)
@@ -45,35 +46,31 @@ Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 (********************* </parameters> ************************)
 (************************************************************)
 
-(* We might want to introduce a notion of time *)
-
 Notation "A > B" := (FCR A B).
 Notation "A >= B" := (A = B \/ A > B).
 Notation "# b" := (hashB b) (at level 20).
 Notation "## b" := (hashB b \\-> tt) (at level 80).
 
-Definition eq_tx t t' := hashT t == hashT t'.
-
-Definition eq_block b b' := hashB b == hashB b'.
-
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
-Definition subchain (bc1 bc2 : Blockchain) :=
-  exists p q, bc2 = p ++ bc1 ++ q.
+Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 
 (************************************************************)
 (*********************** <axioms> ***************************)
 (************************************************************)
 
 (* 1.  Genesis block properties *)
+
 Hypothesis init_hash : prevBlockHash GenesisBlock = #GenesisBlock.
 
 Hypothesis init_tx : txs GenesisBlock = [::].
 
 (* 2.  Transaction validation *)
+
 Hypothesis txValid_nil : forall t, txValid t [::]. 
 
 (* 3.  Hashes *)
+
 Hypothesis hashB_inj : injective hashB.
 
 Hypothesis hashT_inj : injective hashT.
@@ -81,11 +78,8 @@ Hypothesis hashT_inj : injective hashT.
 (* 4.  VAF *)
 
 (* This axiom seems reasonable: it shouldn't be possible
-   to generate a block _from_ the chain it is supposed to tail.
-   The name reflects the nature of this check in real life using
-   Merkle tree construction. *)
-
-Hypothesis VAF_Merkle :
+   to generate a block _from_ the chain it is supposed to tail.  *)
+Hypothesis VAF_nocycle :
   forall (b : block) ts (bc : Blockchain), VAF (proof b) ts bc -> b \notin bc.
 
 (* 2. FCR *)
@@ -172,7 +166,6 @@ Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 Definition valid_block b : bool :=
   prevBlockHash b != #b.
 
-(* TODO: Make this a part of BT validity, in addition to validH! *)
 Definition has_init_block (bt : BlockTree) :=
   find (# GenesisBlock) bt = Some GenesisBlock.
 
@@ -183,8 +176,7 @@ Lemma validH_free bt (b : block) :
   validH bt -> validH (free (# b) bt).
 Proof. by move=>Vh h c; rewrite findF;case: ifP=>//_ /Vh. Qed.
 
-(* How can we assert there are no cycles? *)
-(* You only add "fresh blocks" *)
+(* We only add "fresh blocks" *)
 Definition btExtend (bt : BlockTree) (b : block) :=
   if #b \in dom bt then bt else #b \\-> b \+ bt.
 
@@ -1324,7 +1316,7 @@ have D: #b \in dom (btExtend bt b).
 - move: V'; rewrite /btExtend; case:ifP=>X V'//.
   by rewrite um_domPtUn inE V' eqxx.
 apply: compute_chain_prev=>//.
-move: (VAF_Merkle Hv); rewrite E in HGood.
+move: (VAF_nocycle Hv); rewrite E in HGood.
 by rewrite (btExtend_compute_chain b V Vh Ib HGood) E.
 Qed.
 
