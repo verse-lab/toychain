@@ -1,6 +1,6 @@
 # Toychain
 
-An Coq implementation of a minimalistic blockchain-based consensus protocol.
+A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ## Building the Project
 
