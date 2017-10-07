@@ -58,8 +58,9 @@ Definition clique_inv (w : World) :=
 
 Lemma clique_eventual_consensus w :
   clique_inv w -> exists bc,
-  forall n, blocksFor n w == [::] ->
-  holds n w (fun st => (has_chain bc st) /\ largest_chain w bc).
+    largest_chain w bc /\
+    forall n, blocksFor n w == [::] ->
+              holds n w (fun st => (has_chain bc st) bc).
 Proof.
 case=>C; case=>[bc][bt][can_n][H1 H2 [_ H3] H4 H5 H6]. 
 exists bc=>n Na st Fw; split=>//.
