@@ -60,11 +60,10 @@ Lemma clique_eventual_consensus w :
   clique_inv w -> exists bc,
     largest_chain w bc /\
     forall n, blocksFor n w == [::] ->
-              holds n w (fun st => (has_chain bc st) bc).
+              holds n w (fun st => (has_chain bc st)).
 Proof.
 case=>C; case=>[bc][bt][can_n][H1 H2 [_ H3] H4 H5 H6]. 
-exists bc=>n Na st Fw; split=>//.
-move/eqP:Na=>Na.
+exists bc; split=>// n Na st Fw; move/eqP:Na=>Na.
 by move:(H6 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
 Qed.
 
