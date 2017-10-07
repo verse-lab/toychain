@@ -181,7 +181,10 @@ Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
 Definition procMsg (st: State) (from : nid) (msg: Message) (ts: Timestamp) :=
     let: (Node n prs bt pool) := st in
     match msg with
-    | ConnectMsg => pair (Node n (undup (from :: prs)) bt pool) emitZero
+    | ConnectMsg =>
+      let: ownHashes := (keys_of bt) ++ [seq hashT t | t <- pool] in
+      pair (Node n (undup (from :: prs)) bt pool)
+           (emitOne(mkP n from (InvMsg ownHashes))) 
 
     | AddrMsg knownPeers =>
       let: newP := [seq x <- knownPeers | x \notin prs] in
