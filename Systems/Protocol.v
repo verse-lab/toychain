@@ -200,7 +200,7 @@ Definition procMsg (st: State) (from : nid) (msg: Message) (ts: Timestamp) :=
       pair (Node n prs newBt newPool) (emitBroadcast n prs (InvMsg ownHashes))
 
     | TxMsg tx =>
-      let: newPool := tpExtend pool bt tx in
+      let: newPool := tpExtend pool tx in
       let: ownHashes := (keys_of bt) ++ [seq hashT t | t <- newPool] in
       pair (Node n prs bt newPool) (emitBroadcast n prs (InvMsg ownHashes))
 

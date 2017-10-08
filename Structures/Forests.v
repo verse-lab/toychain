@@ -40,7 +40,7 @@ Definition TxPool := seq Transaction.
 
 (* Transaction is valid and consistent with the given chain *)
 Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
+Parameter tpExtend : TxPool -> Transaction -> TxPool.
 
 (************************************************************)
 (********************* </parameters> ************************)
