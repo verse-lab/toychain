@@ -73,9 +73,12 @@ cv/*.out
 # -----------------------------------------------------------------------------
 
 \#*\#
-*.vo 
+*.vo
 *.v.d
 *.glob
 .coq-native
 Makefile.coq
 *.aux
+CoqMakefile.conf
+Makefile.coq.conf
+awk.Makefile

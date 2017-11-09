@@ -3,6 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype fintype ssrfun seq.
 From mathcomp
 Require Import finfun.
 Require Import Eqdep.
+From Heaps
 Require Import pred prelude idynamic ordtype domain pcm spcm unionmap heap.
 Set Implicit Arguments.
 Unset Strict Implicit.

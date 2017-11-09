@@ -1,5 +1,6 @@
 From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
+From Heaps
 Require Import pred prelude ordtype domain unionmap pcm heap.
 Set Implicit Arguments.
 Unset Strict Implicit.

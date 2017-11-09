@@ -2,9 +2,11 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
-Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap coding. 
-Require Import Relations.
-Require Import Protocol Chains Forests.
+Require Import Eqdep Relations.
+From Heaps
+Require Import pred prelude idynamic ordtype pcm finmap unionmap heap coding.
+From Toychain
+Require Import SeqFacts Chains Blocks Forests Protocol.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
