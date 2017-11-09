@@ -18,7 +18,7 @@ Unset Printing Implicit Defensive.
 connected to every other node), ensures that any node's local
 blockchain will become _exactly_ the "canonical" blokchain, once all
 blocks towars it "in flight" are received and used to extend the local
-block tree.  *)
+block tree. *)
 (*******************************************************************)
 
 Definition saturated_chain w bc :=
