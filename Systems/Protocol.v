@@ -232,7 +232,6 @@ Definition procMsg (st: State) (from : nid) (msg: Message) (ts: Timestamp) :=
     | NullMsg => pair st emitZero
     end.
 
-(* TODO: Please, explain these transitions! *)
 Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     let: (Node n prs bt pool) := st in
     match tr with
