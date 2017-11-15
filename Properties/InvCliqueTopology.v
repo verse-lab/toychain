@@ -2,7 +2,10 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
-Require Import Eqdep pred prelude idynamic ordtype pcm finmap unionmap heap.
+Require Import Eqdep.
+From Heaps
+Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
+From Toychain
 Require Import SeqFacts Protocol Chains Blocks Forests States Network InvMisc.
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -15,7 +18,7 @@ Unset Printing Implicit Defensive.
 connected to every other node), ensures that any node's local
 blockchain will become _exactly_ the "canonical" blokchain, once all
 blocks towars it "in flight" are received and used to extend the local
-block tree.  *)
+block tree. *)
 (*******************************************************************)
 
 Definition saturated_chain w bc :=

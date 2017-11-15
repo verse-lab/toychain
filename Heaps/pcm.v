@@ -1,5 +1,6 @@
 From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
+From Heaps
 Require Import pred prelude ordtype finmap.
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -233,7 +234,7 @@ Module Lift.
 Section Lift.
 Variable A : unlifted.
 
-Structure lift : Type := Undef | Up of A.
+Inductive lift : Type := Undef | Up of A.
 
 Let unit := Up ounit.
 
@@ -355,7 +356,7 @@ Definition maxPCM := Eval hnf in PCM nat maxPCMMixin.
 
 (* mutexes are an unlifted pcm and an equality type *)
 
-Structure mutex := own | nown.
+Inductive mutex := own | nown.
 
 Module MutexUnlift.
 
@@ -494,7 +495,7 @@ Module FinMapPCM.
 Section FinMapPCM.
 Variables (K : ordType) (V : Type).
 
-Structure finmap := Undef | Def of {finMap K -> V}.
+Inductive finmap := Undef | Def of {finMap K -> V}.
 
 Definition valid (f : finmap) :=
   if f is Def _ then true else false.

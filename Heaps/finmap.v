@@ -2,6 +2,7 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
 From mathcomp
 Require Import path.
+From Heaps
 Require Import pred prelude ordtype.
 Set Implicit Arguments.
 Unset Strict Implicit.

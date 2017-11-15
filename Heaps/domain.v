@@ -1,5 +1,6 @@
 From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrfun ssrnat eqtype seq.
+From Heaps
 Require Import pred prelude.
 Set Implicit Arguments.
 Unset Strict Implicit.
