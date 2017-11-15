@@ -3,9 +3,10 @@
 A Coq implementation of a minimalistic blockchain-based consensus
 protocol.
 
-These source files are for the manuscript "Mechanising Blockchain
-Consensus" by G. Pirlea and I. Sergey, submitted for publication at
-CPP 2018.
+These source files are for the paper "Mechanising Blockchain
+Consensus" by George Pirlea and Ilya Sergey, accepted for publication
+at the 7th ACM SIGPLAN International Conference on Certified Programs
+and Proofs (CPP 2018).
 
 ## Building the Project
 
