@@ -12,8 +12,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* Implementation of PoS protocol as a STS *)
-Definition nid := nat.
-Definition peers_t := seq nid.
+Definition peers_t := seq Address.
 
 Inductive Message :=
   | NullMsg
@@ -139,7 +138,7 @@ Canonical Msg_eqType := Eval hnf in EqType Message Msg_eqMixin.
 End MsgEq.
 Export MsgEq.
 
-Record Packet := mkP {src: nid; dst: nid; msg: Message}.
+Record Packet := mkP {src: Address; dst: Address; msg: Message}.
 Definition NullPacket := mkP 0 0 NullMsg.
 
 Module PacketEq.
@@ -166,22 +165,22 @@ Definition emitZero : ToSend := [:: NullPacket].
 Definition emitOne (packet : Packet) : ToSend := [:: packet].
 Definition emitMany (packets : ToSend) := packets.
 
-Definition emitBroadcast (from : nid) (dst : seq nid) (msg : Message) :=
+Definition emitBroadcast (from : Address) (dst : seq Address) (msg : Message) :=
   [seq (mkP from to msg) | to <- dst].
 
 Record State :=
   Node {
-    id : nid;
+    id : Address;
     peers : peers_t;
     blockTree : BlockTree;
     txPool : TxPool;
   }.
 
-Definition Init (n : nid) : State :=
+Definition Init (n : Address) : State :=
   Node n [:: n] (#GenesisBlock \\-> GenesisBlock) [::].
-Lemma peers_uniq_init (n : nid) : uniq [::n]. Proof. done. Qed.
+Lemma peers_uniq_init (n : Address) : uniq [::n]. Proof. done. Qed.
 
-Definition procMsg (st: State) (from : nid) (msg: Message) (ts: Timestamp) :=
+Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :=
     let: (Node n prs bt pool) := st in
     match msg with
     | ConnectMsg =>
