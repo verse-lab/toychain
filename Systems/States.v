@@ -16,7 +16,7 @@ Section States.
 (* Number of nodes *)
 Variable N : nat.
 
-Definition StateMap := union_map [ordType of nid] State.
+Definition StateMap := union_map [ordType of Address] State.
 
 Fixpoint initState' n : StateMap :=
   if n is n'.+1 then (n \\-> Init n) \+ (initState' n') else Unit.

@@ -25,7 +25,7 @@ Definition saturated_chain w bc :=
   (* For any tree that induces bc *)
   forall bt, bc = btChain bt ->
     (* For any node in the world *)
-    forall (n : nid), holds n w
+    forall (n : Address), holds n w
     (* For any block in its local BlockTree *)
     (fun st => forall b, b ∈ blockTree st ->
     (* This block is not going to affect the blockchain out of bt *)
@@ -36,7 +36,7 @@ Definition valid_with_bc bt bc :=
    bc = btChain bt.
 
 Definition GSyncing_clique w :=
-  exists (bc : Blockchain) (bt : BlockTree) (n : nid),
+  exists (bc : Blockchain) (bt : BlockTree) (n : Address),
   [/\ holds n w (has_chain bc),
 
    (* The canonical chain is the largest in the network *)
@@ -164,7 +164,7 @@ case: dom_find=>//v'; rewrite F; case=>Z; subst v'=>->_.
 by rewrite updF eqxx updU eqxx.
 Qed.
 
-Lemma upd_nothing (n : nid) (st : State) (w : World) :
+Lemma upd_nothing (n : Address) (st : State) (w : World) :
   find n (localState w) = Some st -> upd n st (localState w) = (localState w).
 Proof. by apply find_upd_same. Qed.
 

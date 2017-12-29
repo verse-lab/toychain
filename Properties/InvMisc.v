@@ -21,12 +21,12 @@ Unset Printing Implicit Defensive.
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.
 
-Definition exists_and_holds (n : nid) (w : World) (cond : State -> Prop) :=
+Definition exists_and_holds (n : Address) (w : World) (cond : State -> Prop) :=
   exists (st : State),
     find n (localState w) = Some st /\ cond st.
 
 Definition chain_sync_agreement (w w' : World) :=
-  forall (n n' : nid) (bc bc' : Blockchain),
+  forall (n n' : Address) (bc bc' : Blockchain),
     holds n w (has_chain bc) ->
     reachable w w' ->
     holds n' w' (has_chain bc') ->
@@ -55,15 +55,15 @@ by rewrite/msg_block Msg.
 Qed.
 
 Definition largest_chain (w : World) (bc : Blockchain) :=
-   forall (n' : nid) (bc' : Blockchain),
+   forall (n' : Address) (bc' : Blockchain),
     holds n' w (fun st => has_chain bc' st -> bc >= bc').
 
 Definition GStable w :=
   inFlightMsgs w = [::] /\
-  exists (bc : Blockchain), forall (n : nid),
+  exists (bc : Blockchain), forall (n : Address),
       holds n w (has_chain bc).
 
-(* Definition all_available (n : nid) (w : World) : seq Block := *)
+(* Definition all_available (n : Address) (w : World) : seq Block := *)
 (*   let inv_hashes := *)
 (*     flatten [seq msg_hashes (msg p) | *)
 (*              p <- inFlightMsgs w & (dst p == n) && (msg_type (msg p) == MInv)] in *)
@@ -81,10 +81,10 @@ Definition GStable w :=
 * For simplicity, we assume all nodes are directly connected.
 * This could be changed to incorporate a more realistic broadcast setting.
 *)
-Definition available_rel (b : Block) (n : nid) (w : World) :=
+Definition available_rel (b : Block) (n : Address) (w : World) :=
   exists (p : Packet),
     p \in inFlightMsgs w /\
-    [\/ exists (peer : nid) (sh : seq Hash),
+    [\/ exists (peer : Address) (sh : seq Hash),
          msg p = InvMsg sh /\ dst p = n /\ hashB b \in sh |
        exists (hash : Hash),
          msg p = GetDataMsg hash /\ src p = n /\ hashB b = hash

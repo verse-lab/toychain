@@ -26,25 +26,25 @@ Record World :=
   }.
 
 (* Network semantics *)
-Definition holds (n : nid) (w : World) (cond : State -> Prop) :=
+Definition holds (n : Address) (w : World) (cond : State -> Prop) :=
   forall (st : State),
     find n (localState w) = Some st -> cond st.
 
 Definition Coh (w : World) :=
   [/\ valid (localState w),
-     forall (n : nid),
+     forall (n : Address),
        holds n w (fun st => id st == n),
-     forall (n : nid),
+     forall (n : Address),
        holds n w (fun st => valid (blockTree st)),
-     forall (n : nid),
+     forall (n : Address),
        holds n w (fun st => validH (blockTree st)),
-     forall (n : nid),
+     forall (n : Address),
        holds n w (fun st => has_init_block (blockTree st)) &
-     forall (n : nid),
+     forall (n : Address),
        holds n w (fun st => uniq (peers st))
   ].
 
-Record Qualifier := Q { ts: Timestamp; allowed: nid; }.
+Record Qualifier := Q { ts: Timestamp; allowed: Address; }.
 
 (* Don't you worry about uniqueness of the messages? *)
 Inductive system_step (w w' : World) (q : Qualifier) : Prop :=
@@ -59,7 +59,7 @@ Inductive system_step (w w' : World) (q : Qualifier) : Prop :=
                (seq.rem p (inFlightMsgs w) ++ ms)
                (rcons (consumedMsgs w) p)
 
-| Intern (proc : nid) (t : InternalTransition) (st : State) of
+| Intern (proc : Address) (t : InternalTransition) (st : State) of
       Coh w & proc = allowed q &
       find proc (localState w) = Some st &
       let: (st', ms) := (procInt st t (ts q)) in
@@ -196,7 +196,7 @@ by move: (Hi via R)->; rewrite (step_nodes S).
 Qed.
 
 Lemma system_step_local_step w w' q:
-  forall (n : nid) (st st' : State),
+  forall (n : Address) (st st' : State),
     system_step w w' q ->
     find n (localState w) = Some st ->
     find n (localState w') = Some st' ->
@@ -236,7 +236,7 @@ case.
         by constructor 3 with t (ts q); rewrite P.
 Qed.
 
-Lemma no_change_still_holds (w w' : World) (n : nid) q st cond:
+Lemma no_change_still_holds (w w' : World) (n : Address) q st cond:
   find n (localState w) = Some st ->
   holds n w cond ->
   system_step w w' q ->
@@ -247,7 +247,7 @@ move=>f h S sF st' s'F; rewrite s'F in sF; case: sF=>->.
 by move: (h st f).
 Qed.
 
-Lemma no_change_has_held (w w' : World) (n : nid) q st cond:
+Lemma no_change_has_held (w w' : World) (n : Address) q st cond:
   find n (localState w) = Some st ->
   system_step w w' q->
   holds n w' cond ->
