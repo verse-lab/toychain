@@ -216,18 +216,10 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
       (* Do not respond to yourself *)
       if from == n then pair st emitZero else
       let: matchingBlocks := [:: get_block bt h] in
-      let: matchingTxs := [seq t <- pool | (hashT t) == h] in
       match ohead matchingBlocks with
-      | Some(b) =>
-        pair (Node n prs bt pool) (emitOne(mkP n from (BlockMsg b)))
-      | _ =>
-        match ohead matchingTxs with
-        | Some (tx) =>
-          pair (Node n prs bt pool) (emitOne(mkP n from (TxMsg tx)))
-        | _ => pair st emitZero
-        end
+      | Some(b) => pair (Node n prs bt pool) (emitOne(mkP n from (BlockMsg b)))
+      | None => pair st emitZero
       end
-
     | NullMsg => pair st emitZero
     end.
 
