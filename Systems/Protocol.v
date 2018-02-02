@@ -217,8 +217,14 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
       if from == n then pair st emitZero else
       let: matchingBlocks := [seq b <- [:: get_block bt h] | b != GenesisBlock] in
       match ohead matchingBlocks with
-      | Some(b) => pair (Node n prs bt pool) (emitOne(mkP n from (BlockMsg b)))
-      | None => pair st emitZero
+      | Some b => pair (Node n prs bt pool) (emitOne(mkP n from (BlockMsg b)))
+      | None =>
+        let: matchingTxs := [seq t <- pool | (hashT t) == h] in
+        match ohead matchingTxs with
+        | Some tx =>
+          pair (Node n prs bt pool) (emitOne(mkP n from (TxMsg tx)))
+        | None => pair st emitZero
+        end
       end
     | NullMsg => pair st emitZero
     end.
@@ -259,7 +265,8 @@ Lemma procMsg_id_constant (s1 : State) from (m : Message) (ts : Timestamp) :
     id s1 = id (procMsg s1 from m ts).1.
 Proof.
 case: s1 from m ts=>n1 p1 b1 t1 from []=>//=??; case:ifP => //=.
-by move/eqP => H_neq; case: ifP.
+move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
+by case ohead.
 Qed.
 
 Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
@@ -277,7 +284,8 @@ move=> s1 from  m ts.
 case Msg: m=>[|||b|||];
 destruct s1; rewrite/procMsg/=; do?by [|move: (btExtendV blockTree0 b)=><-].
 case:ifP => //=.
-by move/eqP => H_neq; case: ifP.
+move/eqP => H_neq; case: ifP; move/eqP => //= H_eq H_v.
+by case ohead.
 Qed.
 
 Lemma procInt_valid :
@@ -301,7 +309,8 @@ move=> s1 from  m ts.
 case Msg: m=>[|||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case: ifP => //=.
 - by move=>v vh; apply btExtendH.
-- by move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP.
+- move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
+  by case ohead.
 Qed.
 
 Lemma procInt_validH :
@@ -327,7 +336,8 @@ move=> s1 from  m ts.
 case Msg: m=>[|||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case:ifP.
 - by apply btExtendIB.
-- by move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP.
+- move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
+  by case ohead.
 Qed.
 
 Lemma procInt_has_init_block :
@@ -355,7 +365,8 @@ case=> n1 p1 b1 t1 from; case; do? by []; simpl.
   rewrite andbC/=; apply/negbT/negP; rewrite mem_undup=>Z.
   by rewrite Z in X.
 - move=>s _ U; case: ifP => //=.
-  by move/eqP => H_eq; case: ifP.
+  move/eqP => H_eq; case: ifP; move/eqP => //= H_eq'.
+  by case ohead.
 Qed.
 
 Ltac local_bc_no_change s1 hbc hbc' :=
@@ -373,7 +384,8 @@ case: m neq=>[|prs||b|t|sh|h] neq;
   do? by[rewrite/procMsg; destruct s1=>/=].
 - by specialize (neq b); contradict neq; rewrite eqxx.
 - rewrite/procMsg/=; case: s1=>????/=; case:ifP => //=.
-  by move/eqP => H_neq; case: ifP.
+  move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
+  by case ohead.
 Qed.
 
 Lemma procMsg_non_block_nc_btChain :
