@@ -290,11 +290,11 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       by rewrite mem_undup mem_cat; apply/orP; left.
       by case: ifP=>_;
          [rewrite mem_undup|rewrite -cat1s mem_cat mem_undup; apply/orP; right].
-    * case: ifP=>//_.
-      by move=>_ F'; clear H1; move: (HCliq n' _ F')=>H1;
-         move=>z; specialize (H1 z); specialize (H2 z);
-         rewrite H2 in H1=>H3; specialize (H1 H3).
-
+    * case: ifP=>//_; first by case: ifP; move/eqP => //= H_eq; case ohead.
+      move/eqP => H_neq.
+      move => F'; clear H1; move: (HCliq n' _ F')=>H1.
+      move=>z; specialize (H1 z); specialize (H2 z).
+      by rewrite H2 in H1=>H3; specialize (H1 H3).
   (* applying conserved *)
   + move=>n' st'; rewrite findU c1 /=; case: ifP; last first.
     * move=>NDst F'; move: (HExt _ st' F').
@@ -324,17 +324,28 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       rewrite/procMsg Msg /=; case: ifP=>/=;
       first by case: ifP=>//=;
         by move: (find_some hIB)=>hG; move: (btExtend_withDup_noEffect hG)=><-.
-      move=>Src; case: ifP=>//=; move=>/eqP En'; subst n'.
-      rewrite/get_block. (* blockTree wrt. the state of (dst p) in w *)
-      case X: (find hash blockTree0)=>[b|];
-      last by move: (find_some hIB)=>hG;
-              move: (btExtend_withDup_noEffect hG)=><-.
-      rewrite -E;
-      suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn).
-      by move: (HExt _ _ F)=>/= ->; move: (find_some X)=>Dom;
-         move: (c4 _ _ F hash b X)=>H; rewrite H in Dom;
-         rewrite/btHasBlock;
-         move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Dom).
+      move/eqP => H_neq.
+      case: ifP=>//=; move=>/eqP En'.
+      - rewrite/get_block. (* blockTree wrt. the state of (dst p) in w *)
+        case X: (find hash blockTree0)=>[b|].
+        -- case: ifP => //=; move/eqP => H_n'.
+           rewrite -E; suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn).
+           by move: (HExt _ _ F)=>/= ->; move: (find_some X)=>Dom;
+              move: (c4 _ _ F hash b X)=>H; rewrite H in Dom;
+              rewrite/btHasBlock;
+              move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Dom).
+        -- move: (find_some hIB)=>hG.
+           case: ifP => //=.
+           move/eqP => H_n'.
+           by move: (btExtend_withDup_noEffect hG)=><-.
+      - by case ohead => [tx|] //=;
+         case: ifP => //=; move/eqP => H_eq;
+         rewrite -E;
+         (suff BIn: (GenesisBlock ∈ can_bt) by apply (btExtend_withDup_noEffect BIn));
+         move: C => [H_v H_v'] => H_ib;
+         rewrite /has_init_block in H_ib;
+         rewrite /btHasBlock;
+         move: (find_some H_ib).
     * move/eqP=>Eq [Eq']; subst n' stPm.
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
@@ -372,16 +383,31 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       (* GetDataMsg *)
       destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X.
       * by case: ifP=>/=?;
-        do? [rewrite/has_init_block /= in G';
-             move: (btExtend_withDup_noEffect (find_some G'))=><-];
-        move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
-        do [rewrite Z1 in H'; rewrite (rem_non_block w V')//;
+          do? [rewrite/has_init_block /= in G';
+              move: (btExtend_withDup_noEffect (find_some G'))=><-];
+           move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
+           do [rewrite Z1 in H'; rewrite (rem_non_block w V')//;
             last by case: (msg p) Msg];
-           by rewrite -Z1 Msg/=; case: ifP.
-        rewrite Z1 in H'; case:ifP=>Y; first by move/eqP:Y=>Y;
-        rewrite Y eq_sym (c2 _ _ F) in X.
-      rewrite (rem_non_block w V')//; last by case: (msg p) Msg.
-      by rewrite -Z1 Msg/=; case: ifP=>_/=; apply: (HExt _ _ F).
+           rewrite -Z1 Msg/=; case: ifP => //=; move/eqP => H_neq;
+           case: ifP; move/eqP => H_neq' //=;
+           case ohead.
+      * case: ifP => H_neq //=.
+        - case:ifP=> //= Y; first by move/eqP:Y=>Y; rewrite Y eq_sym (c2 _ _ F) in X.
+          rewrite Z1 in H'.
+          rewrite (rem_non_block w V')//; last by case: (msg p) Msg.
+          rewrite -Z1 Msg/=.
+          case: ifP; move/eqP => H_eq; first by move/eqP: X.
+          case: ifP => H_eq' //=; last by move/eqP: H_eq' => H_eq'; move/eqP: H_neq => H_neq.
+          exact: (HExt _ _ F).
+        - move/eqP: H_neq => H_neq //=.
+          by case ohead => [tx|] //=;
+          case:ifP=> //=; move/eqP => H_eq;
+           do? [rewrite/has_init_block /= in G';
+           move: (btExtend_withDup_noEffect (find_some G'))=><-];
+           move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
+           do [rewrite Z1 in H'; rewrite (rem_non_block w V')//; last by case: (msg p) Msg];
+           rewrite -Z1 Msg/=; case: ifP => //=;
+           case: ifP; move/eqP => H_neq' //=; case ohead.
 
 (* Internal *)
 move=>proc t st [c1 c2 c3 c4 c5 c6] Al F.
