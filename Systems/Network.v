@@ -89,9 +89,9 @@ Ltac Coh_step_case n d H F :=
   ]; move=>_ [] <-.
 
 Lemma holds_Init_state : forall (P : State -> Prop) n, P (Init n) ->
-  holds n {| localState := initState' (enum Address); inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
+  holds n {| localState := initState; inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
 Proof.
-move => P n H_P.
+move => P n H_P; rewrite /initState.
 have H_in: n \in enum Address by rewrite mem_enum.
 have H_un: uniq (enum Address) by apply enum_uniq.
 move: H_in H_un; elim: (enum Address) => //=.
@@ -117,7 +117,7 @@ Qed.
 
 Lemma Coh_init : Coh initWorld.
 Proof.
-rewrite /initWorld/initState/localState/=; split.
+rewrite /initWorld/localState/=; split.
 - apply: valid_initState'.
   exact: enum_uniq.
 - by move => n; exact: holds_Init_state.
