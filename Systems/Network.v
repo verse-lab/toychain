@@ -82,20 +82,6 @@ involved peers are not _too different_. *)
 
 Definition initWorld := mkW initState [::] [::].
 
-(*
-Ltac InitState_induction :=
-move=>n st; elim: N=>//=[|n' Hi];
-do? [by move/find_some; rewrite dom0 inE];
-do? [
-  rewrite findUnL; last by [
-    case: validUn; rewrite ?um_validPt ?valid_initState//;
-    move=>k; rewrite um_domPt !inE=>/eqP <-;
-    rewrite dom_initState mem_iota addnC addn1 ltnn andbC
-  ]
-];
-case: ifP=>//; rewrite um_domPt inE=>/eqP<-.
-*)
-
 Ltac Coh_step_case n d H F :=
   case B: (n == d);
   do? [by move=>F; move: (H n _ F) |
