@@ -12,9 +12,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section Semantics.
-
-(* Number of nodes *)
 Definition PacketSoup := seq Packet.
 
 Record World :=
@@ -105,215 +102,47 @@ Ltac Coh_step_case n d H F :=
     case: ifP; last done
   ]; move=>_ [] <-.
 
+Lemma holds_Init_state : forall (P : State -> Prop) n, P (Init n) ->
+  holds n {| localState := initState' (enum Address); inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
+Proof.
+move => P n H_P.
+have H_in: n \in enum Address by rewrite mem_enum.
+have H_un: uniq (enum Address) by apply enum_uniq.
+move: H_in H_un; elim: (enum Address) => //=.
+move => a s IH; rewrite inE; move/orP; case.
+* move/eqP => H_eq /=.
+  rewrite H_eq; move/andP => [H_in H_u].
+  rewrite /holds /= => st; rewrite gen_findPtUn; first by case => H_i; rewrite -H_i -H_eq.
+  by case: validUn; rewrite ?um_validPt ?valid_initState'//;
+   move=>k; rewrite um_domPt !inE=>/eqP <-;
+   rewrite dom_initState' //; move/negP: H_in.
+* move => H_in; move/andP => [H_ni H_u].
+  have H_neq: n <> a by move => H_eq; rewrite -H_eq in H_ni; move/negP: H_ni.
+  move: H_in; move/IH {IH} => IH.
+  have H_u' := H_u.
+  move: H_u'; move/IH {IH}.
+  rewrite /holds /= => IH st; rewrite findUnL.
+  + case: ifP; last by move => H_in H_f; exact: IH.
+    by rewrite um_domPt inE eq_sym; move/eqP.
+  + by case: validUn; rewrite ?um_validPt ?valid_initState'//;
+     move=>k; rewrite um_domPt !inE=>/eqP <-;
+     rewrite dom_initState' //; move/negP: H_ni.
+Qed.
+
 Lemma Coh_init : Coh initWorld.
 Proof.
 rewrite /initWorld/initState/localState/=; split.
 - apply: valid_initState'.
   exact: enum_uniq.
-- move => n.
-  have H_in: n \in enum Address by rewrite mem_enum.
-  have H_un: uniq (enum Address) by apply enum_uniq.
-  move: H_in H_un.
-  elim: (enum Address) => //=.
-  move => a s IH.
-  rewrite inE.
-  move/orP.
-  case.
-  * move/eqP => H_eq /=.
-    rewrite H_eq.
-    move/andP => [H_in H_u].
-    rewrite /holds /= => st.
-    rewrite gen_findPtUn.
-    + by case => H_i; rewrite -H_i.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_in.
-  * move => H_in.
-    move/andP => [H_ni H_u].
-    have H_neq: n <> a.
-      move => H_eq.
-      rewrite -H_eq in H_ni.
-      by move/negP: H_ni.
-    move: H_in.
-    move/IH {IH} => IH.
-    have H_u' := H_u.
-    move: H_u'.
-    move/IH {IH}.
-    rewrite /holds /= => IH st.
-    rewrite findUnL.
-    + case: ifP; last by move => H_in H_f; exact: IH.
-      rewrite um_domPt inE.
-      rewrite eq_sym.
-      by move/eqP.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_ni.
-- move => n.
-  have H_in: n \in enum Address by rewrite mem_enum.
-  have H_un: uniq (enum Address) by apply enum_uniq.
-  move: H_in H_un.
-  elim: (enum Address) => //=.
-  move => a s IH.
-  rewrite inE.
-  move/orP.
-  case.
-  * move/eqP => H_eq /=.
-    rewrite H_eq.
-    move/andP => [H_in H_u].
-    rewrite /holds /= => st.
-    rewrite gen_findPtUn.
-    + case => H_i; rewrite -H_i.
-      by rewrite /blockTree /= um_validPt.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_in.
-  * move => H_in.
-    move/andP => [H_ni H_u].
-    have H_neq: n <> a.
-      move => H_eq.
-      rewrite -H_eq in H_ni.
-      by move/negP: H_ni.
-    move: H_in.
-    move/IH {IH} => IH.
-    have H_u' := H_u.
-    move: H_u'.
-    move/IH {IH}.
-    rewrite /holds /= => IH st.
-    rewrite findUnL.
-    + case: ifP; last by move => H_in H_f; exact: IH.
-      rewrite um_domPt inE.
-      rewrite eq_sym.
-      by move/eqP.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_ni.
-- move => n.
-  have H_in: n \in enum Address by rewrite mem_enum.
-  have H_un: uniq (enum Address) by apply enum_uniq.
-  move: H_in H_un.
-  elim: (enum Address) => //=.
-  move => a s IH.
-  rewrite inE.
-  move/orP.
-  case.
-  * move/eqP => H_eq /=.
-    rewrite H_eq.
-    move/andP => [H_in H_u].
-    rewrite /holds /= => st.
-    rewrite gen_findPtUn.
-    + case => H_i; rewrite -H_i.
-      rewrite/validH/blockTree /= => h b H.
-      by move: (um_findPt_inv H); elim=>->->.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_in.
-  * move => H_in.
-    move/andP => [H_ni H_u].
-    have H_neq: n <> a.
-      move => H_eq.
-      rewrite -H_eq in H_ni.
-      by move/negP: H_ni.
-    move: H_in.
-    move/IH {IH} => IH.
-    have H_u' := H_u.
-    move: H_u'.
-    move/IH {IH}.
-    rewrite /holds /= => IH st.
-    rewrite findUnL.
-    + case: ifP; last by move => H_in H_f; exact: IH.
-      rewrite um_domPt inE.
-      rewrite eq_sym.
-      by move/eqP.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_ni.
-- move => n.
-  have H_in: n \in enum Address by rewrite mem_enum.
-  have H_un: uniq (enum Address) by apply enum_uniq.
-  move: H_in H_un.
-  elim: (enum Address) => //=.
-  move => a s IH.
-  rewrite inE.
-  move/orP.
-  case.
-  * move/eqP => H_eq /=.
-    rewrite H_eq.
-    move/andP => [H_in H_u].
-    rewrite /holds /= => st.
-    rewrite gen_findPtUn.
-    + case => H_i; rewrite -H_i.
-      by rewrite/has_init_block/blockTree um_findPt.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_in.
-  * move => H_in.
-    move/andP => [H_ni H_u].
-    have H_neq: n <> a.
-      move => H_eq.
-      rewrite -H_eq in H_ni.
-      by move/negP: H_ni.
-    move: H_in.
-    move/IH {IH} => IH.
-    have H_u' := H_u.
-    move: H_u'.
-    move/IH {IH}.
-    rewrite /holds /= => IH st.
-    rewrite findUnL.
-    + case: ifP; last by move => H_in H_f; exact: IH.
-      rewrite um_domPt inE.
-      rewrite eq_sym.
-      by move/eqP.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_ni.
-- move => n.
-  have H_in: n \in enum Address by rewrite mem_enum.
-  have H_un: uniq (enum Address) by apply enum_uniq.
-  move: H_in H_un.
-  elim: (enum Address) => //=.
-  move => a s IH.
-  rewrite inE.
-  move/orP.
-  case.
-  * move/eqP => H_eq /=.
-    rewrite H_eq.
-    move/andP => [H_in H_u].
-    rewrite /holds /= => st.
-    rewrite gen_findPtUn.
-    + by case => H_i; rewrite -H_i.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_in.
-  * move => H_in.
-    move/andP => [H_ni H_u].
-    have H_neq: n <> a.
-      move => H_eq.
-      rewrite -H_eq in H_ni.
-      by move/negP: H_ni.
-    move: H_in.
-    move/IH {IH} => IH.
-    have H_u' := H_u.
-    move: H_u'.
-    move/IH {IH}.
-    rewrite /holds /= => IH st.
-    rewrite findUnL.
-    + case: ifP; last by move => H_in H_f; exact: IH.
-      rewrite um_domPt inE.
-      rewrite eq_sym.
-      by move/eqP.
-    + case: validUn; rewrite ?um_validPt ?valid_initState'//.
-      move=>k; rewrite um_domPt !inE=>/eqP <-.
-      rewrite dom_initState' //.
-      by move/negP: H_ni.
+- by move => n; exact: holds_Init_state.
+- move => n; apply: holds_Init_state.
+  by rewrite /blockTree /= um_validPt.
+- move => n; apply: holds_Init_state.
+  rewrite/validH/blockTree /= => h b H.
+  by move: (um_findPt_inv H); elim=>->->.
+- move => n; apply: holds_Init_state.
+  by rewrite/has_init_block/blockTree um_findPt.
+- move => n; exact: holds_Init_state.
 Qed.
 
 Lemma Coh_step w w' q:
@@ -454,5 +283,3 @@ Proof.
 move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
-
-End Semantics.
