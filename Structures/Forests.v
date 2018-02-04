@@ -23,7 +23,6 @@ Definition Hash := [ordType of nat].
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter Address : finType.
-Parameter NullAddress : Address.
 
 Definition block := @Block Transaction VProof.
 Parameter GenesisBlock : block.
