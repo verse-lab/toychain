@@ -15,7 +15,6 @@ Unset Printing Implicit Defensive.
 Definition peers_t := seq Address.
 
 Inductive Message :=
-  | NullMsg
   | AddrMsg of peers_t
   | ConnectMsg 
   | BlockMsg of block
@@ -24,7 +23,6 @@ Inductive Message :=
   | GetDataMsg of Hash.
 
 Inductive MessageType :=
-  | MNull
   | MAddr
   | MConnect
   | MBlock
@@ -35,7 +33,6 @@ Inductive MessageType :=
 Module MsgTypeEq.
 Definition eq_msg_type a b :=
   match a, b with
-  | MNull, MNull => true
   | MAddr, MAddr => true
   | MConnect, MConnect => true
   | MBlock, MBlock => true
@@ -58,7 +55,6 @@ Export MsgTypeEq.
 
 Definition msg_type (msg : Message) : MessageType :=
   match msg with
-  | NullMsg => MNull
   | AddrMsg _ => MAddr
   | ConnectMsg => MConnect
   | BlockMsg _ => MBlock
@@ -87,8 +83,6 @@ Inductive InternalTransition :=
 Module MsgEq.
 Definition eq_msg a b :=
  match a, b with
-  | NullMsg, NullMsg => true
-  | NullMsg, _ => false
   | AddrMsg prsA, AddrMsg prsB => (prsA == prsB)
   | AddrMsg _, _ => false
   | ConnectMsg, ConnectMsg => true
@@ -112,23 +106,22 @@ Ltac simple_tactic mb n n' B :=
 Lemma eq_msgP : Equality.axiom eq_msg.
 Proof.
 move=> ma mb. rewrite/eq_msg.
-case: ma=>[|p||b|t|h|h].
-- case: mb=>//[|p'||b'|t'|h'|h']; do? [by constructor 2]; by constructor 1.
-- case: mb=>//[|p'||b'|t'|h'|h']; do? [by constructor 2].
+case: ma=>[p||b|t|h|h].
+- case: mb=>//[p'||b'|t'|h'|h']; do? [by constructor 2].
   case B: ((p == p')).
   - by move/eqP:B=><-; constructor 1.
   by constructor 2; case=>Z; subst p'; rewrite eqxx in B.
-- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2|by constructor 1].
-- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+- case:mb=>////[p'||b'|t'|h'|h']; do? [by constructor 2|by constructor 1].
+- case:mb=>////[p'||b'|t'|h'|h']; do? [by constructor 2].
   case B: (b == b'); [by case/eqP:B=><-; constructor 1|constructor 2].
   by case=>Z; subst b'; rewrite eqxx in B.
-- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+- case:mb=>////[p'||b'|t'|h'|h']; do? [by constructor 2].
   case B: (t == t'); [by case/eqP:B=><-; constructor 1|constructor 2].
   by case=>Z; subst t'; rewrite eqxx in B.
-- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+- case:mb=>////[p'||b'|t'|h'|h']; do? [by constructor 2].
   case B: (h == h'); [by case/eqP:B=><-; constructor 1|constructor 2].
   by case=>Z; subst h'; rewrite eqxx in B.
-- case:mb=>////[|p'||b'|t'|h'|h']; do? [by constructor 2].
+- case:mb=>////[p'||b'|t'|h'|h']; do? [by constructor 2].
   case B: (h == h'); [by case/eqP:B=><-; constructor 1|constructor 2].
   by case=>Z; subst h'; rewrite eqxx in B.
 Qed.
@@ -139,7 +132,6 @@ End MsgEq.
 Export MsgEq.
 
 Record Packet := mkP {src: Address; dst: Address; msg: Message}.
-Definition NullPacket n := mkP n n NullMsg.
 
 Module PacketEq.
 Definition eq_pkt a b :=
@@ -161,7 +153,7 @@ Export PacketEq.
 
 
 Definition ToSend := seq Packet.
-Definition emitZero n : ToSend := [:: NullPacket n].
+Definition emitZero : ToSend := [::].
 Definition emitOne (packet : Packet) : ToSend := [:: packet].
 Definition emitMany (packets : ToSend) := packets.
 
@@ -214,7 +206,7 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
 
     | GetDataMsg h =>
       (* Do not respond to yourself *)
-      if from == n then pair st (emitZero n) else
+      if from == n then pair st emitZero else
       let: matchingBlocks := [seq b <- [:: get_block bt h] | b != GenesisBlock] in
       match ohead matchingBlocks with
       | Some b => pair (Node n prs bt pool) (emitOne (mkP n from (BlockMsg b)))
@@ -223,10 +215,9 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
         match ohead matchingTxs with
         | Some tx =>
           pair (Node n prs bt pool) (emitOne (mkP n from (TxMsg tx)))
-        | None => pair st (emitZero n)
+        | None => pair st emitZero
         end
       end
-    | NullMsg => pair st (emitZero n)
     end.
 
 Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
@@ -250,10 +241,10 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
               let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
               pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
             else
-              pair st (emitZero n)
+              pair st emitZero
           else
-            pair st (emitZero n)
-      | None => pair st (emitZero n)
+            pair st emitZero
+      | None => pair st emitZero
       end
     end.
 
@@ -278,7 +269,7 @@ Lemma procMsg_valid :
     valid (blockTree s1) -> valid (blockTree (procMsg s1 from  m ts).1).
 Proof.
 move=> s1 from  m ts.
-case Msg: m=>[|||b|||];
+case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do?by [|move: (btExtendV blockTree0 b)=><-].
 case:ifP => //=.
 move/eqP => H_neq; case: ifP; move/eqP => //= H_eq H_v.
@@ -303,7 +294,7 @@ Lemma procMsg_validH :
      validH (blockTree (procMsg s1 from  m ts).1).
 Proof.
 move=> s1 from  m ts.
-case Msg: m=>[|||b|||];
+case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case: ifP => //=.
 - by move=>v vh; apply btExtendH.
 - move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
@@ -330,7 +321,7 @@ Lemma procMsg_has_init_block:
      has_init_block (blockTree (procMsg s1 from m ts).1).
 Proof.
 move=> s1 from  m ts.
-case Msg: m=>[|||b|||];
+case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case:ifP.
 - by apply btExtendIB.
 - move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
@@ -377,7 +368,7 @@ Lemma procMsg_non_block_nc_blockTree :
     blockTree s1 = blockTree s2.
 Proof.
 move=>s1 from m ts neq.
-case: m neq=>[|prs||b|t|sh|h] neq;
+case: m neq=>[prs||b|t|sh|h] neq;
   do? by[rewrite/procMsg; destruct s1=>/=].
 - by specialize (neq b); contradict neq; rewrite eqxx.
 - rewrite/procMsg/=; case: s1=>????/=; case:ifP => //=.
