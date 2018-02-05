@@ -1,5 +1,5 @@
 From mathcomp.ssreflect
-Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
+Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
 From mathcomp
 Require Import path.
 Require Import Eqdep.
@@ -13,7 +13,6 @@ Unset Printing Implicit Defensive.
 
 (* A fomalization of a block forests *)
 
-Definition Address := nat.
 Definition Timestamp := nat.
 Definition Hash := [ordType of nat].
 
@@ -23,6 +22,8 @@ Definition Hash := [ordType of nat].
 
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
+Parameter Address : finType.
+Parameter NullAddress : Address.
 
 Definition block := @Block Transaction VProof.
 Parameter GenesisBlock : block.
