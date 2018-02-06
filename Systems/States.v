@@ -12,7 +12,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Definition Address_ordMixin := fin_ordMixin Address.
-Canonical Structure Address_ordType := OrdType Address Address_ordMixin.
+Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
 Definition StateMap := union_map [ordType of Address] State.
 
