@@ -25,6 +25,7 @@ Thumbs.db
 *.thr_debug_o
 *.o
 *.vo
+*.vio
 *.a
 *.o.cmd
 *.depend*
