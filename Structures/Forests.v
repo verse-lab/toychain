@@ -64,44 +64,44 @@ Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 
 (* 1.  Genesis block properties *)
 
-Hypothesis init_hash : prevBlockHash GenesisBlock = #GenesisBlock.
+Axiom init_hash : prevBlockHash GenesisBlock = #GenesisBlock.
 
-Hypothesis init_tx : txs GenesisBlock = [::].
+Axiom init_tx : txs GenesisBlock = [::].
 
 (* 2.  Transaction validation *)
 
-Hypothesis txValid_nil : forall t, txValid t [::]. 
+Axiom txValid_nil : forall t, txValid t [::].
 
 (* 3.  Hashes *)
 
-Hypothesis hashB_inj : injective hashB.
+Axiom hashB_inj : injective hashB.
 
-Hypothesis hashT_inj : injective hashT.
+Axiom hashT_inj : injective hashT.
 
 (* 4.  VAF *)
 
 (* This axiom seems reasonable: it shouldn't be possible
    to generate a block _from_ the chain it is supposed to tail.  *)
-Hypothesis VAF_nocycle :
+Axiom VAF_nocycle :
   forall (b : block) ts (bc : Blockchain), VAF (proof b) ts bc -> b \notin bc.
 
 (* 2. FCR *)
 
-Hypothesis FCR_subchain :
+Axiom FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
-Hypothesis FCR_ext :
+Axiom FCR_ext :
   forall (bc : Blockchain) (b : block) (ext : seq block),
     bc ++ (b :: ext) > bc.
 
-Hypothesis FCR_rel :
+Axiom FCR_rel :
   forall (A B : Blockchain),
     A = B \/ A > B \/ B > A.
 
-Hypothesis FCR_nrefl :
+Axiom FCR_nrefl :
   forall (bc : Blockchain), bc > bc -> False.
 
-Hypothesis FCR_trans :
+Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
 
 (************************************************************)
