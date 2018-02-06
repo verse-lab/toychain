@@ -81,7 +81,6 @@ Lemma procMsg_nGetData_no_blocks st p q stPm ms n' :
 Proof.
 rewrite [procMsg _ _ _ _]surjective_pairing; case=>_{stPm}<-{ms}.
 case (msg p); rewrite /procMsg/=; case: st=>id ps bt tp GD/=.
-- by case: ifP=>//_; apply/allP=>m; rewrite inE=>/eqP->/=; rewrite eqxx.
 - move=>pt; apply/allP=>m; rewrite !inE.
   move/mapP=>[z]; rewrite mem_filter/emitMany/emitBroadcast=>/andP[_].
   by rewrite mem_cat=>/orP[]/=; move/mapP=>[y]_->->/=; rewrite eqxx.
@@ -245,7 +244,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
   + move=>st'; rewrite findU c1 /=;
     case: ifP; last by move=>_ F'; apply (HHold _ F').
     move/eqP=>Eq [Eq']; subst can_n stPm.
-    case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
+    case Msg: (msg p)=>[||b|||]; rewrite Msg in P;
     do? by [NBlockMsg_dest_btChain q st p b Msg P H; move: (HHold _ F)].
     BlockMsg_dest q st (src p) b iF P Msg;
     move: (c3 (dst p) _ F) (c4 (dst p) _ F) (c5 (dst p) _ F)=>V Vh Ib;
@@ -256,7 +255,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
   (* can_bc is still the largest chain *)
   + move=>n' bc'; rewrite/holds findU c1 /=; case: ifP.
     move/eqP=>Eq st' [Eq']; subst n' stPm.
-    case Msg: (msg p)=>[|||b|||]; rewrite Msg in P;
+    case Msg: (msg p)=>[||b|||]; rewrite Msg in P;
     do? by
     [NBlockMsg_dest_btChain q st p b Msg P H=>Hc; move: (HGt (dst p) bc' _ F Hc)].
     by BlockMsg_dest q st (src p) b iF P Msg;
@@ -283,7 +282,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
     * move/eqP=>Eq [Eq']; subst n' stPm;
       move=>z; specialize (H1 z); specialize (H2 z).
       rewrite H2 in H1; move=>H3. specialize (H1 H3).
-      case Msg: (msg p)=>[|prs|||||]; rewrite Msg in P;
+      case Msg: (msg p)=>[prs|||||]; rewrite Msg in P;
       rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
       destruct st; rewrite/procMsg/=; do? by [];
       do? rewrite /Protocol.peers in H1.
@@ -307,7 +306,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
         case:ifP=>[/eqP Z|_/=]; first by subst x; rewrite eq_sym NDst.
         by case: ifP=>///eqP Z; subst n'; rewrite/= Hi.
 
-      case Msg: (msg p)=>[||||||hash];
+      case Msg: (msg p)=>[|||||hash];
       set old_msgs := [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'];
       set bt := (foldl btExtend (blockTree st') old_msgs);
       move: (c3 _ _ F')=>h3; move: (c4 _ _ F')=>h4; move: (c5 _ _ F')=>h5;
@@ -320,10 +319,8 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
         move: (btExtend_foldG hIB allG)=>->].
       (* procMsg GetDataMsg => BlockMsg in ms *)
       rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>_ <-.
-      case: st F P'=>id0 peers0 blockTree0 txPool0 F P';
-      rewrite/procMsg Msg /=; case: ifP=>/=;
-      first by case: ifP=>//=;
-        by move: (find_some hIB)=>hG; move: (btExtend_withDup_noEffect hG)=><-.
+      case: st F P'=>id0 peers0 blockTree0 txPool0 F P'.
+      rewrite/procMsg Msg /=; case: ifP=>/=; first by move: (find_some hIB)=>hG.
       move/eqP => H_neq.
       case: ifP=>//=; move=>/eqP En'.
       - rewrite/get_block. (* blockTree wrt. the state of (dst p) in w *)
@@ -355,7 +352,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
                                     (ts q) (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>G'.
       rewrite ?Z1 ?Z2 in V' G';
       rewrite filter_cat map_cat foldl_cat btExtend_fold_comm//.
-      case Msg: (msg p)=>[|||b|||h];
+      case Msg: (msg p)=>[||b|||h];
       do? [
         (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
         move: (procMsg_nGetData_no_blocks (dst p) P notGD)=>//allG;
@@ -382,8 +379,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
 
       (* GetDataMsg *)
       destruct st; rewrite -Z2 /procMsg Msg /=; case: ifP=>/=X.
-      * by case: ifP=>/=?;
-          do? [rewrite/has_init_block /= in G';
+      * by do? [rewrite/has_init_block /= in G';
               move: (btExtend_withDup_noEffect (find_some G'))=><-];
            move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
            do [rewrite Z1 in H'; rewrite (rem_non_block w V')//;
@@ -400,8 +396,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
           case: ifP => H_eq' //=; last by move/eqP: H_eq' => H_eq'; move/eqP: H_neq => H_neq.
           exact: (HExt _ _ F).
         - move/eqP: H_neq => H_neq //=.
-          by case ohead => [tx|] //=;
-          case:ifP=> //=; move/eqP => H_eq;
+          by case ohead => [tx|] //=; first (case:ifP=> //=; move/eqP => H_eq);
            do? [rewrite/has_init_block /= in G';
            move: (btExtend_withDup_noEffect (find_some G'))=><-];
            move: (HExt _ _ F); rewrite/blocksFor=>-> /=;
