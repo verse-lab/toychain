@@ -29,17 +29,17 @@ Parameter GenesisBlock : block.
 
 Definition Blockchain := seq block.
 
-(* In fact, it's a forrest, as it also keeps orphan blocks *)
+(* In fact, it's a forest, as it also keeps orphan blocks *)
 Definition BlockTree := union_map Hash block.
-
-Parameter hashT : Transaction -> Hash.
-Parameter hashB : block -> Hash.
-Parameter genProof : Address -> Blockchain -> option VProof.
-Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
-Parameter FCR : Blockchain -> Blockchain -> bool.
 
 (* Transaction pools *)
 Definition TxPool := seq Transaction.
+
+Parameter hashT : Transaction -> Hash.
+Parameter hashB : block -> Hash.
+Parameter genProof : Address -> Blockchain -> TxPool -> option VProof.
+Parameter VAF : VProof -> Timestamp -> Blockchain -> bool.
+Parameter FCR : Blockchain -> Blockchain -> bool.
 
 (* Transaction is valid and consistent with the given chain *)
 Parameter txValid : Transaction -> Blockchain -> bool.

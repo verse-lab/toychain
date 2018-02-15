@@ -228,22 +228,21 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     (* Assumption: nodes broadcast to themselves as well! => simplifies logic *)
     | MintT =>
       let: bc := btChain bt in
-      let: attempt := genProof n bc in
-      match attempt with
+      let: allowedTxs := [seq t <- pool | txValid t bc] in
+      match genProof n bc allowedTxs with
       | Some pf =>
-          if VAF pf ts bc then
-            let: allowedTxs := [seq t <- pool | txValid t bc] in
-            let: prevBlock := last GenesisBlock bc in
-            let: block := mkB (hashB prevBlock) allowedTxs pf in
-            if tx_valid_block bc block then
-              let: newBt := btExtend bt block in
-              let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
-              let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
-              pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
-            else
-              pair st emitZero
+        let: prevBlock := last GenesisBlock bc in
+        let: block := mkB (hashB prevBlock) allowedTxs pf in
+        if VAF pf ts bc then
+          if tx_valid_block bc block then
+            let: newBt := btExtend bt block in
+            let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
+            let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
+            pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
           else
             pair st emitZero
+        else
+          pair st emitZero
       | None => pair st emitZero
       end
     end.
