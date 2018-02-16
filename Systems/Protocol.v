@@ -229,7 +229,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     | MintT =>
       let: bc := btChain bt in
       let: allowedTxs := [seq t <- pool | txValid t bc] in
-      match genProof n bc allowedTxs with
+      match genProof n bc allowedTxs ts with
       | Some pf =>
         let: prevBlock := last GenesisBlock bc in
         let: block := mkB (hashB prevBlock) allowedTxs pf in
@@ -259,7 +259,8 @@ Qed.
 Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
     id s1 = id (procInt s1 t ts).1.
 Proof.
-case=> n1 p1 b1 t1 [] =>//; simpl; case hP: (genProof _)=>ts //; case vP: (VAF _)=>//.
+case=> n1 p1 b1 t1 [] =>// ts; simpl.
+case hP: genProof => //; case vP: (VAF _)=>//.
 case tV: (tx_valid_block _ _)=>//.
 Qed.
 
