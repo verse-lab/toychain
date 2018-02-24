@@ -1,5 +1,7 @@
 # Toychain
 
+[![Build Status](https://travis-ci.org/certichain/toychain.svg?branch=master)](https://travis-ci.org/certichain/toychain)
+
 A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ## Building the Project
