@@ -11,10 +11,10 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* A fomalization of a block forests *)
+(* A formalization of a block forests *)
 
-Definition Timestamp := nat.
-Definition Hash := [ordType of nat].
+Parameter Timestamp : Type.
+Parameter Hash : ordType.
 
 (************************************************************)
 (******************* <parameters> ***************************)
@@ -24,7 +24,8 @@ Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter Address : finType.
 
-Definition block := @Block Transaction VProof.
+Definition block := @Block Hash Transaction VProof.
+
 Parameter GenesisBlock : block.
 
 Definition Blockchain := seq block.
@@ -52,7 +53,6 @@ Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 Notation "A > B" := (FCR A B).
 Notation "A >= B" := (A = B \/ A > B).
 Notation "# b" := (hashB b) (at level 20).
-Notation "## b" := (hashB b \\-> tt) (at level 80).
 
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
