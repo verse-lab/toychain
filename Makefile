@@ -6,6 +6,9 @@ default: Makefile.coq
 quick: Makefile.coq
 	$(MAKE) -f Makefile.coq quick
 
+install: Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
 clean: Makefile.coq
 	$(MAKE) -f Makefile.coq cleanall
 	rm -f Makefile.coq

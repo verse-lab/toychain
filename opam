@@ -7,9 +7,9 @@ dev-repo: "https://github.com/certichain/toychain.git"
 bug-reports: "https://github.com/certichain/toychain/issues"
 license: "BSD"
 
-build: [
-  [ make "-j%{jobs}%" ]
-]
+build: [ make "-j%{jobs}%" ]
+install: [ make "install" ]
+remove: [ "sh" "-c" "rm -rf '%{lib}%/coq/user-contrib/Toychain'" ]
 depends: [
   "coq" {>= "8.7" & < "8.8~"}
   "coq-mathcomp-ssreflect" {>= "1.6" & < "1.7~"}
