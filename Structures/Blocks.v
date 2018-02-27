@@ -19,8 +19,8 @@ Record Block {Hash : ordType} {Transaction VProof : eqType} :=
   }.
 
 Definition eq_block {H : ordType} {T P : eqType} (b b' : @Block H T P) :=
-  match (b, b') with
-  | (mkB p t pf, mkB p' t' pf') =>
+  match b, b' with
+  | mkB p t pf, mkB p' t' pf' =>
     [&& p == p', t == t' & pf == pf']
   end.
       
