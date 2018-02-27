@@ -1,7 +1,7 @@
 From mathcomp.ssreflect
 Require Import ssreflect ssrfun.
 Require Import Eqdep. 
-From Heaps
+From HTT
 Require Import prelude.
 Set Implicit Arguments.
 Unset Strict Implicit.

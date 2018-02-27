@@ -2,7 +2,7 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq.
 From mathcomp
 Require Import path.
-From Heaps
+From HTT
 Require Import idynamic ordtype finmap pcm.
 Set Implicit Arguments.
 Unset Strict Implicit.

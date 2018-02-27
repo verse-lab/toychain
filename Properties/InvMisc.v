@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
 From mathcomp
 Require Import path.
 Require Import Eqdep.
-From Heaps
+From HTT
 Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
 From Toychain
 Require Import SeqFacts Protocol Chains Blocks Forests States Network.
