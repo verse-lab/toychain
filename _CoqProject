@@ -1,21 +1,8 @@
--Q Heaps HTT
 -Q Structures Toychain
 -Q Systems Toychain
 -Q Properties Toychain
 -arg "-w -notation-overridden,-local-declaration,-redundant-canonical-projection,-projection-no-head-constant"
 
-Heaps/coding.v
-Heaps/domain.v
-Heaps/finmap.v
-Heaps/heap.v
-Heaps/idynamic.v
-Heaps/ordtype.v
-Heaps/pcm.v
-Heaps/pperm.v
-Heaps/pred.v
-Heaps/prelude.v
-Heaps/spcm.v
-Heaps/unionmap.v
 Structures/SeqFacts.v
 Structures/Chains.v
 Structures/Blocks.v
