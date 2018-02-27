@@ -10,17 +10,20 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 * Coq 8.7 (available from https://coq.inria.fr/coq-87);
 * Mathematical Components 1.6.4 (http://math-comp.github.io/math-comp/)
+* Hoare Type Theory (https://github.com/imdea-software/htt)
 
 ### Building
 
 Run `make clean; make` from the root folder. This will build all
 the libraries and will check all the proofs.
 
+### Installation
+
+Run `make install` from the root folder.
+
 ## Project Structure
 
 The top-level structure consists of the following folders:
-
-* `Heaps` - a theory of partial finite maps by Nanevski et al.
 
 * `Structures` - implementations of block forests and chain properties;
 
