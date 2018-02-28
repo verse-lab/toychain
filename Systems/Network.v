@@ -4,7 +4,7 @@ From mathcomp
 Require Import path.
 Require Import Eqdep.
 From HTT
-Require Import pred prelude idynamic ordtype pcm finmap unionmap heap coding.
+Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
 Require Import Relations.
 From Toychain
 Require Import Protocol Chains Forests States.
