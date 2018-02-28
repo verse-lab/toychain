@@ -11,6 +11,29 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Type BLOCKCHAIN_STATE (Import BC : BLOCKCHAIN) (Import BCF : BLOCKCHAIN_FACTS BC) (Import BCP : BLOCKCHAIN_PROTOCOL BC BCF).
+
+Definition Address_ordMixin := fin_ordMixin Address.
+Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
+
+Definition StateMap := union_map [ordType of Address] State.
+
+Definition initState' s : StateMap := foldr (fun a m => (a \\-> Init a) \+ m) Unit s.
+
+(* Master-lemma, proving a conjunction of two mutually-necessary facts *)
+Axiom initStateValidDom : forall s,
+  uniq s -> dom (initState' s) =i s /\ valid (initState' s).
+
+Axiom valid_initState' : forall s, uniq s -> valid (initState' s).
+
+Axiom dom_initState' : forall s, uniq s -> dom (initState' s) =i s.
+
+Definition initState := initState' (enum Address).
+
+End BLOCKCHAIN_STATE.
+
+Module BlockChainState (Import BC : BLOCKCHAIN) (Import BCF : BLOCKCHAIN_FACTS BC) (Import BCP : BLOCKCHAIN_PROTOCOL BC BCF) : BLOCKCHAIN_STATE BC BCF BCP.
+
 Definition Address_ordMixin := fin_ordMixin Address.
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
@@ -52,3 +75,5 @@ Lemma dom_initState' s : uniq s -> dom (initState' s) =i s.
 Proof. by move => H_u; case: (initStateValidDom H_u). Qed.
 
 Definition initState := initState' (enum Address).
+
+End BlockChainState.

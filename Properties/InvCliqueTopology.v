@@ -11,6 +11,164 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Type BLOCKCHAIN_INV_CLIQUE_TOPOLOGY (Import BC : BLOCKCHAIN) (Import BCF : BLOCKCHAIN_FACTS BC)
+       (Import BCP : BLOCKCHAIN_PROTOCOL BC BCF) (Import BCS : BLOCKCHAIN_STATE BC BCF BCP)
+       (Import BCN : BLOCKCHAIN_NETWORK BC BCF BCP BCS) (Import BCIM : BLOCKCHAIN_INVMISC BC BCF BCP BCS BCN).
+
+(*******************************************************************)
+(* Global Invariant: Clique consensus. *)
+
+(* Under assumption of a clique network topology (every node is
+connected to every other node), ensures that any node's local
+blockchain will become _exactly_ the "canonical" blokchain, once all
+blocks towars it "in flight" are received and used to extend the local
+block tree. *)
+(*******************************************************************)
+
+Definition saturated_chain w bc :=
+  (* For any tree that induces bc *)
+  forall bt, bc = btChain bt ->
+    (* For any node in the world *)
+    forall (n : Address), holds n w
+    (* For any block in its local BlockTree *)
+    (fun st => forall b, b ∈ blockTree st ->
+    (* This block is not going to affect the blockchain out of bt *)
+    btChain (btExtend bt b) = bc).
+
+Definition valid_with_bc bt bc :=
+  [/\ valid bt, validH bt & has_init_block bt] /\
+   bc = btChain bt.
+
+Definition GSyncing_clique w :=
+  exists (bc : Blockchain) (bt : BlockTree) (n : Address),
+  [/\ holds n w (has_chain bc),
+
+   (* The canonical chain is the largest in the network *)
+   largest_chain w bc,
+
+   (* An "accumulated" block-tree and its chain *)
+   valid_with_bc bt bc,
+
+   (* bt is complete *)
+   good_bt bt,
+
+   (* Clique topology *)
+   forall n', holds n' w (fun st => {subset (dom (localState w)) <= peers st}) &
+
+   (* Relating global and local block-trees *)
+   forall n',
+     holds n' w (fun st => bt = foldl btExtend (blockTree st) (blocksFor n' w))
+  ].
+
+Definition clique_inv (w : World) :=
+  Coh w /\ GSyncing_clique w.
+
+Axiom clique_eventual_consensus : forall w,
+  clique_inv w -> exists bc,
+    largest_chain w bc /\
+    forall n, blocksFor n w == [::] ->
+              holds n w (fun st => (has_chain bc st)).
+
+(*********************************************************)
+(*                  Auxiliary Lemmas                     *)
+(*********************************************************)
+
+Axiom procMsg_nGetData_no_blocks : forall st p q stPm ms n',
+  procMsg st (src p) (msg p) (ts q) = (stPm, ms) ->
+  msg_type (msg p) != MGetData ->
+  all (pred1 GenesisBlock) [seq msg_block (msg p0) | p0 <- ms & dst p0 == n'].
+
+Axiom btExtend_foldG : forall bt bs,
+  has_init_block bt ->
+  all (pred1 GenesisBlock) bs ->
+  (foldl btExtend bt bs) = bt.
+
+Axiom foldl1 : forall {A B : Type} (f : A -> B -> A) (init : A) (val : B),
+  foldl f init [:: val] = f init val.
+
+Axiom rem_non_block :  forall w bt p,
+  valid bt -> validH bt ->
+  has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->
+  foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p] =
+  foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- inFlightMsgs w & dst p0 == dst p].
+
+Axiom foldl_btExtend_last : forall bt ps b,
+  valid bt ->
+  foldl btExtend bt ((rcons ps) b) = foldl btExtend (btExtend bt b) ps.
+
+Axiom broadcast_reduce : forall id peers X n,
+  n \in peers -> uniq peers ->
+  [seq msg_block (msg p) | p <- emitBroadcast id peers X & dst p == n] =
+    [:: msg_block X].
+
+Axiom find_upd_same : forall {T : ordType} W k v (m : union_map T W),
+  find k m = Some v -> upd k v m = m.
+
+Axiom upd_nothing : forall (n : Address) (st : State) (w : World),
+  find n (localState w) = Some st -> upd n st (localState w) = (localState w).
+
+(*********************************************************)
+(*                 Invariant Tactics                     *)
+(*********************************************************)
+
+Ltac NBlockMsg_dest_bt q st p b Msg H :=
+  (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
+  move: (procMsg_non_block_nc_blockTree st (src p) (ts q) H).
+
+Ltac NBlockMsg_dest_btChain q st p b Msg P H :=
+  (have: (forall b, msg p != BlockMsg b) by move=>b; rewrite Msg)=>H;
+  move: (procMsg_non_block_nc_btChain st (src p) (ts q) H);
+  rewrite/has_chain Msg P /==><-.
+
+Ltac BlockMsg_dest q st from b iF P Msg :=
+  rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
+  rewrite/has_chain (procMsg_block_btExtend_btChain st from b (ts q));
+  move: (b_in_blocksFor iF Msg)=>iB.
+
+Ltac simplw w :=
+have: ((let (_, inFlightMsgs, _) := w in inFlightMsgs) = inFlightMsgs w) by [];
+have: ((let (localState, _, _) := w in localState) = localState w) by [].
+
+Ltac procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z :=
+  move=>n st; rewrite findU c1 /=; case: ifP;
+  [ move/eqP=>Eq [stEq]; subst n st; move=>z /=;
+    move: (HCliq proc _ F)=>/= H1 |
+    move=>Neq Fn z /=; move: (HCliq n _ Fn)=>/= H1
+  ];
+  by move: (step_nodes (Intern Cw Al F P'))=>H2;
+     rewrite PInt in P'; rewrite P' in H2; clear P'; specialize (H1 z);
+     move: (H2 z); clear H2; rewrite/localState; simplw w=>-> _;
+     case: PInt'=><- _ H2; rewrite H2 in H1.
+
+Ltac no_change can_bc can_bt can_n w F F' HExt c5 :=
+  case=><- <- /=; exists can_bc, can_bt, can_n; rewrite (upd_nothing F); split=>//;
+    by move=>n st'; rewrite/localState; simplw w=>-> _ F';
+       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
+       rewrite -cat1s filter_cat /=; case: ifP; rewrite map_cat /=;
+       do? rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
+       move: (HExt _ _ F').
+
+Axiom foldl_expand : forall cbt bt bs,
+  valid bt ->
+  cbt = foldl btExtend bt bs -> exists q, cbt = bt \+ q.
+
+(********************************************************************)
+(************* Invariant inductivity proof **************************)
+(********************************************************************)
+
+Axiom clique_inv_step : forall w w' q,
+  clique_inv w -> system_step w w' q -> clique_inv w'.
+
+End BLOCKCHAIN_INV_CLIQUE_TOPOLOGY.
+
+Module BlockChainInvCliqueTopology (Import BC : BLOCKCHAIN) (Import BCF : BLOCKCHAIN_FACTS BC)
+       (Import BCP : BLOCKCHAIN_PROTOCOL BC BCF) (Import BCS : BLOCKCHAIN_STATE BC BCF BCP)
+       (Import BCN : BLOCKCHAIN_NETWORK BC BCF BCP BCS)
+       (Import BCIM : BLOCKCHAIN_INVMISC BC BCF BCP BCS BCN)
+  : BLOCKCHAIN_INV_CLIQUE_TOPOLOGY BC BCF BCP BCS BCN BCIM.
+
 (*******************************************************************)
 (* Global Invariant: Clique consensus. *)
 
@@ -285,7 +443,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       case Msg: (msg p)=>[prs|||||]; rewrite Msg in P;
       rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
       destruct st; rewrite/procMsg/=; do? by [];
-      do? rewrite /Protocol.peers in H1.
+      do? rewrite /peers in H1.
       by rewrite mem_undup mem_cat; apply/orP; left.
       by case: ifP=>_;
          [rewrite mem_undup|rewrite -cat1s mem_cat mem_undup; apply/orP; right].
@@ -418,16 +576,16 @@ case: t P P'=>[tx|] P P'; last first.
   case Z: (tx_valid_block _ _).
   (* This is the only interesting case - when a new block is minted *)
   set new_block :=
-    {| prevBlockHash := # last GenesisBlock (btChain blockTree);
-       txs := [seq t <- txPool | txValid t (btChain blockTree)];
+    {| prevBlockHash := # last GenesisBlock (btChain blockTree0);
+       txs := [seq t <- txPool0 | txValid t (btChain blockTree0)];
        proof := pf
     |}.
   set new_txpool :=
-    [seq t <- txPool | txValid t (btChain (btExtend blockTree new_block))].
+    [seq t <- txPool0 | txValid t (btChain (btExtend blockTree0 new_block))].
   move=>P; assert (PInt' := P); move: P; case=><- <-.
   (* Either can_bc changes, or it does not. *)
-  case Gt: ((btChain (btExtend blockTree new_block)) > can_bc).
-  * exists (btChain (btExtend blockTree new_block)),
+  case Gt: ((btChain (btExtend blockTree0 new_block)) > can_bc).
+  * exists (btChain (btExtend blockTree0 new_block)),
            (btExtend can_bt new_block), proc.
 
     (* HGood *)
@@ -441,17 +599,17 @@ case: t P P'=>[tx|] P P'; last first.
       by move: (@btExtend_compute_chain _ new_block b C1 C2 C3 (proj1 HGood))=>->;
          apply/andP; apply HGood.
       move/eqP=>Eq; subst b.
-      set lst := last GenesisBlock (btChain blockTree).
+      set lst := last GenesisBlock (btChain blockTree0).
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
-      (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
+      (have: btChain blockTree0 \in all_chains blockTree0 by move: (btChain_in_bt (c5 _ _ F)))=>InC.
       move: (@btExtend_mint_good_valid _ new_block (ts q) (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z  (btChain_good blockTree) Hp Y)=>Gc.
+              (c5 _ _ F) Z  (btChain_good blockTree0) Hp Y)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
-      move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
+      move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree0 new_block)=>V'.
       move: (@btExtendH _ new_block (c3 _ _ F) (c4 _ _ F))=>Vh'.
       move: (@btExtendIB _ new_block (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>Ib'.
-      by move: (@btExtend_compute_chain_fold (btExtend blockTree new_block)
+      by move: (@btExtend_compute_chain_fold (btExtend blockTree0 new_block)
                (blocksFor proc w) new_block V' Vh' Ib' (proj1 Gc))=>->; move/andP: Gc.
       by move: (c3 _ _ F).
     
@@ -462,14 +620,14 @@ case: t P P'=>[tx|] P P'; last first.
     by move=>_ st [Eq]; subst st; rewrite/has_chain.
 
     (* HGt *)
-    move: (HGt proc (btChain blockTree) _ F); rewrite/has_chain eqxx.
+    move: (HGt proc (btChain blockTree0) _ F); rewrite/has_chain eqxx.
     rewrite/largest_chain/holds/localState; simplw w=>-> _.
     move/(_ is_true_true)=>H0.
     move=>n bc st; rewrite findU c1 /=; case: ifP.
     by move/eqP=>Eq [stEq]; subst proc st;
         rewrite/has_chain/==>/eqP <-; left.
     move=>Neq Fn hbc; move: (HGt _ _ _ Fn hbc)=>H1.
-    (have: (btChain (btExtend blockTree new_block) >= can_bc) by right)=>H2.
+    (have: (btChain (btExtend blockTree0 new_block) >= can_bc) by right)=>H2.
     by move: (Geq_trans H2 H1).
 
     split;[split|].
@@ -482,7 +640,7 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite HBc in Gt. move: (HExt _ _ F)=>/=H. subst can_bt.
     rewrite -(foldl1 _ (foldl _ _ _)) btExtend_fold_comm ?(c3 _ _ F) //=.
     rewrite -foldl_btExtend_last ?(c3 _ _ F)// -cats1 foldl_cat/=.
-    set can_bt := foldl btExtend blockTree (blocksFor proc w)
+    set can_bt := foldl btExtend blockTree0 (blocksFor proc w)
         in Gt C1 C2 C3 HBc HGood *.
     by apply: btExtend_with_new=>//;
        [by apply: (c3 _ _ F)|by apply: (c4 _ _ F)|by apply: (c5 _ _ F)].
@@ -505,7 +663,7 @@ case: t P P'=>[tx|] P P'; last first.
   * exists can_bc, (btExtend can_bt new_block), can_n.
     case Dst: (can_n == proc). (* Isn't true. *)
     contradict Gt; move/eqP in Dst; subst can_n.
-    suff W: (btChain (btExtend blockTree new_block) > can_bc) by rewrite W.
+    suff W: (btChain (btExtend blockTree0 new_block) > can_bc) by rewrite W.
     move: (HHold _ F); rewrite/has_chain/==>/eqP <-.
     by apply: (@btExtend_mint _ new_block (ts q)
                               (c3 _ _ F)(c4 _ _ F)(c5 _ _ F)).
@@ -521,17 +679,17 @@ case: t P P'=>[tx|] P P'; last first.
       by move: (@btExtend_compute_chain _ new_block b C1 C2 C3 (proj1 HGood))=>->;
          apply/andP; apply HGood.
       move/eqP=>Eq; subst b.
-      set lst := last GenesisBlock (btChain blockTree).
+      set lst := last GenesisBlock (btChain blockTree0).
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
-      (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
+      (have: btChain blockTree0 \in all_chains blockTree0 by move: (btChain_in_bt (c5 _ _ F)))=>InC.
       move: (@btExtend_mint_good_valid _ new_block (ts q) (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z (btChain_good blockTree) Hp Y)=>Gc.
+              (c5 _ _ F) Z (btChain_good blockTree0) Hp Y)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
-      move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
+      move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree0 new_block)=>V'.
       move: (@btExtendH _ new_block (c3 _ _ F) (c4 _ _ F))=>Vh'.
       move: (@btExtendIB _ new_block (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>Ib'.
-      by move: (@btExtend_compute_chain_fold (btExtend blockTree new_block)
+      by move: (@btExtend_compute_chain_fold (btExtend blockTree0 new_block)
                (blocksFor proc w) new_block V' Vh' Ib' (proj1 Gc))=>->; move/andP: Gc.
       by move: (c3 _ _ F).
       
@@ -558,7 +716,7 @@ case: t P P'=>[tx|] P P'; last first.
     rewrite HBc in Gt *.
     move: (HExt _ _ F)=>/= H; move/FCR_dual:Gt=>Gt. 
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
-    have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
+    have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree0) by [].
     by move: (@btExtend_within can_bt _ new_block _ (ts q) C1 C2
                C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Z Gt P Y H Gt1).
    
@@ -592,3 +750,5 @@ case: t P P'=>[tx|] P P'; last first.
      rewrite -(btExtend_withDup_noEffect (find_some (c5 _ _ F')));
      move: (HExt _ _ F').
 Qed.
+
+End BlockChainInvCliqueTopology.

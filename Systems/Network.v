@@ -12,6 +12,129 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Type BLOCKCHAIN_NETWORK
+       (Import BC : BLOCKCHAIN) (Import BCF : BLOCKCHAIN_FACTS BC)
+       (Import BCP : BLOCKCHAIN_PROTOCOL BC BCF) (Import BCS : BLOCKCHAIN_STATE BC BCF BCP).
+
+Definition PacketSoup := seq Packet.
+
+Record World :=
+  mkW {
+    localState : StateMap;
+    inFlightMsgs : PacketSoup;
+    consumedMsgs : PacketSoup;
+  }.
+
+(* Network semantics *)
+Definition holds (n : Address) (w : World) (cond : State -> Prop) :=
+  forall (st : State),
+    find n (localState w) = Some st -> cond st.
+
+Definition Coh (w : World) :=
+  [/\ valid (localState w),
+     forall (n : Address),
+       holds n w (fun st => id st == n),
+     forall (n : Address),
+       holds n w (fun st => valid (blockTree st)),
+     forall (n : Address),
+       holds n w (fun st => validH (blockTree st)),
+     forall (n : Address),
+       holds n w (fun st => has_init_block (blockTree st)) &
+     forall (n : Address),
+       holds n w (fun st => uniq (peers st))
+  ].
+
+Record Qualifier := Q { ts: Timestamp; allowed: Address; }.
+
+(* Don't you worry about uniqueness of the messages? *)
+Inductive system_step (w w' : World) (q : Qualifier) : Prop :=
+| Idle of Coh w /\ w = w'
+
+| Deliver (p : Packet) (st : State) of
+      Coh w & (dst p) = allowed q &
+      p \in inFlightMsgs w &
+      find (dst p) (localState w) = Some st &
+      let: (st', ms) := procMsg st (src p) (msg p) (ts q) in
+      w' = mkW (upd (dst p) st' (localState w))
+               (seq.rem p (inFlightMsgs w) ++ ms)
+               (rcons (consumedMsgs w) p)
+
+| Intern (proc : Address) (t : InternalTransition) (st : State) of
+      Coh w & proc = allowed q &
+      find proc (localState w) = Some st &
+      let: (st', ms) := (procInt st t (ts q)) in
+      w' = mkW (upd proc st' (localState w))
+               (ms ++ (inFlightMsgs w))
+               (consumedMsgs w).
+
+Definition Schedule := seq Qualifier.
+
+Fixpoint reachable' (s : Schedule) (w w' : World) : Prop :=
+  if s is (ins :: insts)
+  then exists via, reachable' insts w via /\ system_step via w' ins
+  else w = w'.
+
+Definition reachable (w w' : World) :=
+  exists s, reachable' s w w'.
+
+(* TODO: define a relation that "reconstructs" an "ideal" blockchain *)
+(* from a given world, and prove its properties (e.g., functionality, *)
+(* meaning that one world corresponds to one blobkchain *)
+(* precisely). This might require to state additional "coherence" *)
+(* properties of the world, such as block-trees of the majority of
+involved peers are not _too different_. *)
+
+Definition initWorld := mkW initState [::] [::].
+
+Ltac Coh_step_case n d H F :=
+  case B: (n == d);
+  do? [by move=>F; move: (H n _ F) |
+    case: ifP; last done
+  ]; move=>_ [] <-.
+
+Axiom holds_Init_state : forall (P : State -> Prop) n, P (Init n) ->
+  holds n {| localState := initState; inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
+
+Axiom Coh_init : Coh initWorld.
+
+Axiom Coh_step : forall w w' q,
+  system_step w w' q -> Coh w'.
+
+(* Stepping does not remove or add nodes *)
+Axiom step_nodes : forall w w' q,
+  system_step w w' q ->
+  dom (localState w) =i dom (localState w').
+
+Axiom steps_nodes : forall (w w' : World),
+  reachable w w' ->
+  dom (localState w) =i dom (localState w').
+
+Axiom system_step_local_step : forall w w' q,
+  forall (n : Address) (st st' : State),
+    system_step w w' q ->
+    find n (localState w) = Some st ->
+    find n (localState w') = Some st' ->
+    local_step st st'.
+
+Axiom no_change_still_holds : forall (w w' : World) (n : Address) q st cond,
+  find n (localState w) = Some st ->
+  holds n w cond ->
+  system_step w w' q ->
+  find n (localState w') = Some st ->
+  holds n w' cond.
+
+Axiom no_change_has_held : forall (w w' : World) (n : Address) q st cond,
+  find n (localState w) = Some st ->
+  system_step w w' q->
+  holds n w' cond ->
+  find n (localState w') = Some st ->
+  holds n w cond.
+
+End BLOCKCHAIN_NETWORK.
+
+Module BlockChainNetwork (Import BC : BLOCKCHAIN) (Import BCF : BLOCKCHAIN_FACTS BC)
+       (Import BCP : BLOCKCHAIN_PROTOCOL BC BCF) (Import BCS : BLOCKCHAIN_STATE BC BCF BCP) : BLOCKCHAIN_NETWORK BC BCF BCP BCS.
+
 Definition PacketSoup := seq Packet.
 
 Record World :=
@@ -269,3 +392,5 @@ Proof.
 move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
+
+End BlockChainNetwork.
