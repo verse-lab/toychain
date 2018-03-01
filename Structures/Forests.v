@@ -370,6 +370,10 @@ Axiom better_chains1 : forall bt b,
     tx_valid_chain bc /\ good_chain bc ->
     f' h bc' >= f h bc.
 
+Axiom tx_valid_init : all [pred t | txValid t [::]] (txs GenesisBlock).
+
+Axiom tx_valid_chain_init : tx_valid_chain [:: GenesisBlock].
+
 Axiom good_chain_foldr : forall bt bc ks,
   tx_valid_chain bc -> good_chain bc ->
   tx_valid_chain (foldr (bc_fun bt) bc ks) /\
