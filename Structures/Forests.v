@@ -68,8 +68,6 @@ Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 
 Axiom init_hash : prevBlockHash GenesisBlock = #GenesisBlock.
 
-Axiom init_tx : txs GenesisBlock = [::].
-
 (* 2.  Transaction validation *)
 
 Axiom txValid_nil : forall t, txValid t [::].
@@ -371,8 +369,6 @@ Axiom better_chains1 : forall bt b,
     tx_valid_chain bc' /\ good_chain bc' ->
     tx_valid_chain bc /\ good_chain bc ->
     f' h bc' >= f h bc.
-
-Axiom tx_valid_init : tx_valid_chain [:: GenesisBlock].
 
 Axiom good_chain_foldr : forall bt bc ks,
   tx_valid_chain bc -> good_chain bc ->
@@ -1387,8 +1383,18 @@ case:ifP=>[/andP[X1' X1]|X1]; case: ifP=>[/andP[X2' X2]|X2]=>//; do?[by left].
 by rewrite X2'/= in X1; move/FCR_dual: X1. 
 Qed.
 
-Lemma tx_valid_init : tx_valid_chain [:: GenesisBlock].
-Proof. by rewrite /tx_valid_chain/= init_tx. Qed.
+Lemma tx_valid_init : all [pred t | txValid t [::]] (txs GenesisBlock).
+Proof.
+elim: (txs GenesisBlock) => //= tx txs IH.
+apply/andP; split => //.
+exact: txValid_nil.
+Qed.
+
+Lemma tx_valid_chain_init : tx_valid_chain [:: GenesisBlock].
+Proof.
+rewrite /tx_valid_chain/=; apply/andP; split => //.
+exact: tx_valid_init.
+Qed.
 
 Lemma good_chain_foldr bt bc ks :
   tx_valid_chain bc -> good_chain bc ->
@@ -1404,7 +1410,7 @@ Lemma good_chain_foldr_init bt ks :
   tx_valid_chain (foldr (bc_fun bt) [:: GenesisBlock] ks) /\
   good_chain (foldr (bc_fun bt) [:: GenesisBlock] ks).
 Proof.
-move: (@good_chain_foldr bt [:: GenesisBlock] ks tx_valid_init)=>/=.
+move: (@good_chain_foldr bt [:: GenesisBlock] ks tx_valid_chain_init)=>/=.
 by rewrite eqxx=>/(_ is_true_true); case.
 Qed.
 
@@ -1453,7 +1459,7 @@ do? [apply good_chain_foldr_init=>//]; [by apply/negbT| |]; last first.
 simpl; rewrite {1 3}/f'/bc_fun/=/take_better_bc/=.
 case:ifP=>///andP[B1 B2]. right.
 apply: (FCR_trans_eq2 B2).
-by apply: better_chains_foldr=>//=; [by apply/negbT|by left | |]; do?[rewrite ?tx_valid_init ?eqxx//].
+by apply: better_chains_foldr=>//=; [by apply/negbT|by left | |]; do?[rewrite ?tx_valid_chain_init ?eqxx//].
 Qed.
 
 
@@ -1712,7 +1718,7 @@ Qed.
 Lemma btChain_tx_valid bt : tx_valid_chain (btChain bt).
 Proof.
 rewrite /btChain.
-elim: (all_chains bt)=>[|bc bcs Hi]/=;first by rewrite tx_valid_init.
+elim: (all_chains bt)=>[|bc bcs Hi]/=;first by rewrite tx_valid_chain_init.
 rewrite {1}/take_better_bc; case:ifP=>//.
 by case/andP=>/andP[_ ->].
 Qed.
@@ -2374,7 +2380,7 @@ case: (btExtend_good_split V Vh Hib Hg Nb Hg')=>cs1[cs2][E1]E2.
 rewrite !btChain_alt in Gt *; rewrite E1 in Gt; rewrite !E2 in H1 *.
 have I: [:: GenesisBlock] \in cs1 ++ cs2.
 - rewrite -E1 mem_filter/= eqxx/=; apply/andP; split=>//; last by apply:all_chains_init.
-  by rewrite /tx_valid_chain/= init_tx/=.
+  exact: tx_valid_chain_init.
 by apply: best_element_in.
 Qed.
 
