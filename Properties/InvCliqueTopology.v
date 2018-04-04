@@ -413,13 +413,13 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
 case: t P P'=>[tx|] P P'; last first.
 (* MintT - can_bc and can_n might change *)
 - assert (PInt := P); move: P; destruct st; rewrite/procInt.
-  case X: (genProof _)=>[[allTxs pf]|].
+  case X: (genProof _)=>[[txs pf]|].
   case Y: (VAF _).
   case Z: (tx_valid_block _ _).
   (* This is the only interesting case - when a new block is minted *)
   set new_block :=
     {| prevBlockHash := # last GenesisBlock (btChain blockTree);
-       txs := allTxs;
+       txs := txs;
        proof := pf
     |}.
   set new_txpool :=
