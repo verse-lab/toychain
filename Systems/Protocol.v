@@ -230,10 +230,10 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
       let: bc := btChain bt in
       let: allowedTxs := [seq t <- pool | txValid t bc] in
       match genProof n bc allowedTxs ts with
-      | Some (allTxs, pf) =>
-        if VAF pf ts bc allTxs then
+      | Some (txs, pf) =>
+        if VAF pf ts bc txs then
           let: prevBlock := last GenesisBlock bc in
-          let: block := mkB (hashB prevBlock) allTxs pf in
+          let: block := mkB (hashB prevBlock) txs pf in
           if tx_valid_block bc block then
             let: newBt := btExtend bt block in
             let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
