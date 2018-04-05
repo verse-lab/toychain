@@ -38,7 +38,7 @@ Definition TxPool := seq Transaction.
 
 Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
-Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option VProof.
+Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
 Parameter VAF : VProof -> Timestamp -> Blockchain -> TxPool -> bool.
 Parameter FCR : Blockchain -> Blockchain -> bool.
 
@@ -101,6 +101,11 @@ Axiom FCR_nrefl :
 
 Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
+
+Axiom genProof_subseq :
+  forall (a : Address) (bc : Blockchain) (txs : TxPool) (ts : Timestamp) (txs' : TxPool) (pf : VProof),
+    genProof a bc txs ts = Some (txs', pf) ->
+    subseq txs txs'.
 
 (************************************************************)
 (*********************** </axioms> **************************)

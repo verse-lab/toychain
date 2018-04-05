@@ -7,8 +7,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section BlockchainOrder.
-
 (* Strict version of the prefix *)
 Definition is_strict_prefix {T: eqType} (bc bc' : seq T) :=
   exists b bc1, bc' = bc ++ (b :: bc1).
@@ -139,13 +137,9 @@ apply/Bool.eq_iff_eq_true; split.
   by move/eqP=><-; apply/prefixP; apply bc_pre_refl.
   by move/sprefixP=>[] x [] xs eq; apply/prefixP; rewrite eq; exists (x :: xs).
 Qed.
-  
-End BlockchainOrder.
 
 Notation "'[' bc1 '<<=' bc2 ']'" := (is_prefix bc1 bc2).
 Notation "'[' bc1 '<<<' bc2 ']'" := (is_strict_prefix bc1 bc2).
-
-Section Forks.
 
 (* Decidable fork *)
 Definition fork {T: eqType} (bc1 bc2 : seq T) :=
@@ -169,7 +163,7 @@ case/orP.
   by left; eexists _.
   by rewrite orbC eq_sym -prb_equiv=>P21; apply: G; right; apply/prefixP.
 Qed.
-  
+
 Lemma bc_fork_neq {T: eqType} (bc bc' : seq T) :
   fork bc bc' -> bc != bc'.
 Proof.
@@ -226,5 +220,3 @@ do? by [
 - by contradict F; move/norP=>[] _=>/norP; elim=>C; rewrite S21 in C.
 - by contradict F; rewrite/fork Eq S12 S21.
 Qed.
-
-End Forks.
