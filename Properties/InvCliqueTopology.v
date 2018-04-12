@@ -83,6 +83,8 @@ rewrite [procMsg _ _ _ _]surjective_pairing; case=>_{stPm}<-{ms}.
 case (msg p); rewrite /procMsg/=; case: st=>id ps bt tp GD/=.
 - move=>pt; apply/allP=>m; rewrite !inE.
   move/mapP=>[z]; rewrite mem_filter/emitMany/emitBroadcast=>/andP[_].
+  case filter => //= s l; rewrite inE;move/orP.
+  case; first by move/eqP => H_eq; rewrite H_eq; move/eqP.
   by rewrite mem_cat=>/orP[]/=; move/mapP=>[y]_->->/=; rewrite eqxx.
 - by apply/allP=>b; case: ifP=>//_; rewrite inE=>/eqP->/=;rewrite eqxx.
 - move=>c; apply/allP=>b/mapP[z]; rewrite mem_filter=>/andP[_].
@@ -286,6 +288,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
       destruct st; rewrite/procMsg/=; do? by [];
       do? rewrite /Protocol.peers in H1.
+      case filter => //= s l.
       by rewrite mem_undup mem_cat; apply/orP; left.
       by case: ifP=>_;
          [rewrite mem_undup|rewrite -cat1s mem_cat mem_undup; apply/orP; right].

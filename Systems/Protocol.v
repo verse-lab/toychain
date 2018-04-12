@@ -182,10 +182,10 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
 
     | AddrMsg knownPeers =>
       let: newP := [seq x <- knownPeers | x \notin prs] in
+      if newP is [::] then pair st emitZero else
       let: connects := [seq mkP n p ConnectMsg | p <- newP] in
       let: updP := undup (prs ++ newP) in
-      pair (Node n updP bt pool)
-           (emitMany connects ++ emitBroadcast n prs (AddrMsg updP))
+      pair (Node n updP bt pool) (emitMany connects ++ emitBroadcast n prs (AddrMsg updP))
 
     | BlockMsg b =>
       let: newBt := btExtend bt b in
@@ -251,9 +251,10 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
 Lemma procMsg_id_constant (s1 : State) from (m : Message) (ts : Timestamp) :
     id s1 = id (procMsg s1 from m ts).1.
 Proof.
-case: s1 from m ts=>n1 p1 b1 t1 from []=>//=??; case:ifP => //=.
-move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
-by case ohead.
+case: s1 from m ts=>n1 p1 b1 t1 from []=>//=??; last case:ifP => //=.
+- by case filter.
+- move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
+  by case ohead.
 Qed.
 
 Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
@@ -272,9 +273,10 @@ Proof.
 move=> s1 from  m ts.
 case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do?by [|move: (btExtendV blockTree0 b)=><-].
-case:ifP => //=.
-move/eqP => H_neq; case: ifP; move/eqP => //= H_eq H_v.
-by case ohead.
+- by case filter.
+- case:ifP => //=.
+  move/eqP => H_neq; case: ifP; move/eqP => //= H_eq H_v.
+  by case ohead.
 Qed.
 
 Lemma procInt_valid :
@@ -297,6 +299,7 @@ Proof.
 move=> s1 from  m ts.
 case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case: ifP => //=.
+- by move=>v vh; case filter.
 - by move=>v vh; apply btExtendH.
 - move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
   by case ohead.
@@ -324,6 +327,7 @@ Proof.
 move=> s1 from  m ts.
 case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case:ifP.
+- by case filter.
 - by apply btExtendIB.
 - move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
   by case ohead.
@@ -349,7 +353,8 @@ Lemma procMsg_peers_uniq :
     uniq (peers s1) -> uniq (peers s2).
 Proof.
 case=> n1 p1 b1 t1 from; case; do? by []; simpl.
-- by move=>? _ ?; rewrite undup_uniq.
+- move=>? _ ?; case filter => //.
+  by move => ? ?; rewrite undup_uniq.
 - move=>_ U; case: ifP=>X; rewrite //= ?undup_uniq//=. 
   rewrite andbC/=; apply/negbT/negP; rewrite mem_undup=>Z.
   by rewrite Z in X.
@@ -371,6 +376,7 @@ Proof.
 move=>s1 from m ts neq.
 case: m neq=>[prs||b|t|sh|h] neq;
   do? by[rewrite/procMsg; destruct s1=>/=].
+- by rewrite /procMsg; destruct s1 => /=; case filter.
 - by specialize (neq b); contradict neq; rewrite eqxx.
 - rewrite/procMsg/=; case: s1=>????/=; case:ifP => //=.
   move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
