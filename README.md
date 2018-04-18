@@ -13,8 +13,14 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ### Building
 
-Run `make clean; make` from the root folder. This will build all
-the libraries and will check all the proofs.
+We recommend installing requirements via [OPAM](https://opam.ocaml.org/doc/Install.html):
+```
+opam repo add coq-released https://coq.inria.fr/opam/released
+opam install coq-mathcomp-ssreflect
+```
+
+Then, run `make clean; make` from the root folder. This will build all
+the libraries and check all the proofs.
 
 ## Project Structure
 
