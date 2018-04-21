@@ -1,10 +1,8 @@
 From mathcomp.ssreflect
-Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
-From mathcomp
-Require Import path.
+Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 Require Import Eqdep.
-From HTT
-Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
+From fcsl
+Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
 Require Import SeqFacts Protocol Chains Blocks Forests States Network InvMisc.
 Set Implicit Arguments.

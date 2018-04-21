@@ -1,11 +1,8 @@
 From mathcomp.ssreflect
-Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
-From mathcomp
-Require Import path.
-Require Import Eqdep.
-From HTT
-Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
-Require Import Relations.
+Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
+Require Import Eqdep Relations.
+From fcsl
+Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
 Require Import Protocol Chains Forests States.
 Set Implicit Arguments.
@@ -98,9 +95,9 @@ move: H_in H_un; elim: (enum Address) => //=.
 move => a s IH; rewrite inE; move/orP; case.
 * move/eqP => H_eq /=.
   rewrite H_eq; move/andP => [H_in H_u].
-  rewrite /holds /= => st; rewrite gen_findPtUn; first by case => H_i; rewrite -H_i -H_eq.
-  by case: validUn; rewrite ?um_validPt ?valid_initState'//;
-   move=>k; rewrite um_domPt !inE=>/eqP <-;
+  rewrite /holds /= => st; rewrite findPtUn; first by case => H_i; rewrite -H_i -H_eq.
+  by case: validUn; rewrite ?validPt ?valid_initState'//;
+   move=>k; rewrite domPt !inE=>/eqP <-;
    rewrite dom_initState' //; move/negP: H_in.
 * move => H_in; move/andP => [H_ni H_u].
   have H_neq: n <> a by move => H_eq; rewrite -H_eq in H_ni; move/negP: H_ni.
@@ -109,9 +106,9 @@ move => a s IH; rewrite inE; move/orP; case.
   move: H_u'; move/IH {IH}.
   rewrite /holds /= => IH st; rewrite findUnL.
   + case: ifP; last by move => H_in H_f; exact: IH.
-    by rewrite um_domPt inE eq_sym; move/eqP.
-  + by case: validUn; rewrite ?um_validPt ?valid_initState'//;
-     move=>k; rewrite um_domPt !inE=>/eqP <-;
+    by rewrite domPt inE eq_sym; move/eqP.
+  + by case: validUn; rewrite ?validPt ?valid_initState'//;
+     move=>k; rewrite domPt !inE=>/eqP <-;
      rewrite dom_initState' //; move/negP: H_ni.
 Qed.
 
@@ -122,12 +119,12 @@ rewrite /initWorld/localState/=; split.
   exact: enum_uniq.
 - by move => n; exact: holds_Init_state.
 - move => n; apply: holds_Init_state.
-  by rewrite /blockTree /= um_validPt.
+  by rewrite /blockTree /= validPt.
 - move => n; apply: holds_Init_state.
   rewrite/validH/blockTree /= => h b H.
-  by move: (um_findPt_inv H); elim=>->->.
+  by move: (findPt_inv H); elim=>->->.
 - move => n; apply: holds_Init_state.
-  by rewrite/has_init_block/blockTree um_findPt.
+  by rewrite/has_init_block/blockTree findPt.
 - move => n; exact: holds_Init_state.
 Qed.
 

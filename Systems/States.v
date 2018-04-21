@@ -1,10 +1,8 @@
 From mathcomp.ssreflect
-Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
-From mathcomp
-Require Import path.
+Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 Require Import Eqdep Relations.
-From HTT
-Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
+From fcsl
+Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
 Require Import SeqFacts Chains Blocks Forests Protocol.
 Set Implicit Arguments.
@@ -27,18 +25,17 @@ move => IH.
 move/andP => [H_ni H_u].
 move/IH: H_u => [H1 H2] {IH}.
 split; last first.
-- case: validUn; rewrite ?um_validPt ?H2//.
-  move=>k; rewrite um_domPt inE=>/eqP Z; subst k.
-  rewrite H1.
-  by move/negP: H_ni.
-- move=>z; rewrite domUn !inE !um_domPt !inE.
+- case: validUn; rewrite ?validPt ?H2//.
+  move=>k; rewrite domPt inE=>/eqP Z; subst k.
+  by rewrite H1; move/negP: H_ni.
+- move=>z; rewrite domUn !inE !domPt !inE.
   rewrite H1.
   case validUn.
-  * by move/negP => H_v; case: H_v; rewrite um_validPt.
+  * by move/negP => H_v; case: H_v; rewrite validPt.
   * by move/negP.
   * move => k.
     rewrite H1.
-    rewrite um_domPt inE=>/eqP H_eq.
+    rewrite domPt inE=>/eqP H_eq.
     rewrite -H_eq => H_in.
     by move/negP: H_ni.
   * move => Hv1 Hv2 H_d.

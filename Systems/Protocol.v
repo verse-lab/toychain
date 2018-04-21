@@ -1,10 +1,8 @@
 From mathcomp.ssreflect
-Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype.
-From mathcomp
-Require Import path.
+Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 Require Import Eqdep.
-From HTT
-Require Import pred prelude idynamic ordtype pcm finmap unionmap heap.
+From fcsl
+Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
 Require Import SeqFacts Chains Blocks Forests.
 Set Implicit Arguments.
@@ -176,7 +174,7 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
     let: Node n prs bt pool := st in
     match msg with
     | ConnectMsg =>
-      let: ownHashes := (keys_of bt) ++ [seq hashT t | t <- pool] in
+      let: ownHashes := dom bt ++ [seq hashT t | t <- pool] in
       pair (Node n (undup (from :: prs)) bt pool)
            (emitOne (mkP n from (InvMsg ownHashes)))
 
@@ -190,16 +188,16 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
     | BlockMsg b =>
       let: newBt := btExtend bt b in
       let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
-      let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
+      let: ownHashes := dom newBt ++ [seq hashT t | t <- newPool] in
       pair (Node n prs newBt newPool) (emitBroadcast n prs (InvMsg ownHashes))
 
     | TxMsg tx =>
       let: newPool := tpExtend pool bt tx in
-      let: ownHashes := (keys_of bt) ++ [seq hashT t | t <- newPool] in
+      let: ownHashes := dom bt ++ [seq hashT t | t <- newPool] in
       pair (Node n prs bt newPool) (emitBroadcast n prs (InvMsg ownHashes))
 
     | InvMsg peerHashes =>
-      let: ownHashes := (keys_of bt) ++ [seq hashT t | t <- pool] in
+      let: ownHashes := dom bt ++ [seq hashT t | t <- pool] in
       let: newH := [seq h <- peerHashes | h \notin ownHashes] in
       let: gets := [seq mkP n from (GetDataMsg h) | h <- newH] in
       pair st (emitMany gets)
@@ -237,7 +235,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
           if tx_valid_block bc block then
             let: newBt := btExtend bt block in
             let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
-            let: ownHashes := (keys_of newBt) ++ [seq hashT t | t <- newPool] in
+            let: ownHashes := dom newBt ++ [seq hashT t | t <- newPool] in
             pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
           else
             pair st emitZero
