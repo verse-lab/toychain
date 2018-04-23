@@ -416,7 +416,7 @@ case: t P P'=>[tx|] P P'; last first.
 - assert (PInt := P); move: P; destruct st; rewrite/procInt.
   case X: (genProof _)=>[[txs pf]|].
   case Y: (VAF _).
-  case Z: (tx_valid_block _ _).
+  case Z: (valid_chain_block _ _).
   (* This is the only interesting case - when a new block is minted *)
   set new_block :=
     {| prevBlockHash := # last GenesisBlock (btChain blockTree);

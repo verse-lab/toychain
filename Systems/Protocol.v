@@ -232,7 +232,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
         if VAF pf bc txs then
           let: prevBlock := last GenesisBlock bc in
           let: block := mkB (hashB prevBlock) txs pf in
-          if tx_valid_block bc block then
+          if valid_chain_block bc block then
             let: newBt := btExtend bt block in
             let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
             let: ownHashes := dom newBt ++ [seq hashT t | t <- newPool] in
@@ -261,7 +261,7 @@ Proof.
 case=> n1 p1 b1 t1 [] =>// ts; simpl.
 case hP: genProof => [[txs pf]|] //.
 case vP: (VAF _)=>//.
-case tV: (tx_valid_block _ _)=>//.
+case tV: (valid_chain_block _ _)=>//.
 Qed.
 
 Lemma procMsg_valid :
@@ -285,7 +285,7 @@ move=>s1 t ts.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last done.
 case: (VAF _ _ _); last done.
-case tV: (tx_valid_block _ _)=>//.
+case tV: (valid_chain_block _ _)=>//.
 by rewrite/blockTree/=; apply btExtendV.
 Qed.
 
@@ -312,7 +312,7 @@ move=>s1 t ts v vh.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last by [].
 case: (VAF _ _ _); last done.
-case tV: (tx_valid_block _ _)=>//.
+case tV: (valid_chain_block _ _)=>//.
 by rewrite/blockTree/=; apply btExtendH.
 Qed.
 
@@ -341,7 +341,7 @@ move=>s1 t ts v vh.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last by [].
 case: (VAF _ _ _); last done.
-case tV: (tx_valid_block _ _)=>//.
+case tV: (valid_chain_block _ _)=>//.
 by apply btExtendIB.
 Qed.
 
@@ -429,7 +429,7 @@ Lemma procInt_peers_uniq :
 Proof.
 move=>s1 t ts; case: s1=>n prs bt txp; rewrite /peers/procInt=>Up.
 case: t=>//; case hP: genProof => [[txs pf]|]//; case vP: (VAF _)=>//.
-case tV: (tx_valid_block _ _)=>//.
+case tV: (valid_chain_block _ _)=>//.
 Qed.
 
 Inductive local_step (s1 s2 : State) : Prop :=
