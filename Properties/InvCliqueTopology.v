@@ -445,7 +445,7 @@ case: t P P'=>[tx|] P P'; last first.
       set lst := last GenesisBlock (btChain blockTree).
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
       (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
-      move: (@btExtend_mint_good_valid _ new_block (ts q) (c3 _ _ F) (c4 _ _ F)
+      move: (@btExtend_mint_good_valid _ new_block (c3 _ _ F) (c4 _ _ F)
               (c5 _ _ F) Z  (btChain_good blockTree) Hp Y)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
@@ -508,8 +508,7 @@ case: t P P'=>[tx|] P P'; last first.
     contradict Gt; move/eqP in Dst; subst can_n.
     suff W: (btChain (btExtend blockTree new_block) > can_bc) by rewrite W.
     move: (HHold _ F); rewrite/has_chain/==>/eqP <-.
-    by apply: (@btExtend_mint _ new_block (ts q)
-                              (c3 _ _ F)(c4 _ _ F)(c5 _ _ F)).
+    by apply: (@btExtend_mint _ new_block (c3 _ _ F)(c4 _ _ F)(c5 _ _ F)).
 
     (* HGood *)
     have HGood': good_bt (btExtend can_bt new_block).
@@ -525,7 +524,7 @@ case: t P P'=>[tx|] P P'; last first.
       set lst := last GenesisBlock (btChain blockTree).
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
       (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
-      move: (@btExtend_mint_good_valid _ new_block (ts q) (c3 _ _ F) (c4 _ _ F)
+      move: (@btExtend_mint_good_valid _ new_block (c3 _ _ F) (c4 _ _ F)
               (c5 _ _ F) Z (btChain_good blockTree) Hp Y)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
@@ -560,7 +559,7 @@ case: t P P'=>[tx|] P P'; last first.
     move: (HExt _ _ F)=>/= H; move/FCR_dual:Gt=>Gt. 
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
-    by move: (@btExtend_within can_bt _ new_block _ (ts q) C1 C2
+    by move: (@btExtend_within can_bt _ new_block _ C1 C2
                C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Z Gt P Y H Gt1).
    
     (* HCliq *)

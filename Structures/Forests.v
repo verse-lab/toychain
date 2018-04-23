@@ -11,13 +11,12 @@ Unset Printing Implicit Defensive.
 
 (* A formalization of a block forests *)
 
-Parameter Timestamp : Type.
-Parameter Hash : ordType.
-
 (************************************************************)
 (******************* <parameters> ***************************)
 (************************************************************)
 
+Parameter Timestamp : Type.
+Parameter Hash : ordType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter Address : finType.
@@ -37,7 +36,7 @@ Definition TxPool := seq Transaction.
 Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
-Parameter VAF : VProof -> Timestamp -> Blockchain -> TxPool -> bool.
+Parameter VAF : VProof -> Blockchain -> TxPool -> bool.
 Parameter FCR : Blockchain -> Blockchain -> bool.
 
 (* Transaction is valid and consistent with the given chain *)
@@ -79,7 +78,7 @@ Axiom hashT_inj : injective hashT.
 (* This axiom seems reasonable: it shouldn't be possible
    to generate a block _from_ the chain it is supposed to tail.  *)
 Axiom VAF_nocycle :
-  forall (b : block) ts (bc : Blockchain), VAF (proof b) ts bc (txs b) -> b \notin bc.
+  forall (b : block) (bc : Blockchain), VAF (proof b) bc (txs b) -> b \notin bc.
 
 (* 2. FCR *)
 
@@ -1314,13 +1313,13 @@ rewrite (compute_chain_equiv (free (#b) bt) pb
 by rewrite Es; apply: dom_rem2.
 Qed.
 
-Lemma btExtend_mint_ext bt bc b ts :
+Lemma btExtend_mint_ext bt bc b :
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
   bc = compute_chain bt pb ->
   good_chain bc ->
   prevBlockHash b = #pb ->
-  VAF (proof b) ts bc (txs b) ->
+  VAF (proof b) bc (txs b) ->
   compute_chain (btExtend bt b) b = rcons bc b.
 Proof.
 move=>pb V Vh Ib E HGood Hp Hv.
@@ -1381,14 +1380,14 @@ move=>x xs Hi p T A/=/andP[Z1 Z2]; rewrite Z1//=.
 by apply: (Hi (rcons p x) T _ Z2); rewrite cat_rcons.
 Qed.
 
-Lemma btExtend_mint_good_valid bt b ts :
+Lemma btExtend_mint_good_valid bt b :
   let bc := btChain bt in
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
   tx_valid_block bc b ->
   good_chain bc ->
   prevBlockHash b = #pb ->
-  VAF (proof b) ts bc (txs b) ->
+  VAF (proof b) bc (txs b) ->
   good_chain (compute_chain (btExtend bt b) b) /\
   tx_valid_chain (compute_chain (btExtend bt b) b).
 Proof.
@@ -1407,12 +1406,12 @@ rewrite !X' in Tb Tc; rewrite -rcons_cons.
 by apply: tx_valid_last.
 Qed.
 
-Lemma btExtend_mint bt b ts :
+Lemma btExtend_mint bt b :
   let pb := last GenesisBlock (btChain bt) in
   valid bt -> validH bt -> has_init_block bt ->
   tx_valid_block (btChain bt) b ->
   prevBlockHash b = # pb ->
-  VAF (proof b) ts (btChain bt) (txs b) = true ->
+  VAF (proof b) (btChain bt) (txs b) = true ->
   btChain (btExtend bt b) > btChain bt.
 Proof.
 move=>lst V Vh Ib T mint Hv.
@@ -1421,7 +1420,7 @@ have HGood: good_chain (rcons (btChain bt) b).
 have Hvalid: tx_valid_chain (rcons (btChain bt) b).
 - by move: (btChain_tx_valid bt); apply: tx_valid_last. 
 have E: compute_chain (btExtend bt b) b = rcons (btChain bt) b.
-- apply: (@btExtend_mint_ext _ (btChain bt) b _ V Vh
+- apply: (@btExtend_mint_ext _ (btChain bt) b V Vh
                              Ib _ (btChain_good bt) mint Hv).
   by move/(chain_from_last V Vh Ib): (btChain_in_bt Ib).
 have HIn : rcons (btChain bt) b \in
@@ -1850,14 +1849,14 @@ by move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=;
    rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H.
 Qed.
 
-Lemma btExtend_within cbt bt b bs ts:
+Lemma btExtend_within cbt bt b bs :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
   tx_valid_block (btChain bt) b ->
   btChain cbt >= btChain (btExtend bt b) ->
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
-  VAF (proof b) ts (btChain bt) (txs b) ->
+  VAF (proof b) (btChain bt) (txs b) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
@@ -1906,14 +1905,14 @@ by move=>_ X; apply (FCR_nrefl X).
 by move=>_ H'; apply (FCR_nrefl (FCR_trans H H')).
 Qed.
 
-Lemma btExtend_can_eq cbt bt b bs ts:
+Lemma btExtend_can_eq cbt bt b bs :
   valid cbt -> validH cbt -> has_init_block cbt ->
   valid bt -> validH bt -> has_init_block bt ->
   good_bt cbt -> good_bt (btExtend cbt b) ->
   tx_valid_block (btChain bt) b ->
   btChain cbt >= btChain (btExtend bt b) ->
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
-  VAF (proof b) ts (btChain bt) (txs b) ->
+  VAF (proof b) (btChain bt) (txs b) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) = btChain cbt.
 Proof.

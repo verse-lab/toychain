@@ -229,7 +229,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
       let: allowedTxs := [seq t <- pool | txValid t bc] in
       match genProof n bc allowedTxs ts with
       | Some (txs, pf) =>
-        if VAF pf ts bc txs then
+        if VAF pf bc txs then
           let: prevBlock := last GenesisBlock bc in
           let: block := mkB (hashB prevBlock) txs pf in
           if tx_valid_block bc block then
