@@ -415,7 +415,6 @@ case: t P P'=>[tx|] P P'; last first.
 (* MintT - can_bc and can_n might change *)
 - assert (PInt := P); move: P; destruct st; rewrite/procInt.
   case X: (genProof _)=>[[txs pf]|].
-  case Y: (VAF _).
   case Z: (valid_chain_block _ _).
   (* This is the only interesting case - when a new block is minted *)
   set new_block :=
@@ -446,7 +445,7 @@ case: t P P'=>[tx|] P P'; last first.
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
       (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
       move: (@btExtend_mint_good_valid _ new_block (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z  (btChain_good blockTree) Hp Y)=>Gc.
+              (c5 _ _ F) Z  (btChain_good blockTree) Hp)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
       move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
@@ -525,7 +524,7 @@ case: t P P'=>[tx|] P P'; last first.
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
       (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
       move: (@btExtend_mint_good_valid _ new_block (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z (btChain_good blockTree) Hp Y)=>Gc.
+              (c5 _ _ F) Z (btChain_good blockTree) Hp)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
       rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
       move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
@@ -560,7 +559,7 @@ case: t P P'=>[tx|] P P'; last first.
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
     by move: (@btExtend_within can_bt _ new_block _ C1 C2
-               C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Z Gt P Y H Gt1).
+               C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Z Gt P H Gt1).
    
     (* HCliq *)
     procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
@@ -577,7 +576,6 @@ case: t P P'=>[tx|] P P'; last first.
        rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c6 _ _ F)) /=;
        do? [rewrite -(btExtend_idemp _ (c3 _ _ F))].
 
-  + no_change can_bc can_bt can_n w F F' HExt c5.
   + no_change can_bc can_bt can_n w F F' HExt c5.
   + no_change can_bc can_bt can_n w F F' HExt c5.
 

@@ -229,16 +229,13 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
       let: allowedTxs := [seq t <- pool | txValid t bc] in
       match genProof n bc allowedTxs ts with
       | Some (txs, pf) =>
-        if VAF pf bc txs then
-          let: prevBlock := last GenesisBlock bc in
-          let: block := mkB (hashB prevBlock) txs pf in
-          if valid_chain_block bc block then
-            let: newBt := btExtend bt block in
-            let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
-            let: ownHashes := dom newBt ++ [seq hashT t | t <- newPool] in
-            pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg block))
-          else
-            pair st emitZero
+        let: prevBlock := last GenesisBlock bc in
+        let: b := mkB (hashB prevBlock) txs pf in
+        if valid_chain_block bc b then
+          let: newBt := btExtend bt b in
+          let: newPool := [seq t <- pool | txValid t (btChain newBt)] in
+          let: ownHashes := dom newBt ++ [seq hashT t | t <- newPool] in
+          pair (Node n prs newBt newPool) (emitBroadcast n prs (BlockMsg b))
         else
           pair st emitZero
       | None => pair st emitZero
@@ -260,7 +257,6 @@ Lemma procInt_id_constant : forall (s1 : State) (t : InternalTransition) (ts : T
 Proof.
 case=> n1 p1 b1 t1 [] =>// ts; simpl.
 case hP: genProof => [[txs pf]|] //.
-case vP: (VAF _)=>//.
 case tV: (valid_chain_block _ _)=>//.
 Qed.
 
@@ -284,7 +280,6 @@ Proof.
 move=>s1 t ts.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last done.
-case: (VAF _ _ _); last done.
 case tV: (valid_chain_block _ _)=>//.
 by rewrite/blockTree/=; apply btExtendV.
 Qed.
@@ -311,7 +306,6 @@ Proof.
 move=>s1 t ts v vh.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last by [].
-case: (VAF _ _ _); last done.
 case tV: (valid_chain_block _ _)=>//.
 by rewrite/blockTree/=; apply btExtendH.
 Qed.
@@ -340,7 +334,6 @@ Proof.
 move=>s1 t ts v vh.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last by [].
-case: (VAF _ _ _); last done.
 case tV: (valid_chain_block _ _)=>//.
 by apply btExtendIB.
 Qed.
@@ -428,7 +421,7 @@ Lemma procInt_peers_uniq :
     uniq (peers s1) -> uniq (peers s2).
 Proof.
 move=>s1 t ts; case: s1=>n prs bt txp; rewrite /peers/procInt=>Up.
-case: t=>//; case hP: genProof => [[txs pf]|]//; case vP: (VAF _)=>//.
+case: t=>//; case hP: genProof => [[txs pf]|]//.
 case tV: (valid_chain_block _ _)=>//.
 Qed.
 

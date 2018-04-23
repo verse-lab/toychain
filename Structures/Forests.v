@@ -1392,14 +1392,13 @@ Lemma btExtend_mint_good_valid bt b :
   valid_chain_block bc b ->
   good_chain bc ->
   prevBlockHash b = #pb ->
-  VAF (proof b) bc (txs b) ->
   good_chain (compute_chain (btExtend bt b) b) /\
   valid_chain (compute_chain (btExtend bt b) b).
 Proof.
-move=>bc pb V Vh Ib Tb Gc Hp Hv.
+move=>bc pb V Vh Ib Tb Gc Hv.
 (have: bc \in all_chains bt by move: (btChain_in_bt Ib))=>InC.
 (have: bc = compute_chain bt pb by move: (chain_from_last V Vh Ib InC))=>C.
-move: (btExtend_mint_ext V Vh Ib C Gc Hp Hv)=>->; subst bc.
+move: (btExtend_mint_ext V Vh Ib C Gc Hv)=>->; subst bc; last by move/andP: Tb => [Hv' Hi].
 rewrite/good_chain. case X: (rcons _ _)=>[|x xs].
 contradict X; elim: (btChain bt)=>//.
 have: (good_chain (btChain bt) = true)by [].
@@ -1416,16 +1415,16 @@ Lemma btExtend_mint bt b :
   valid bt -> validH bt -> has_init_block bt ->
   valid_chain_block (btChain bt) b ->
   prevBlockHash b = # pb ->
-  VAF (proof b) (btChain bt) (txs b) = true ->
   btChain (btExtend bt b) > btChain bt.
 Proof.
-move=>lst V Vh Ib T mint Hv.
+move=>lst V Vh Ib T mint.
 have HGood: good_chain (rcons (btChain bt) b).
 - by move: (btChain_good bt); rewrite {1}/good_chain; case (btChain bt).
 have Hvalid: valid_chain (rcons (btChain bt) b).
 - by move: (btChain_tx_valid bt); apply: valid_chain_last.
 have E: compute_chain (btExtend bt b) b = rcons (btChain bt) b.
-- apply: (@btExtend_mint_ext _ (btChain bt) b V Vh
+- move/andP: T => [Hv Ht].
+  apply: (@btExtend_mint_ext _ (btChain bt) b V Vh
                              Ib _ (btChain_good bt) mint Hv).
   by move/(chain_from_last V Vh Ib): (btChain_in_bt Ib).
 have HIn : rcons (btChain bt) b \in
@@ -1861,14 +1860,13 @@ Lemma btExtend_within cbt bt b bs :
   valid_chain_block (btChain bt) b ->
   btChain cbt >= btChain (btExtend bt b) ->
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
-  VAF (proof b) (btChain bt) (txs b) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) > btChain cbt -> False.
 Proof.
-move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec Cont.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Ec Cont.
 case Nb: (#b \in dom cbt); first by rewrite /btExtend Nb in Cont; apply: FCR_nrefl Cont.
 case: (btExtend_good_split V Vh Hib Hg (negbT Nb) Hg')=>cs1[cs2][Eg][Eg'].
-move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_good bt) P Vf)=>[Gb Tb].
+move: (btExtend_mint_good_valid Vl Vhl Hil T (btChain_good bt) P)=>[Gb Tb].
 move: (FCR_trans_eq2 Cont Geq)=>Gt'.
 
 have v1': (valid (btExtend bt b)) by rewrite -btExtendV.
@@ -1917,13 +1915,12 @@ Lemma btExtend_can_eq cbt bt b bs :
   valid_chain_block (btChain bt) b ->
   btChain cbt >= btChain (btExtend bt b) ->
   prevBlockHash b = # last GenesisBlock (btChain bt) ->
-  VAF (proof b) (btChain bt) (txs b) ->
   cbt = foldl btExtend bt bs ->
   btChain (btExtend cbt b) = btChain cbt.
 Proof.
-move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec.
+move=>V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Ec.
 case: (btExtend_sameOrBetter b V Vh Hib)=>//H1.
-by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Vf Ec H1). 
+by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Ec H1).
 Qed.
 
 End BtChainProperties.
