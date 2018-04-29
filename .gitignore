@@ -82,4 +82,5 @@ Makefile.coq
 *.aux
 CoqMakefile.conf
 Makefile.coq.conf
+.coqdeps.d
 awk.Makefile
