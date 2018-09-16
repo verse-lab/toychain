@@ -84,3 +84,10 @@ CoqMakefile.conf
 Makefile.coq.conf
 .coqdeps.d
 awk.Makefile
+
+# -----------------------------------------------------------------------------
+#  Extraction
+# -----------------------------------------------------------------------------
+
+_build
+Extraction/Extracted/*
