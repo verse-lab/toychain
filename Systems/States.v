@@ -4,12 +4,12 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Forests Protocol.
+Require Import SeqFacts Chains Blocks Forests Protocol Realizations.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition Address_ordMixin := fin_ordMixin Address.
+Definition Address_ordMixin := fin_ordMixin Address_finType.
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
 Definition StateMap := union_map [ordType of Address] State.
@@ -48,4 +48,4 @@ Proof. by move => H_u; case: (initStateValidDom H_u). Qed.
 Lemma dom_initState' s : uniq s -> dom (initState' s) =i s.
 Proof. by move => H_u; case: (initStateValidDom H_u). Qed.
 
-Definition initState := initState' (enum Address).
+Definition initState := initState' (enum [ordType of Address]).

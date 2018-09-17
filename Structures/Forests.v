@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks.
+Require Import SeqFacts Chains Blocks Realizations.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -16,19 +16,19 @@ Unset Printing Implicit Defensive.
 (************************************************************)
 
 Parameter Timestamp : Type.
-Parameter Hash : ordType.
-Parameter VProof : eqType.
-Parameter Transaction : eqType.
-Parameter Address : finType.
+(* Parameter Hash : ordType. *)
+(* Parameter VProof : eqType. *)
+(* Parameter Transaction : eqType. *)
+(* Parameter Address : finType. *)
 
-Definition block := @Block Hash Transaction VProof.
+Definition block := @Block Hash_ordType Transaction_eqType VProof_eqType.
 
 Parameter GenesisBlock : block.
 
 Definition Blockchain := seq block.
 
 (* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map Hash block.
+Definition BlockTree := union_map Hash_ordType block.
 
 (* Transaction pools *)
 Definition TxPool := seq Transaction.

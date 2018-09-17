@@ -4,7 +4,7 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import Protocol Chains Forests States.
+Require Import Protocol Chains Forests States Realizations.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -89,9 +89,9 @@ Lemma holds_Init_state : forall (P : State -> Prop) n, P (Init n) ->
   holds n {| localState := initState; inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
 Proof.
 move => P n H_P; rewrite /initState.
-have H_in: n \in enum Address by rewrite mem_enum.
-have H_un: uniq (enum Address) by apply enum_uniq.
-move: H_in H_un; elim: (enum Address) => //=.
+have H_in: n \in enum Address_ordType by rewrite mem_enum.
+have H_un: uniq (enum Address_ordType) by apply enum_uniq.
+move: H_in H_un; elim: (enum Address_ordType) => //=.
 move => a s IH; rewrite inE; move/orP; case.
 * move/eqP => H_eq /=.
   rewrite H_eq; move/andP => [H_in H_u].

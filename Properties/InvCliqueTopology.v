@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Protocol Chains Blocks Forests States Network InvMisc.
+Require Import SeqFacts Protocol Chains Blocks Forests States Network InvMisc Realizations.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -14,7 +14,7 @@ Unset Printing Implicit Defensive.
 
 (* Under assumption of a clique network topology (every node is
 connected to every other node), ensures that any node's local
-blockchain will become _exactly_ the "canonical" blokchain, once all
+blockchain will become _exactly_ the "canonical" blockchain, once all
 blocks towars it "in flight" are received and used to extend the local
 block tree. *)
 (*******************************************************************)
