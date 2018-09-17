@@ -1,0 +1,3 @@
+open Protocol
+
+let _ = ()
