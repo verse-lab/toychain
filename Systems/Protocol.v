@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Forests Realizations.
+Require Import SeqFacts Chains Blocks Forests Canonicals.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

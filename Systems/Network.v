@@ -4,7 +4,7 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import Protocol Chains Forests States Realizations.
+Require Import Protocol Chains Forests States Canonicals.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

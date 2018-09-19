@@ -1,0 +1,33 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "command": "make",
+    "tasks": [
+        {
+            "label": "OCaml Clean",
+            "type": "shell",
+            "command": "ocamlbuild -clean",
+            "problemMatcher": [
+                "$ocamlc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "OCaml Build",
+            "type": "shell",
+            "command": "ocamlbuild -r -tag safe_string -libs unix -I Extraction/Extracted -I Shims Shims/test.d.byte",
+            "problemMatcher": [
+                "$ocamlc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+
+        }
+    ]
+}
