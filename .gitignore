@@ -91,3 +91,4 @@ awk.Makefile
 
 _build
 Extraction/Extracted/*
+test.d.byte

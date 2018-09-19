@@ -21,14 +21,14 @@ Parameter Timestamp : Type.
 (* Parameter Transaction : eqType. *)
 (* Parameter Address : finType. *)
 
-Definition block := @Block Hash_ordType Transaction_eqType VProof_eqType.
+Definition block := @Block [ordType of Hash] Transaction_eqType [eqType of VProof].
 
 Parameter GenesisBlock : block.
 
 Definition Blockchain := seq block.
 
 (* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map Hash_ordType block.
+Definition BlockTree := union_map [ordType of Hash] block.
 
 (* Transaction pools *)
 Definition TxPool := seq Transaction.
