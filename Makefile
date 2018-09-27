@@ -2,7 +2,7 @@ all: default
 
 default: Makefile.coq
 	$(MAKE) -f Makefile.coq
-	ocamlbuild -tag safe_string -libs unix -I Extraction/Extracted -I Shims Shims/test.d.byte
+	ocamlbuild -r -tag safe_string -libs unix -I +../sha -I Extraction/Extracted -I Shims Shims/test.d.byte
 
 quick: Makefile.coq
 	$(MAKE) -f Makefile.coq quick

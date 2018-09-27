@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Canonicals.
+Require Import SeqFacts Chains Blocks Canonicals Parameters.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -15,33 +15,7 @@ Unset Printing Implicit Defensive.
 (******************* <parameters> ***************************)
 (************************************************************)
 
-Parameter Timestamp : Type.
-(* Parameter Hash : ordType. *)
-(* Parameter VProof : eqType. *)
-(* Parameter Transaction : eqType. *)
-(* Parameter Address : finType. *)
-
-Definition block := @Block [ordType of Hash] Transaction_eqType [eqType of VProof].
-
-Parameter GenesisBlock : block.
-
-Definition Blockchain := seq block.
-
-(* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map [ordType of Hash] block.
-
-(* Transaction pools *)
-Definition TxPool := seq Transaction.
-
-Parameter hashT : Transaction -> Hash.
-Parameter hashB : block -> Hash.
-Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
-Parameter VAF : VProof -> Blockchain -> TxPool -> bool.
-Parameter FCR : Blockchain -> Blockchain -> bool.
-
-(* Transaction is valid and consistent with the given chain *)
-Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
+(* Now in Parameters.v *)
 
 (************************************************************)
 (********************* </parameters> ************************)

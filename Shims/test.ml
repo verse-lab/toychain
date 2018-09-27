@@ -1,10 +1,10 @@
-open Protocol
-open Datatypes
+(* open Protocol *)
+(* open Datatypes *)
 (* open Util *)
-open Canonicals
+open Implementations
   
-let me : coq_Address ref = ref {ip = (((O,O),O),O); port=O}
-let nodes : coq_Address list ref = ref []
+(* let me : coq_Address ref = ref {ip = (((O,O),O),O); port=O} *)
+(* let nodes : coq_Address list ref = ref [] *)
 
 (* let usage msg =
   print_endline msg;

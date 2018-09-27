@@ -3,7 +3,9 @@
 -Q Properties Toychain
 -arg "-w -notation-overridden,-local-declaration,-redundant-canonical-projection,-projection-no-head-constant"
 
+
 Structures/Canonicals.v
+Structures/Parameters.v
 Structures/SeqFacts.v
 Structures/Chains.v
 Structures/Blocks.v
