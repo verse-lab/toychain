@@ -14,7 +14,6 @@ Extract Constant GenesisBlock => "Implementations.genBlock".
 Extract Constant VAF => "Implementations.vaf".
 Extract Constant txValid => "Implementations.txValid".
 Extract Constant tpExtend => "Implementations.tpExtend".
-
 Cd "Extraction".
     Cd "Extracted".
         Separate Extraction procMsg procInt initWorld.

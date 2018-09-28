@@ -28,5 +28,4 @@ Parameter FCR : Blockchain -> Blockchain -> bool.
 
 (* Transaction is valid and consistent with the given chain *)
 Parameter txValid : Transaction -> Blockchain -> bool.
-
 Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
