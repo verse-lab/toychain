@@ -8,12 +8,12 @@ Extract Constant Hash => "string".
 Extract Constant VProof => "string".
 Extract Constant hashB => "Hashes.hashB".
 Extract Constant hashT => "Hashes.hashT".
-Extract Constant FCR => "Implementations.fcr".
-(* Extract Constant genProof => "Implementations.mkProof". *)
-Extract Constant GenesisBlock => "Implementations.genBlock".
-Extract Constant VAF => "Implementations.vaf".
-Extract Constant txValid => "Implementations.txValid".
-Extract Constant tpExtend => "Implementations.tpExtend".
+Extract Inlined Constant FCR => "Implementations.fcr".
+Extract Inlined Constant genProof => "Implementations.mkProof".
+Extract Inlined Constant GenesisBlock => "Implementations.genBlock".
+Extract Inlined Constant VAF => "Implementations.vaf".
+Extract Inlined Constant txValid => "Implementations.txValid".
+Extract Inlined Constant tpExtend => "Implementations.tpExtend".
 Cd "Extraction".
     Cd "Extracted".
         Separate Extraction procMsg procInt initWorld.

@@ -19,6 +19,7 @@ let mkProof (address:coq_Address) (blkChain: coq_Blockchain) (txpool: coq_TxPool
       | true -> Some (txpool, (string_of_int hashX))
       | false -> None
   end
+
 let fcr (b1 : coq_Blockchain) (b2 : coq_Blockchain): bool =
   let b1_hash = Hashtbl.hash b1 in
   let b2_hash = Hashtbl.hash b2 in
