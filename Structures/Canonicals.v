@@ -3,10 +3,13 @@ Require Import ssreflect ssrnat ssrfun eqtype choice fintype ssrbool seq.
 
 From fcsl
 Require Import ordtype.
+Require Import String.
+
+(* From CoqUtils Require Import string. *)
 
 Section Params.
-    Parameter VProof : Type.
-    Parameter Hash : Type.
+    Definition VProof := Type.
+    Definition Hash := Type.
 
     Structure Address: Type := mkAddr {
         ip: 'I_2*'I_2*'I_2*'I_2;
@@ -33,6 +36,18 @@ Section Canonicals.
     (* VProof *)
     Axiom VProof_eqMixin : Equality.mixin_of VProof.
     Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
+
+    (* The following realizes the above axioms but causes a expected type error *)
+    (* (* Hash *)
+    Definition Hash_eqMixin := string_eqMixin.
+    Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
+
+    (* Axiom Hash_ordMixin : Ordered.mixin_of Hash_eqType.
+    Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin. *)
+    Canonical Hash_ordType := string_ordType.
+
+    (* VProof *)
+    Canonical VProof_eqType := string_eqType. *)
 
     (* Address *)
     Definition prod_of_address e :=

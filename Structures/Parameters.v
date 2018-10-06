@@ -7,14 +7,14 @@ Require Import ordtype unionmap.
 
 Parameter Timestamp : Type.
 
-Definition block := @Block [ordType of Hash] Transaction_eqType [eqType of VProof].
+Definition block := @Block Hash_ordType Transaction_eqType [eqType of VProof].
 
 Parameter GenesisBlock : block.
 
 Definition Blockchain := seq block.
 
 (* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map [ordType of Hash] block.
+Definition BlockTree := union_map Hash_ordType block.
 
 Definition TxPool := seq Transaction.
 
