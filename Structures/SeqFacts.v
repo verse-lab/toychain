@@ -43,6 +43,15 @@ case E: (x == h); last first.
 by exists [::], (fs ++ x :: ls); split; move/eqP:E=>->.
 Qed.
 
+Lemma in_seq_excl {T : eqType} (x y : T) (xs : seq T) :
+  x \in xs -> y \notin xs -> x != y.
+Proof.
+elim: xs=>[|h tl Hi]//.
+rewrite !in_cons; case/orP=> H; case/norP=>H0.
+by move/eqP in H; subst h=>_; rewrite eq_sym.
+by move=> H'; apply (Hi H H').
+Qed.
+ 
 Lemma rem_elem {T: eqType} (p : T) xs ys :
   p \notin xs-> seq.rem p (xs ++ p :: ys) = xs ++ ys.
 Proof.
