@@ -561,7 +561,6 @@ Lemma btExtend_chain_prefix bt a b :
   valid bt -> validH bt ->
   exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b .
 Proof.
-(*
 (* TODO: This existential is sooper-annoying. Can we have a better
    proof principle for this? *)
 move=>V Vh.
@@ -586,23 +585,23 @@ rewrite {1}/compute_chain' -!/compute_chain'.
 case: ifP=>X; last first.
 - by eexists (match _ with | Some prev => if b == GenesisBlock then [:: b] else rcons _ b
                            | None => [:: b] end); rewrite cats0.
-rewrite !findUnR ?validPtUn ?V ?B//.
 case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last first.
-+ move=>->_; case D2: (prevBlockHash b \in dom (# a \\-> a));
++ move=>-> _; rewrite findUnR ?validPtUn ?V ?B// D1.
+  case D2: (prevBlockHash b \in dom (#a \\-> a));
   case: dom_find (D2)=>//; last by move=>->_; exists [::].
-  move=>pb ->/=.
-  rewrite domPtK inE in D2; move/eqP:D2=>D2; rewrite !D2 in B V' *.
-  rewrite freePt2//eqxx -ptsU=> E _.
-  have H_v: valid (# a \\-> a) by apply (@dom_valid _ _ _ (# a)); rewrite domPtK /= inE.
-  move:(cancelPt H_v E)=>{E B}E; subst a.
-  eexists _; rewrite -cats1; case: ifP=>//=.
-  (* Contradiction? b can't be GB *)
-move=>pb Hf; rewrite updF Hf eqxx -(Vh _ _ Hf)=>Eb _.
+  move=>pb pbH; rewrite pbH; rewrite domPtK inE in D2; move/eqP:D2=>D2.
+  have: (# pb = #a) by rewrite D2 in pbH; move: (findPt_inv pbH)=>[] _ -> _.
+  move=>H; rewrite -H freePt2// D2; move/eqP: H; rewrite eq_sym=>H; rewrite H=> _ _.
+  case: ifP; first by exists [::].
+  by move=>bNg; rewrite -cats1; by eexists.
+move=>pb Hf. rewrite updF Hf eqxx=>Eb _.
+case: ifP; first by exists [::]=>//=; rewrite findUnR ?validPtUn ?V ?B// D1 Hf.
+move=>bNg.
 have Bn' : # b == # a = false by apply/negbTE/negP=>/eqP=>E;
            rewrite -E -Es X in B.
 rewrite (freePtUn2 (#b) V') !Bn' !(Vh _ _ Hf).
-(** How should we fold this over-eager rewriting **)
 subst hs.
+rewrite findUnR ?validPtUn ?V ?B//; move: (Vh (prevBlockHash b) pb Hf)=><-; rewrite D1 Hf.
 (* It's time to unleash the induction hypothesis! *)
 have H1: valid (free (# b) bt) by rewrite validF.
 have H2: validH (free (# b) bt) by apply: validH_free.
@@ -616,8 +615,6 @@ rewrite (compute_chain_equiv _ _ _ _ _ (dom_rem2 (#b) bt))
 by rewrite -(compute_chain_equiv _ _ _ _ _ (dom_rem1 V' Bn'))
            ?(uniq_dom _) ?(rem_uniq _ (uniq_dom _)).
 Qed.
-*)
-Admitted.
 
 (* Is this still true? *)
 (* A simple lemma: any block in the result of compute_chain,
