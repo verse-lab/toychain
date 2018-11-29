@@ -616,12 +616,12 @@ by rewrite -(compute_chain_equiv _ _ _ _ _ (dom_rem1 V' Bn'))
            ?(uniq_dom _) ?(rem_uniq _ (uniq_dom _)).
 Qed.
 
-Lemma compute_chain_no_self_ref bt b:
+Lemma compute_chain_gb_not_within' bt b:
   valid bt -> validH bt -> (* has_init_block bt -> *)
  [\/ compute_chain bt b = [::],
       b = GenesisBlock /\ compute_chain bt b = [:: b] |
       exists h t, compute_chain bt b = h :: t /\
-              forall c, c \in t -> prevBlockHash c != # c].
+              forall c, c \in t -> c != GenesisBlock].
 Proof.
 move=>V Vh; rewrite /compute_chain.
 have Ek: dom bt = dom bt by [].
@@ -656,10 +656,21 @@ case Eh: (#pb == #b).
                                   (uniq_dom (free (# b) bt)) (dom_rem2 _ _)).
   by move=>->; rewrite -cats1; exists b, [::].
   by case=>Eq; subst pb=>->; rewrite -cats1; exists GenesisBlock, [:: b]; split=>// c;
-         rewrite inE=>/eqP ->; rewrite E Eh.
+         rewrite inE=>/eqP ->; rewrite G.
   by move=>[h][t][Eq]Nc; exists h, (rcons t b); rewrite -rcons_cons Eq; split=>//;
      move=>c; rewrite -cats1 mem_cat=>/orP; case; [apply Nc|];
-     rewrite inE=>/eqP ->; rewrite E Eh.
+     rewrite inE=>/eqP ->; rewrite G.
+Qed.
+
+Lemma compute_chain_gb_not_within bt b:
+  valid bt -> validH bt ->
+  compute_chain bt b = [::] \/
+  exists h t, compute_chain bt b = h :: t /\
+         forall c, c \in t -> c != GenesisBlock.
+Proof.
+move=>V Vh.
+case: (compute_chain_gb_not_within' b V Vh)=>H; [by left|right|by right].
+by exists GenesisBlock, [::]; case: H=>[G C]; subst b.
 Qed.
 
 Lemma btExtend_compute_chain bt a b :
@@ -672,17 +683,14 @@ move: (@btExtendH _ a V Vh)=>Vh'.
 move: (V);  rewrite (btExtendV bt a) =>V'.
 move: (btExtendIB a V Vh Ib)=>Ib'.
 case: (btExtend_chain_prefix a b V Vh)
-      (compute_chain_no_self_ref b V' Vh')=>p<- H.
+      (compute_chain_gb_not_within b V' Vh')=>p<- H.
 suff X: p = [::] by subst p.
-
-
 case: H; first by elim: p=>//.
 case=>h[t][E]H; case:p E=>//=x xs[]->{x}Z; subst t.
 have X: GenesisBlock \in xs ++ compute_chain bt b.
 - rewrite mem_cat orbC; rewrite /good_chain in G.
-  by case: (compute_chain bt b) G=>//??/eqP->; rewrite inE eqxx.
-(* REMOVE: by move/H: X; rewrite init_hash; move/negbTE; rewrite eqxx. *)
-admit.
+by case: (compute_chain bt b) G=>//??/eqP->; rewrite inE eqxx.
+by move/H/eqP: X.
 Qed.
 
 (* Chains from blocks are only growing as BT is extended *)
