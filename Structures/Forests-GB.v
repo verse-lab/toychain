@@ -174,6 +174,11 @@ Definition valid_block b : bool :=
 Definition has_init_block (bt : BlockTree) :=
   find (# GenesisBlock) bt = Some GenesisBlock.
 
+Lemma has_init_block_free bt hb :
+  has_init_block bt -> # GenesisBlock != hb ->
+  has_init_block (free hb bt).
+Proof. move=>Ib /eqP Ng; rewrite/has_init_block findF; case: ifP=>/eqP//=. Qed.
+
 Definition validH (bt : BlockTree) :=
   forall h b, find h bt = Some b -> h = hashB b.
 
@@ -1181,9 +1186,9 @@ move=> Ib; rewrite/good_chains mem_filter; apply/andP; split;
 by [rewrite btChain_good btChain_tx_valid | apply (btChain_in_bt Ib)].
 Qed.
 
-(* TODO: is this still true? *)
 Lemma compute_chain_rcons bt c pc :
   valid bt -> validH bt -> #c \in dom bt ->
+  c != GenesisBlock ->
   find (prevBlockHash c) bt = Some pc ->
   compute_chain' bt c (dom bt) (size (dom bt)) =
   rcons (compute_chain' (free (# c) bt) pc
@@ -1193,7 +1198,7 @@ have Ek: dom bt = dom bt by [].
 have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
-elim: n c pc bt hs Es En=>[|n _]/= c pc bt hs Es En V Vh D F.
+elim: n c pc bt hs Es En=>[|n _]/= c pc bt hs Es En V Vh D Ng F.
 - subst hs; move/esym/size0nil: En=>Z.
   by rewrite Z in D.
 rewrite D Es F. case: ifP; last first.
@@ -1205,8 +1210,27 @@ have N: n = (size (dom (free (# c) bt))).
 rewrite -N; clear N.
 rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2) Es//.
 by apply: dom_rem2.
-+ move/eqP=>G; subst c; rewrite -cats1.
-admit.
+by move/eqP in Ng; move/eqP.
+Qed.
+
+Lemma compute_chain_genesis bt :
+  valid bt -> validH bt -> has_init_block bt ->
+  compute_chain' bt GenesisBlock (dom bt) (size (dom bt)) =
+  [:: GenesisBlock].
+Proof.
+move=>V Vh Ib.
+have Ek: dom bt = dom bt by [].
+have Es: size (dom bt) = size (dom bt) by [].
+move: {-2}(size (dom bt)) Es=>n.
+move: {-2}(dom bt) Ek=>hs Es En.
+elim: n Es En=>[|n _]/= Es En.
+- suff: False by [].
+  by move: (find_some Ib); rewrite -Es;
+     move/eqP in En; rewrite eq_sym in En; move/eqP in En; move: (size0nil En)=>->.
+rewrite Es (find_some Ib);
+case D: ((prevBlockHash GenesisBlock) \in dom bt); case: dom_find (D)=>//=.
+by move=>pb -> _ _; case: ifP=>//=; move/eqP.
+by move=>->.
 Qed.
 
 Lemma compute_chain_noblock bt b c :
@@ -1254,7 +1278,15 @@ case D: ((prevBlockHash c) \in dom bt); last first.
   by move/esym/size0nil: H3=>E; rewrite E in X.
 
 (* Now an interesting, inductive, case *)
-case: dom_find D=>//pc F' _ _; rewrite F'=>Hn; rewrite -H3.
+case: dom_find D=>//pc F' _ _; rewrite F'=>Hn.
+case: ifP.
+* move/eqP=>G; subst c; move: Hn; case: ifP=>/eqP //= _ H; rewrite inE in H;
+  apply/eqP; rewrite eq_sym; apply/eqP; apply compute_chain_genesis=>//=.
+  by apply validH_free.
+  by apply has_init_block_free=>//=; case X: (# GenesisBlock == # b)=>//=;
+     move/eqP in X; move: (hashB_inj X) H=>->; move/eqP.
+
+move/eqP=>Ng; move:Hn; case: ifP=>/eqP //= _ Hn.
 rewrite mem_rcons inE in Hn; case/norP: Hn=>/negbTE N Hn.
 have Dc: #c \in dom (free (# b) bt).
   + rewrite domF inE.
@@ -1277,6 +1309,7 @@ have X: compute_chain' (free (# b) bt) c
      please extract it and prove (takig bt' = free (# b) bt) *)
   apply: compute_chain_rcons=>//; rewrite ?validF//.
   + by apply: validH_free.
+  + by apply/eqP.
   suff X: prevBlockHash c == # b = false by rewrite findF X.
   apply/negP=>/eqP Y; rewrite -Y in Z.
   move/Vh: (F')=>E'. rewrite E' in Y Z F'.
@@ -1293,6 +1326,7 @@ have X: compute_chain' (free (# b) bt) c
     by apply/negP => H_eq; by case/negP: Z.
   rewrite X in Hn.
   case: (find _ _) Hn=>[?|]; last by rewrite inE eqxx.
+  case: ifP; first by (move=>_; rewrite inE=>/eqP).
   by rewrite mem_rcons inE eqxx.
 (* The interesting inductive case! *)
 rewrite H3 X; congr (rcons)=>//.
