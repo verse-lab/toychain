@@ -71,12 +71,10 @@ Axiom hashT_inj : injective hashT.
 
 (* 4.  VAF *)
 
-(* This axiom seems reasonable: it shouldn't be possible
-   to generate a block _from_ the chain it is supposed to tail.  *)
-Axiom VAF_nocycle :
-  forall (b : block) (bc : Blockchain), VAF (proof b) bc (txs b) -> b \notin bc.
-
 Axiom VAF_init : VAF (proof GenesisBlock) [::] (txs GenesisBlock).
+
+Axiom VAF_GB_first :
+  forall bc, VAF (proof GenesisBlock) bc (txs GenesisBlock) -> bc = [::].
 
 (* 2. FCR *)
 
@@ -398,6 +396,26 @@ Qed.
 (* All chains from the given tree *)
 Definition good_chain (bc : Blockchain) :=
   if bc is h :: _ then h == GenesisBlock else false.
+
+Fixpoint hash_chain' (b : block) (bc : Blockchain) :=
+  match bc with
+  | [::] => true
+  | b' :: bc' => (prevBlockHash b' == # b) && (hash_chain' b' bc')
+  end.
+
+Fixpoint hash_chain (bc : Blockchain) :=
+  match bc with
+  | [::] => true
+  | [:: b] => true
+  | b :: bc' => hash_chain' b bc'
+  end.
+
+Lemma hash_chain_rcons bc b :
+  prevBlockHash b = # (last GenesisBlock bc) ->
+  hash_chain bc ->
+  hash_chain (rcons bc b).
+Proof.
+Admitted.
 
 (* Transaction validity *)
 Fixpoint valid_chain' (bc prefix : seq block) :=
@@ -1379,6 +1397,67 @@ rewrite (compute_chain_equiv (free (#b) bt) pb
 by rewrite Es; apply: dom_rem2.
 Qed.
 
+Lemma compute_chain_last bt b :
+    (compute_chain bt b = [::]) \/ last GenesisBlock (compute_chain bt b) = b.
+Proof.
+rewrite/compute_chain.
+have Ek: dom bt = dom bt by [].
+have Es: size (dom bt) = size (dom bt) by [].
+move: {-2}(size (dom bt)) Es=>n.
+move: {-2}(dom bt) Ek=>hs Es En.
+elim: n b bt hs Es En=>[|n Hi] b bt hs Es En/=.
+- by left; case: ifP.
+case: ifP; last by left.
+move=>Hb; case D1: (prevBlockHash b \in dom bt); case: dom_find D1=>//=;
+last by move=>->; right.
+by move=>pb F _ _; right; rewrite F; case: ifP=>//=; rewrite last_rcons.
+Qed.
+
+Lemma compute_chain_hash_chain bt b :
+  valid bt -> validH bt ->
+  hash_chain (compute_chain bt b).
+Proof.
+move=>V Vh; rewrite /compute_chain.
+have Ek: dom bt = dom bt by [].
+have Es: size (dom bt) = size (dom bt) by [].
+move: {-2}(size (dom bt)) Es=>n.
+move: {-2}(dom bt) Ek=>hs Es En.
+elim: n b bt hs Es En V Vh=>[|n Hi] b bt hs Es En V Vh/=.
+- by case: ifP=>//=.
+case: ifP=>X //=.
+have H1: validH (free (# b) bt) by apply validH_free.
+have H2: valid (free (# b) bt) by rewrite validF.
+have H3: n = size (dom (free (# b) bt)).
+- by apply: size_free=>//; rewrite Es in En X.
+case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last by move=>->.
+move=> pb F; rewrite F; case: ifP=>//= A _ _.
+rewrite H3.
+have U1: uniq (seq.rem (# b) hs) by rewrite Es rem_uniq// uniq_dom.
+have U2: uniq (dom (free (# b) bt)) by rewrite uniq_dom.
+rewrite (compute_chain_equiv (free (#b) bt) pb
+          (size (dom (free (# b) bt))) U1 U2)//;
+last by rewrite Es; apply: dom_rem2.
+have Df: (dom (free (# b) bt) = dom (free (# b) bt)) by [].
+move: (Hi pb (free (# b) bt) (dom (free (# b) bt)) Df H3 H2 H1)=>H.
+move: (Vh _ _ F)=>Hc; rewrite -H3.
+case: (compute_chain_last (free (# b) bt) pb); rewrite/compute_chain -H3.
+by move=>->.
+by move=>L; apply hash_chain_rcons=>//=; rewrite L.
+Qed.
+
+Lemma good_chain_nocycle bt bc b lb :
+  valid bt -> validH bt -> has_init_block bt ->
+  bc = compute_chain bt lb ->
+  good_chain bc ->
+  b \in bc ->
+  b == GenesisBlock \/ prevBlockHash b != # lb.
+Proof.
+move=>V Vh Ib.
+Check compute_chain_uniq.
+(* via compute_chain_uniq (hash variant; maybe can get without
+hashB_inj) and compute_chain_hash_chain *)
+Admitted.
+
 Lemma btExtend_mint_ext bt bc b :
   let pb := last GenesisBlock bc in
   valid bt -> validH bt -> has_init_block bt ->
@@ -1399,13 +1478,17 @@ have Vh': validH (btExtend bt b) by apply:btExtendH.
 have D: #b \in dom (btExtend bt b).
 - move: V'; rewrite /btExtend; case:ifP=>X V'//.
   by rewrite domPtUn inE V' eqxx.
-apply: compute_chain_prev=>//; last first.
-move: (VAF_nocycle Hv); rewrite E in HGood.
-by rewrite (btExtend_compute_chain b V Vh Ib HGood) E.
-move: (VAF_nocycle Hv);
-have: (GenesisBlock \in bc) by move: HGood;
-  elim bc=>[|h t]//=; move=>_; move/eqP=>->; rewrite inE; apply/orP; left.
-by rewrite eq_sym; apply in_seq_excl.
+case X: (b == GenesisBlock)=>//=.
+by move/eqP in X; subst b; move: (VAF_GB_first Hv) (HGood) ->.
+apply: compute_chain_prev=>//=; first by rewrite X.
+rewrite E in HGood.
+rewrite (btExtend_compute_chain b V Vh Ib HGood) -E.
+case Y: (b \in bc)=>//=.
+rewrite -E in HGood.
+(* Contradiction X Y Hp E *)
+case: (good_chain_nocycle V Vh Ib E HGood Y).
+by rewrite X.
+by rewrite Hp=>/eqP.
 Qed.
 
 Lemma chain_from_last bt c :
