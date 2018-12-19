@@ -410,12 +410,30 @@ Fixpoint hash_chain (bc : Blockchain) :=
   | b :: bc' => hash_chain' b bc'
   end.
 
+(* This one is not needed for hash_chain_rcons *)
+Lemma hash_chain_last bc b :
+  hash_chain (rcons bc b) ->
+  bc = [::] \/ prevBlockHash b = # (last GenesisBlock bc).
+Proof.
+case: bc=>[|h t]; first by left.
+rewrite last_cons rcons_cons -cats1/=.
+case: t=>/=[|c t/andP[/eqP E] H/=]; first by rewrite andbC/==>/eqP=>?; right.
+right; clear E h.
+elim: t c H=>//=[c|h t Hi c/andP[/eqP E H]]; first by rewrite andbC/==>/eqP.
+by apply Hi.
+Qed.
+
 Lemma hash_chain_rcons bc b :
   prevBlockHash b = # (last GenesisBlock bc) ->
   hash_chain bc ->
   hash_chain (rcons bc b).
 Proof.
-Admitted.
+case: bc=>[|h t]//. rewrite last_cons rcons_cons/= -cats1.
+case: t=>//=[|c t E/andP[/eqP->]H]; first by move=>->; rewrite eqxx.
+rewrite eqxx/=; clear h.
+elim: t c H E=>//= [c _->|h t Hi c/andP[/eqP ->]H E]; rewrite eqxx//=.
+by apply: Hi.
+Qed.
 
 (* Transaction validity *)
 Fixpoint valid_chain' (bc prefix : seq block) :=
