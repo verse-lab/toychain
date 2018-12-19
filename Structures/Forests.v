@@ -435,6 +435,14 @@ elim: t c H E=>//= [c _->|h t Hi c/andP[/eqP ->]H E]; rewrite eqxx//=.
 by apply: Hi.
 Qed.
 
+Lemma hash_chain_uniq_hash_nocycle b bc :
+  hash_chain (b :: bc) ->
+  uniq (map hashB (b :: bc)) ->
+  (forall c, c \in bc -> prevBlockHash c != # last GenesisBlock (b :: bc)).
+Proof.
+(* I don't know how to get a workable induction principle *)
+Admitted.
+
 (* Transaction validity *)
 Fixpoint valid_chain' (bc prefix : seq block) :=
   if bc is b :: bc'
@@ -523,26 +531,29 @@ case C: (z \in dom bt); first by rewrite (rem_neq B' C).
 by apply/negP=>/mem_rem=>E; rewrite E in C.
 Qed.
 
-Lemma compute_chain_notin' bt (b b' : block) (hs : seq Hash) n :
-  valid bt -> (# b) \notin hs -> b \notin compute_chain' bt b' hs n.
+Lemma compute_chain_notin_hash bt (b b' : block) (hs : seq Hash) n :
+  valid bt -> (# b) \notin hs ->
+  # b \notin (map hashB (compute_chain' bt b' hs n)).
 Proof.
 elim: n b b' bt hs=>[|n Hi] b b' bt hs V B/=; first by case:ifP.
 case: ifP=>//B'.
 case D1: (prevBlockHash b' \in dom bt); case: dom_find (D1)=>//; last first.
-- by move=>->_; rewrite inE; apply/negbT/negP=>/eqP Z; subst b; rewrite B' in B.
-move=>pb->_ _; case: ifP.
-- by move=>/eqP G; subst b'; rewrite inE; move: (in_seq_excl B' B); rewrite eq_sym=>H;
-  move: (inj_eq hashB_inj b GenesisBlock)=><-.
-move=>_; rewrite -cats1 mem_cat !inE; apply/negP=>/orP[]; last first.
-- by move/eqP=>Z; subst b'; rewrite B' in B.
-apply/negP; apply: (Hi b pb (free (# b') bt) (seq.rem (# b') hs)).
-- by rewrite validF V.
-by apply/negP=>/mem_rem; apply/negP.
+- by move=>->_; rewrite inE; apply/negbT/negP=>/eqP Z; move: Z B' B=>-> ->.
+- move=>pb F; rewrite F; case: ifP=>//=.
+  by move/eqP=> Z; subst b'=>_ _; rewrite inE;
+     case X: (#b == # GenesisBlock)=>//=; move/eqP: X B' B=>-> ->.
+move=>X _ _; rewrite map_rcons.
+apply/negP; rewrite -cats1 mem_cat; apply/negP/orP; case.
+have H1: valid (free (# b') bt) by rewrite validF.
+have H2: (# b \notin (seq.rem (# b') hs)).
+  by move: (in_seq_excl B' B); rewrite eq_sym=>Neq; apply rem_neq_notin.
+
+by move=>In; move: In (Hi b pb (free (# b') bt) _ H1 H2) ->.
+by rewrite inE=>/eqP Y; move: Y B' B=>-> ->.
 Qed.
 
-(* The computed chain has no cycles *)
-Lemma compute_chain_uniq bt b :
-  valid bt -> uniq (compute_chain bt b).
+Lemma compute_chain_uniq_hash bt b :
+  valid bt -> uniq (map hashB (compute_chain bt b)).
 Proof.
 move=>V; rewrite /compute_chain.
 have Ek: dom bt = dom bt by [].
@@ -552,18 +563,24 @@ move: {-2}(dom bt) Ek=>hs Es En.
 elim: n b bt V hs Es En=>[|n Hi] b bt V hs Es En/=; first by case:ifP.
 case: ifP=>//B.
 case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last by move=>-> _.
-move=>pb->Eb _; case: ifP=>//; rewrite rcons_uniq; subst hs.
+move=>pb->Eb _; case: ifP=>//; rewrite map_rcons rcons_uniq=>_.
+apply/andP; split.
+- apply compute_chain_notin_hash.
+  by rewrite validF.
+  have H1: (uniq hs) by rewrite Es uniq_dom.
+  by rewrite mem_rem_uniq=>//=; rewrite inE; apply/nandP; left; apply/negP; move/eqP.
 have H1: valid (free (# b) bt) by rewrite validF.
-have H3: n = size (dom (free (# b) bt)) by apply: size_free.
-move: (Hi pb _ H1 _ (erefl _) H3)=>U.
+have H2: n = size (dom (free (# b) bt)).
+  by apply: size_free=>//=; do? rewrite -Es.
+move: (Hi pb _ H1 _ (erefl _) H2)=>U.
 rewrite -(compute_chain_equiv (free (# b) bt) pb n (rem_uniq _ (uniq_dom _))
           (uniq_dom (free (# b) bt)) (dom_rem2 _ _)) in U.
-rewrite U andbC=>/={U}.
-have X : (#b) \notin seq.rem (# b) (dom bt).
-- elim: (dom bt) (uniq_dom bt)=>//=h t Gi/andP[]N/Gi{Gi}G.
-  by case:ifP; [by move/eqP=><-| by rewrite inE eq_sym=>->].
-by move=>_; apply: (compute_chain_notin' _ _ _ X).
+by rewrite Es U.
 Qed.
+
+Lemma compute_chain_uniq bt b :
+  valid bt -> uniq (compute_chain bt b).
+Proof. by move=>V; apply: map_uniq; apply compute_chain_uniq_hash. Qed.
 
 (* Every block in a blockchain is also in the BlockTree *)
 (* See btChain_mem2; need has_init_block *)
@@ -1463,18 +1480,23 @@ by move=>->.
 by move=>L; apply hash_chain_rcons=>//=; rewrite L.
 Qed.
 
-Lemma good_chain_nocycle bt bc b lb :
+Lemma good_chain_nocycle bt bc c lb :
   valid bt -> validH bt -> has_init_block bt ->
   bc = compute_chain bt lb ->
   good_chain bc ->
-  b \in bc ->
-  b == GenesisBlock \/ prevBlockHash b != # lb.
+  c \in bc ->
+  c == GenesisBlock \/ prevBlockHash c != # lb.
 Proof.
 move=>V Vh Ib.
-Check compute_chain_uniq.
-(* via compute_chain_uniq (hash variant; maybe can get without
-hashB_inj) and compute_chain_hash_chain *)
-Admitted.
+case: (compute_chain_last bt lb); first by move=>->->.
+move=>L; move: (compute_chain_uniq_hash lb V)=>Uh.
+move: (compute_chain_hash_chain lb V Vh)=>Hc C Gc.
+case: bc C Gc=>//=; move=>b bc C /eqP Z; subst b.
+rewrite inE=>/orP; case; first by left.
+rewrite -C in Hc Uh L.
+move=>In; move: (hash_chain_uniq_hash_nocycle Hc Uh)=>H.
+by specialize (H c In); rewrite L in H; right.
+Qed.
 
 Lemma btExtend_mint_ext bt bc b :
   let pb := last GenesisBlock bc in

@@ -22,6 +22,15 @@ rewrite inE; case/orP=>//=.
 by case: ifP=>//=N' /Hi; rewrite inE orbC=>->.
 Qed.
 
+Lemma rem_neq_notin {T: eqType} (x y : T) (ls : seq T) :
+  x != y -> x \notin ls -> x \notin seq.rem y ls.
+Proof.
+move=>N; elim: ls=>//h ls Hi.
+rewrite inE; case/norP=>//=.
+move=>Neq Ni; specialize (Hi Ni); case: ifP=>//=.
+by move=>Hy; rewrite inE; apply/norP; rewrite Hi.
+Qed.
+
 Lemma in_seq {T : eqType} (x : T) (xs : seq T) :
   x \in xs -> exists fs ls, xs = fs ++ x :: ls.
 Proof.
