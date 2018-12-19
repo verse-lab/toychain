@@ -435,13 +435,48 @@ elim: t c H E=>//= [c _->|h t Hi c/andP[/eqP ->]H E]; rewrite eqxx//=.
 by apply: Hi.
 Qed.
 
+Lemma hash_chain_behead b bc :
+  hash_chain (b :: bc) ->
+  hash_chain bc.
+Proof. by case: bc=>//= a l /andP [P] ->; case: l. Qed.
+
+Lemma hash_chain_behead' b b' bc :
+  hash_chain ([:: b, b' & bc]) ->
+  prevBlockHash b' = # b.
+Proof.
+case: bc=>//=; first by move/andP=>[] /eqP ->.
+by move=>a l /and3P [] /eqP ->.
+Qed.
+
 Lemma hash_chain_uniq_hash_nocycle b bc :
   hash_chain (b :: bc) ->
   uniq (map hashB (b :: bc)) ->
   (forall c, c \in bc -> prevBlockHash c != # last GenesisBlock (b :: bc)).
 Proof.
-(* I don't know how to get a workable induction principle *)
-Admitted.
+elim: bc b=>//h t Hi.
+specialize (Hi h); move=>b.
+move=>Hc; move: (hash_chain_behead Hc)=>Hc'.
+specialize (Hi Hc').
+rewrite -cat1s map_cat cat_uniq=>/and3P [] _ X U'.
+specialize (Hi U').
+move=>c; rewrite in_cons=>/orP; case; last by apply Hi.
+move/eqP=>Z; subst c.
+move: (hash_chain_behead' Hc)=>H; rewrite H.
+case C: (# b != # last GenesisBlock ([:: b] ++ h :: t))=>//=.
+(* X -> # b \notin (map hashB h::t) *)
+have Y:  ([seq # i | i <- [:: b]] = [:: # b]) by [].
+have Z: (has (mem [:: # b]) [seq # i | i <- h :: t] ==
+        mem [seq # i | i <- h :: t] (# b)).
+rewrite //= !in_cons (eq_sym (# h) _); case: (# b == # h)=>//=.
+elim: [seq # i | i <- t]=>//=.
+by move=>a l //= /eqP ->; rewrite !inE (eq_sym a _).
+
+move/eqP in Z; rewrite Y Z inE in X; clear Y Z.
+case C': (# b == # last h t); last by rewrite C' in C.
+move/eqP in C'; rewrite C' in X.
+(* X is a contradiction *)
+move: X; rewrite map_f //=; apply mem_last.
+Qed.
 
 (* Transaction validity *)
 Fixpoint valid_chain' (bc prefix : seq block) :=
