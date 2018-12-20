@@ -150,7 +150,8 @@ Qed.
 (*                BlockTree implementation                        *)
 (******************************************************************)
 
-Definition btHasBlock (bt : BlockTree) (b : block) := #b \in dom bt.
+Definition btHasBlock (bt : BlockTree) (b : block) :=
+  (#b \in dom bt) && (find (# b) bt == Some b).
 
 Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
 Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
@@ -279,10 +280,14 @@ Lemma btExtend_in_either bt b b' :
 Proof.
 move=>V; rewrite /btExtend/=; case: ifP=>//= N.
 by left.
-rewrite/btHasBlock domUn inE domPtK validPtUn V N /=;
-move/orP; case.
-by rewrite inE=>/eqP Eq; move: (hashB_inj Eq)=>->; right.
-by left.
+rewrite/btHasBlock domUn inE domPtK validPtUn V N /=.
+move/andP=>[] /orP; case; last first.
+move=>D /eqP; rewrite findUnL ?validPtUn ?V ?N //; case: ifP.
+by rewrite domPtK inE=>/eqP hE; contradict D; rewrite hE N.
+by move=>_ ->; rewrite D //=; left.
+- rewrite inE=>/eqP ->; rewrite findUnL ?validPtUn ?V ?N //; case: ifP.
+  by move=>_ /eqP F; move: (findPt_inv F); case=>_ ->; right.
+  by move=>_ /eqP F; contradict N; move: (find_some F)=>->.
 Qed.
 
 Lemma btExtend_idemp bt b :
@@ -328,21 +333,24 @@ Definition next_of (bt : BlockTree) b : pred Block :=
 (* All paths/chains should start with the GenesisBlock *)
 Fixpoint compute_chain' (bt : BlockTree) b remaining n : Blockchain :=
   (* Preventing cycles in chains *)
-  if (hashB b) \in remaining
+  if (# b) \in remaining
   then
-    let rest := seq.rem (hashB b) remaining in
-    (* Supporting primitive inductions *)
-    if n is n'.+1 then
-      match find (prevBlockHash b) bt with
-      (* No parent *)
-      | None => [:: b]
-      | Some prev =>
-        (* Stop at GenesisBlock *)
-        if b == GenesisBlock then [:: b] else
-        (* Build chain prefix recursively *)
-        rcons (nosimpl (compute_chain' (free (hashB b) bt) prev rest n')) b
-      end
-    else [::]
+    (* Protect against possibility of hash-collision in b *)
+    if b ∈ bt then
+        let rest := seq.rem (hashB b) remaining in
+        (* Supporting primitive inductions *)
+        if n is n'.+1 then
+            match find (prevBlockHash b) bt with
+            (* No parent *)
+            | None => [:: b]
+            | Some prev =>
+                (* Stop at GenesisBlock *)
+                if b == GenesisBlock then [:: b] else
+                (* Build chain prefix recursively *)
+                rcons (nosimpl (compute_chain' (free (# b) bt) prev rest n')) b
+            end
+        else [::]
+      else [::]
   else [::].
 
 (* Compute chain from the block *)
@@ -378,14 +386,16 @@ case B : (b \in all_blocks bt); [constructor 1|constructor 2].
 - move: B; rewrite /all_blocks; case/mapP=>k Ik->{b}.
   move/um_eta: Ik=>[b]/=[E H].
   rewrite/get_block E /btHasBlock; specialize (Vh _ _ E); subst k.
-  by move: (find_some E).
+  by move: (find_some E)=>->; rewrite E eq_refl.
 case=>H; rewrite/btHasBlock; move/negP: B=>B; apply: B.
 rewrite /all_blocks; apply/mapP.
 exists (#b) => //.
+move/andP: H=>[H1 H2]=>//=.
 rewrite/btHasBlock in H; rewrite/get_block.
 case X: (find _ _)=>[b'|].
 by move: (Vh _  _ X); move/hashB_inj.
-by contradict H; move: (find_none X)=>H; apply/negP.
+move/andP: H=>[H1 H2]; rewrite X in H2.
+by contradict H2.
 Qed.
 
 (* All chains from the given tree *)
@@ -565,8 +575,8 @@ Lemma compute_chain_notin_hash bt (b b' : block) (hs : seq Hash) n :
   valid bt -> (# b) \notin hs ->
   # b \notin (map hashB (compute_chain' bt b' hs n)).
 Proof.
-elim: n b b' bt hs=>[|n Hi] b b' bt hs V B/=; first by case:ifP.
-case: ifP=>//B'.
+elim: n b b' bt hs=>[|n Hi] b b' bt hs V B/=; first by case: ifP=>//=; case: ifP.
+case: ifP=>//B'; case:ifP=>//B0.
 case D1: (prevBlockHash b' \in dom bt); case: dom_find (D1)=>//; last first.
 - by move=>->_; rewrite inE; apply/negbT/negP=>/eqP Z; move: Z B' B=>-> ->.
 - move=>pb F; rewrite F; case: ifP=>//=.
@@ -590,8 +600,8 @@ have Ek: dom bt = dom bt by [].
 have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
-elim: n b bt V hs Es En=>[|n Hi] b bt V hs Es En/=; first by case:ifP.
-case: ifP=>//B.
+elim: n b bt V hs Es En=>[|n Hi] b bt V hs Es En/=; first by case:ifP=>//=; case: ifP.
+case: ifP=>//B; case: ifP=>//B0.
 case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last by move=>-> _.
 move=>pb->Eb _; case: ifP=>//; rewrite map_rcons rcons_uniq=>_.
 apply/andP; split.
@@ -623,12 +633,12 @@ have Ek: dom bt = dom bt by [].
 have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
-elim: n b0 bt hs Es En V Ib=>[|n Hi] b0 bt hs Es En V Ib/=; first by case:ifP.
-case: ifP=>//B.
+elim: n b0 bt hs Es En V Ib=>[|n Hi] b0 bt hs Es En V Ib/=; first by case:ifP=>//=; case: ifP.
+case: ifP=>//B; case: ifP=>//B0.
 case D1: (prevBlockHash b0 \in dom bt); case: dom_find (D1)=>//; last first.
-- by move=>->_; rewrite inE/==>/eqP Z; subst b0 hs; rewrite /btHasBlock.
-  move=>pb->Eb _; case: ifP;
-         first by move/eqP=>->; rewrite inE /btHasBlock=>/eqP ->; move/find_some: (Ib).
+- by move=>->_; rewrite inE/==>/eqP Z; subst b0 hs.
+  move=>pb->Eb _; case: ifP.
+  by move/eqP=>Z; subst b0; rewrite inE=>/eqP ->.
 rewrite mem_rcons; subst hs.
 have H1: valid (free (# b0) bt) by rewrite validF.
 have H3: n = size (dom (free (# b0) bt)) by apply: size_free=>//.
@@ -636,9 +646,27 @@ move: (Hi pb _ _ (erefl _) H3 H1)=>H H0.
 rewrite inE=>/orP[]=>[/eqP Z|]; first by subst b0; rewrite /btHasBlock.
 rewrite -(compute_chain_equiv (free (# b0) bt) pb n (rem_uniq _ (uniq_dom _))
          (uniq_dom (free (# b0) bt)) (dom_rem2 _ _)) in H.
-move/H; rewrite/btHasBlock; rewrite domF !inE; case: ifP; first by move/eqP=><-.
-rewrite/has_init_block findF; case: ifP; last by move=> _ _ H'; move: (H' Ib).
-by rewrite eq_sym;  move: (inj_eq hashB_inj b0 GenesisBlock)=>-> H0'; rewrite H0 in H0'.
+move/H; rewrite/btHasBlock; rewrite domF !inE; case: ifP.
+- move/eqP=><-.
+  case X: (# b0 == # GenesisBlock).
+  (* Lots of fiddling to not have to use hash injectivity *)
+  + rewrite/btHasBlock in B0; move/andP: B0=>[_ C].
+    move/eqP in X; rewrite X in C.
+    rewrite/has_init_block in Ib.
+    rewrite Ib in C; rewrite eq_sym in H0.
+    have C': (GenesisBlock == b0) by [].
+    by rewrite C' in H0.
+  + have X': (# GenesisBlock != # b0) by rewrite eq_sym X. clear X.
+    by move=>H'; move: (has_init_block_free Ib X')=>H2; specialize (H' H2).
+rewrite/has_init_block findF; case: ifP; last first.
+by move=>_ Neq H'; move/andP: (H' Ib)=>[->]//=; rewrite findF; case: ifP=>//=.
+(* Again, the fiddling *)
+move/eqP=>X; rewrite/btHasBlock in B0; move/andP: B0=>[_ C].
+rewrite -X in C; rewrite/has_init_block in Ib.
+rewrite Ib in C; case Eq: (GenesisBlock == b0).
+by move/eqP in Eq; subst b0; move/eqP in H0.
+have C': (GenesisBlock == b0) by [].
+by rewrite C' in Eq.
 Qed.
 
 Lemma btExtend_chain_prefix bt a b :
@@ -667,19 +695,35 @@ case: ifP=>Bb; last first.
   by rewrite domUn inE V' I1 orbC.
 rewrite {1}/compute_chain' -!/compute_chain'.
 case: ifP=>X; last first.
+case: ifP; last by  exists [::].
 - by eexists (match _ with | Some prev => if b == GenesisBlock then [:: b] else rcons _ b
                            | None => [:: b] end); rewrite cats0.
 case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//; last first.
 + move=>-> _; rewrite findUnR ?validPtUn ?V ?B// D1.
   case D2: (prevBlockHash b \in dom (#a \\-> a));
-  case: dom_find (D2)=>//; last by move=>->_; exists [::].
+  case: dom_find (D2)=>//; last first.
+  move=>-> _; rewrite/btHasBlock findUnR ?validPtUn ?V ?B// Bb //=;
+  case: ifP; first by move/andP=>[-> ->]; exists [::].
+    move/nandP; case.
+    * move=>Nd; case: ifP; case: ifP; do? by [move=>D; rewrite D in Nd|exists [::]].
+      by move: X; rewrite Es=>->.
+    by move: X; rewrite Es=>->; case: ifP=>//=; exists [::].
   move=>pb pbH; rewrite pbH; rewrite domPtK inE in D2; move/eqP:D2=>D2.
   have: (# pb = #a) by rewrite D2 in pbH; move: (findPt_inv pbH)=>[] _ -> _.
   move=>H; rewrite -H freePt2// D2; move/eqP: H; rewrite eq_sym=>H; rewrite H=> _ _.
-  case: ifP; first by exists [::].
-  by move=>bNg; rewrite -cats1; by eexists.
-move=>pb Hf. rewrite updF Hf eqxx=>Eb _.
-case: ifP; first by exists [::]=>//=; rewrite findUnR ?validPtUn ?V ?B// D1 Hf.
+  case: ifP; case: ifP; do? by [case: ifP=>//=; exists [::] | exists [::]];
+    do? by rewrite Es in X; move/eqP in H; rewrite -H /btHasBlock Bb X //=;
+       rewrite findUnR ?validPtUn ?V ?B// X=>->.
+    by case: ifP; by [exists [::] | rewrite -cats1; eexists].
+move=>pb Hf; rewrite updF Hf eqxx=>Eb _.
+case: ifP; last first.
+- case: ifP.
+  by rewrite Es in X; rewrite/btHasBlock domPtUn V' X findUnR //= X=>/andP[_ /eqP -> /eqP].
+  by exists [::].
+case: ifP.
+  case: ifP.
+  by exists [::]=>//=; rewrite findUnR ?validPtUn ?V ?B// D1 Hf.
+  by rewrite Es in X; rewrite/btHasBlock Bb X /= findUnR ?B// X=>->.
 move=>bNg.
 have Bn' : # b == # a = false by apply/negbTE/negP=>/eqP=>E;
            rewrite -E -Es X in B.
@@ -692,6 +736,8 @@ have H2: validH (free (# b) bt) by apply: validH_free.
 have H3: (# a \in dom (free (# b) bt)) = false by rewrite domF inE Bn' B.
 have H4: n = size (dom (free (# b) bt)) by apply: size_free.
 case: (Hi pb (free (# b) bt) H1 H2 H3 (dom (free (# b) bt)) (erefl _) H4)=>q E.
+case: ifP; last by rewrite/btHasBlock Bb X findUnR ?B// X=>->.
+move=>_ _.
 exists q; rewrite -rcons_cat; congr (rcons _ b).
 (* Final rewriting of with the unique lists *)
 rewrite (compute_chain_equiv _ _ _ _ _ (dom_rem2 (#b) bt))
@@ -717,7 +763,7 @@ case D: ((# b) \in hs); last first.
 elim: n b bt V Vh hs Es En D=>[|n Hi] b bt V Vh hs Es En D/=.
 - by move/esym/size0nil: En=>Z; subst hs; rewrite Z in D.
 (* Induction step *)
-rewrite D.
+rewrite D; case: ifP; last by constructor 1. move=>Hb.
 case D1: (prevBlockHash b \in dom bt); case: dom_find (D1)=>//;
 last by move=>->_; constructor 3; exists b, [::].
 + move=>pb F; move: (Vh _ _ F)=>E _ _; rewrite F; rewrite !E in F D1 *.
@@ -730,7 +776,7 @@ constructor 3.
 case Eh: (#pb == #b).
 - exists b, [::]; split=>//.
   rewrite -cats1; suff: (compute_chain' (free (# b) bt) pb (seq.rem (# b) hs) n = [::]) by move=>->.
-  clear Hi H3 En; elim: n=>/=; first by case: ifP=>//.
+  clear Hi H3 En; elim: n=>/=; first by case: ifP=>//=; case: ifP=>//=.
   move=>n H; case: ifP=>//=; move/eqP in Eh; rewrite Eh.
   by rewrite mem_rem_uniq // inE=>/andP [] /eqP.
 - have H4: # pb \in dom (free (# b) bt) by rewrite -dom_rem2 mem_rem_uniq // inE Eh.
@@ -798,7 +844,9 @@ move: {-2}(dom bt) Ek=>hs Es En.
 elim: n bt hs Es En=>[|n Hi] bt hs Es En Ib=>/=;
 subst hs; move/find_some: (Ib).
 - by move/esym/size0nil:En=>->.
-by move=>->; case (find (prevBlockHash GenesisBlock) bt)=>// b; case: ifP=>// /eqP.
+move=>->; case: ifP.
+by case (find (prevBlockHash GenesisBlock) bt)=>// b; case: ifP=>// /eqP.
+by move: Ib (find_some Ib); rewrite/has_init_block/btHasBlock=>-> ->; rewrite eq_refl.
 Qed.
 
 Lemma all_chains_init bt :
@@ -1266,7 +1314,7 @@ by [rewrite btChain_good btChain_tx_valid | apply (btChain_in_bt Ib)].
 Qed.
 
 Lemma compute_chain_rcons bt c pc :
-  valid bt -> validH bt -> #c \in dom bt ->
+  valid bt -> validH bt -> c ∈ bt ->
   c != GenesisBlock ->
   find (prevBlockHash c) bt = Some pc ->
   compute_chain' bt c (dom bt) (size (dom bt)) =
@@ -1277,10 +1325,12 @@ have Ek: dom bt = dom bt by [].
 have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
-elim: n c pc bt hs Es En=>[|n _]/= c pc bt hs Es En V Vh D Ng F.
+elim: n c pc bt hs Es En=>[|n _]/= c pc bt hs Es En V Vh D Ng F;
+move: D; rewrite/btHasBlock=>/andP[D0 D1].
 - subst hs; move/esym/size0nil: En=>Z.
-  by rewrite Z in D.
-rewrite D Es F. case: ifP; last first.
+  by rewrite Z in D0.
+rewrite D0 Es F; case: ifP=>Hc.
+  rewrite D1//=; case: ifP; last first.
 + move=>_; congr (rcons _ _).
 have U1: uniq (seq.rem (# c) hs) by rewrite rem_uniq// Es uniq_dom.
 have U2: uniq (dom (free (#c) bt)) by rewrite uniq_dom.
@@ -1290,6 +1340,7 @@ rewrite -N; clear N.
 rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2) Es//.
 by apply: dom_rem2.
 by move/eqP in Ng; move/eqP.
+by rewrite D0 in Hc.
 Qed.
 
 Lemma compute_chain_genesis bt :
@@ -1308,13 +1359,16 @@ elim: n Es En=>[|n _]/= Es En.
      move/eqP in En; rewrite eq_sym in En; move/eqP in En; move: (size0nil En)=>->.
 rewrite Es (find_some Ib);
 case D: ((prevBlockHash GenesisBlock) \in dom bt); case: dom_find (D)=>//=.
-by move=>pb -> _ _; case: ifP=>//=; move/eqP.
-by move=>->.
+move=>pb -> _ _; case: ifP.
+  by case: ifP=>//=; move/eqP.
+  by move: Ib (find_some Ib); rewrite/has_init_block/btHasBlock=>[]->->/eqP.
+move=>->; case: ifP=>//=.
+  by move: Ib (find_some Ib); rewrite/has_init_block/btHasBlock=>[]->->/eqP.
 Qed.
 
 Lemma compute_chain_noblock bt b c :
   valid bt -> validH bt ->
-  #b \in dom bt ->
+  b ∈ bt ->
   b \notin compute_chain bt c ->
   compute_chain bt c = compute_chain (free (#b) bt) c.
 Proof.
@@ -1323,31 +1377,37 @@ have Ek: dom bt = dom bt by [].
 have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
-elim: n c b bt hs Es En=>[|n Hi]/= c b bt hs Es En V Vh Hb.
-- suff X: size (dom (free (# b) bt)) = 0
-    by rewrite X=>/=_; case:ifP=>_; case:ifP.
+elim: n c b bt hs Es En=>[|n Hi]/= c b bt hs Es En V Vh;
+rewrite/btHasBlock=>/andP[Hb0 Hb1].
+- suff X: size (dom (free (# b) bt)) = 0.
+  by rewrite X=>/=_; case:ifP=>_; case:ifP=>_//=;
+     case: ifP=>_//=; case: ifP.
   suff X: bt = Unit by subst bt; rewrite free0 dom0.
   subst hs; move/esym/size0nil: En=>Z.
   by apply/dom0E=>//z/=; rewrite Z inE.
 (* These two seem to always appear in these proofs... *)
 have H1: valid (free (# b) bt) by rewrite validF.
 have H3: n = size (dom (free (# b) bt)).
-- apply: size_free=>//; [by rewrite Es in En|by rewrite -Es].
+- apply: size_free=>//; by rewrite Es in En.
 case: ifP=>[X|X _]; rewrite Es in X; last first.
-- rewrite -H3; clear Hi En H3; case:n=>//=[|n]; first by case:ifP.
+- rewrite -H3; clear Hi En H3; case:n=>//=[|n]; first by case:ifP=>//=; case: ifP.
   by rewrite domF inE X; case:ifP; case: ifP.
 case: dom_find X=>// prev F _ _; move/Vh/hashB_inj: (F)=>Z; subst prev.
+case: ifP; last first.
+rewrite/btHasBlock=>/nandP; case=>//=; by move: F ->=> /eqP.
+move=>_;
 case D: ((prevBlockHash c) \in dom bt); last first.
 - case: dom_find (D)=>//->_; rewrite inE=>N; rewrite -H3.
   clear Hi; elim: n En H3=>/=[|n _]En H3; last first.
-  + have X: #b == #c = false
-      by apply/negP=>/eqP/hashB_inj?; subst c; rewrite eqxx in N.
+  case X: (#b == #c).
+  by move/eqP: X F Hb1=>-> -> C; (have: (c == b) by [])=>/eqP X; subst b; move/eqP in N.
   + have Y: find (prevBlockHash c) (free (# b) bt) = None.
     * suff D': (prevBlockHash c) \notin dom (free (# b) bt) by case: dom_find D'.
       by rewrite domF inE D; case:ifP.
     rewrite Y; clear Y.
-    suff K : #c \in dom (free (# b) bt) by rewrite K.
-    by rewrite domF inE X (find_some F).
+    have K : #c \in dom (free (# b) bt).
+      by rewrite domF inE X (find_some F).
+    by rewrite K; case: ifP=>//=; rewrite/btHasBlock K findF//= (eq_sym (#c) _) X F=>/eqP.
   (* Now need to derive a contradiction from H3 *)
   rewrite Es in En.
   have X: #c \in dom (free (# b) bt).
@@ -1386,12 +1446,14 @@ have X: compute_chain' (free (# b) bt) c
   rewrite Z.
   (* Given everything in the context, this should be a trivial lemma,
      please extract it and prove (takig bt' = free (# b) bt) *)
+  (* From Dc, F, N & Z have c ∈ (free (# b) bt) ! *)
   apply: compute_chain_rcons=>//; rewrite ?validF//.
   + by apply: validH_free.
+  + by rewrite/btHasBlock Dc findF (eq_sym (#c) _) Z F//=.
   + by apply/eqP.
   suff X: prevBlockHash c == # b = false by rewrite findF X.
   apply/negP=>/eqP Y; rewrite -Y in Z.
-  move/Vh: (F')=>E'. rewrite E' in Y Z F'.
+  move/Vh: (F')=>E'; rewrite E' in Y Z F'.
   move/hashB_inj : Y=>?; subst pc.
   have T: exists m, n = m.+1.
   + rewrite Es in En.
@@ -1400,10 +1462,12 @@ have X: compute_chain' (free (# b) bt) c
     by move/esym/size0nil=>E; rewrite E in Dc.
   case: T=>m Zn; rewrite Zn/= in Hn.
   rewrite Es in Hn.
-  have X: # b \in seq.rem (# c) (dom bt).
-    apply: rem_neq; last by rewrite -Es.
-    by apply/negP => H_eq; by case/negP: Z.
-  rewrite X in Hn.
+  have X: # b \in seq.rem (# c) (dom bt) by
+    apply: rem_neq=>//=; by rewrite Z.
+    (* by apply/negP => H_eq; by case/negP: Z. *)
+  have Hb': (b ∈ free (# c) bt)
+    by rewrite/btHasBlock domF inE (eq_sym (#c) _) Z Hb0 findF Z Hb1.
+  rewrite X Hb' in Hn.
   case: (find _ _) Hn=>[?|]; last by rewrite inE eqxx.
   case: ifP; first by (move=>_; rewrite inE=>/eqP).
   by rewrite mem_rcons inE eqxx.
@@ -1419,15 +1483,16 @@ rewrite -(Hi pc b (free (#c) bt) (dom (free (# c) bt)) (erefl _)) ?validF//.
   rewrite Es in En; apply: (size_free V En).
   by apply:(find_some F).
 - by apply: validH_free.
-- rewrite Es in Hb.
-  rewrite domF inE eq_sym Hb.
-  by case:ifP=>///eqP/hashB_inj?; subst c; rewrite eqxx in N.
+- rewrite/btHasBlock domF inE (eq_sym (#c) _) Hb0 findF;
+    case: ifP=>//=.
+    by move=>Heq; move/eqP: Heq F Hb1=>->-> C;
+      (have: (c == b) by []); rewrite eq_sym N.
 rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2)//.
 by rewrite Es; apply: dom_rem2.
 Qed.
 
 Lemma compute_chain_prev bt b pb :
-  valid bt -> validH bt -> #b \in dom bt ->
+  valid bt -> validH bt -> b ∈ bt ->
   b != GenesisBlock ->
   prevBlockHash b = # pb ->
   b \notin (compute_chain bt pb) ->
@@ -1440,17 +1505,21 @@ have Ek: dom bt = dom bt by [].
 have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
-elim: n b bt hs Es En V Vh Ng D Hp Nh=>[|n Hi] b bt hs Es En V Vh Ng D Hp Nh/=.
-- by rewrite -Es in D; move/esym/size0nil: En=>Z; rewrite Z in D.
-rewrite {1}Es D Hp.
+elim: n b bt hs Es En V Vh Ng D Hp Nh=>[|n Hi] b bt hs Es En V Vh Ng D Hp Nh/=;
+move: D; rewrite/btHasBlock=>/andP[D0 D1].
+- by rewrite -Es in D0; move/esym/size0nil: En=>Z; rewrite Z in D0.
+rewrite {1}Es D0 Hp.
 have H1: valid (free (# b) bt) by rewrite validF.
 have H3: n = size (dom (free (# b) bt)).
 - by apply: size_free=>//; rewrite Es in En.
 case B: (#pb \in dom bt); last first.
 - case: dom_find (B)=>//F _; rewrite F.
-  rewrite -H3; clear Hi En H3; case:n=>//=[|n]; first by case:ifP.
-  by rewrite domF inE B; case:ifP; case: ifP.
-case: dom_find B=>// prev F _ _; rewrite F.
+  rewrite -H3; clear Hi En H3; case:n=>//=[|n].
+  by rewrite D1; case: ifP=>//=; case: ifP.
+  rewrite domF inE B; case:ifP; case: ifP=>//=; case: ifP=>//=.
+  by move/eqP=>Eq; move: F D1; rewrite Eq=>->/eqP.
+  by rewrite D1.
+case: dom_find B=>// prev F _ _; rewrite F D1.
 case: ifP=>//=; [by move/eqP; move/eqP: Ng|move=>_].
 congr (rcons _ _).
 move/Vh/hashB_inj: F=>?; subst prev.
@@ -1463,7 +1532,7 @@ by rewrite Es; apply: dom_rem2.
 Qed.
 
 Lemma compute_chain_last bt b :
-    (compute_chain bt b = [::]) \/ last GenesisBlock (compute_chain bt b) = b.
+    (compute_chain bt b = [::]) \/ # last GenesisBlock (compute_chain bt b) = # b.
 Proof.
 rewrite/compute_chain.
 have Ek: dom bt = dom bt by [].
@@ -1471,7 +1540,8 @@ have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
 elim: n b bt hs Es En=>[|n Hi] b bt hs Es En/=.
-- by left; case: ifP.
+- by left; case: ifP=>//=; case: ifP=>//=.
+case: ifP; last by left.
 case: ifP; last by left.
 move=>Hb; case D1: (prevBlockHash b \in dom bt); case: dom_find D1=>//=;
 last by move=>->; right.
@@ -1488,8 +1558,9 @@ have Es: size (dom bt) = size (dom bt) by [].
 move: {-2}(size (dom bt)) Es=>n.
 move: {-2}(dom bt) Ek=>hs Es En.
 elim: n b bt hs Es En V Vh=>[|n Hi] b bt hs Es En V Vh/=.
-- by case: ifP=>//=.
-case: ifP=>X //=.
+- by case: ifP=>//=; case: ifP=>//=.
+case: ifP=>X //=; case: ifP=>Hb//=.
+move: Hb; rewrite/btHasBlock=>/andP[Hb0 Hb1].
 have H1: validH (free (# b) bt) by apply validH_free.
 have H2: valid (free (# b) bt) by rewrite validF.
 have H3: n = size (dom (free (# b) bt)).
@@ -1550,7 +1621,12 @@ have D: #b \in dom (btExtend bt b).
   by rewrite domPtUn inE V' eqxx.
 case X: (b == GenesisBlock)=>//=.
 by move/eqP in X; subst b; move: (VAF_GB_first Hv) (HGood) ->.
-apply: compute_chain_prev=>//=; first by rewrite X.
+apply: compute_chain_prev=>//=.
+rewrite/btHasBlock D //=.
+(* What if new block introduced a hash collision? *)
+admit.
+by rewrite X.
+
 rewrite E in HGood.
 rewrite (btExtend_compute_chain b V Vh Ib HGood) -E.
 case Y: (b \in bc)=>//=.
@@ -1559,7 +1635,7 @@ rewrite -E in HGood.
 case: (good_chain_nocycle V Vh Ib E HGood Y).
 by rewrite X.
 by rewrite Hp=>/eqP.
-Qed.
+Admitted.
 
 Lemma chain_from_last bt c :
   valid bt -> validH bt -> has_init_block bt ->
@@ -1579,7 +1655,9 @@ move: {-2}(dom bt) Ek=>hs Es En.
 elim: n b bt hs Es En D F=>[|n Hi] b bt hs Es En D F/=.
 - by rewrite -Es in D; move/esym/size0nil: En=>Z; rewrite Z in D.
 rewrite Es D; case (find _ _)=>[?|]//; case: ifP=>//=.
-by rewrite last_rcons.
+by case: ifP=>//=; rewrite last_rcons.
+by rewrite/btHasBlock D F //=; (have: Some b == Some b by [])=>->.
+by rewrite/btHasBlock D F //=; (have: Some b == Some b by [])=>->.
 Qed.
 
 Definition valid_chain_block bc (b : block) :=
@@ -2071,9 +2149,10 @@ Proof. by rewrite btChain_alt; apply foldr_better_mono. Qed.
 
 Lemma in_ext bt b : valid bt -> b ∈ btExtend bt b.
 Proof.
-by move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=;
-   rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H.
-Qed.
+Admitted.
+(* move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=; *)
+(*    rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H. *)
+(* Qed. *)
 
 Lemma btExtend_within cbt bt b bs :
   valid cbt -> validH cbt -> has_init_block cbt ->
