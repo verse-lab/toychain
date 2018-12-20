@@ -215,7 +215,8 @@ case: ifP=>X; first done.
 rewrite findUnL ?validPtUn ?V ?X//.
 case: ifP=>Y; last done.
 rewrite domPtK inE in Y; move/eqP: Y=>Y.
-by specialize (hashB_inj Y)=><-; rewrite Y findPt.
+move: (find_some Ib)=>D.
+by rewrite Y in D; contradict X; rewrite D.
 Qed.
 
 Lemma btExtendIB_fold bt bs :
@@ -224,10 +225,11 @@ Lemma btExtendIB_fold bt bs :
 Proof.
 move=>V H; rewrite/has_init_block=>iB.
 elim/last_ind: bs=>[|xs x Hi]; first done.
-rewrite -cats1 foldl_cat /= {1}/btExtend; case: ifP=>//=.
-move=>X; rewrite findPtUn2.
+rewrite -cats1 foldl_cat /= {1}/btExtend.
+case: ifP=>//= X; move: (find_some Hi)=>D.
+rewrite findPtUn2.
 case: ifP=>// /eqP E.
-by move: (hashB_inj E)=><-.
+by rewrite E in D; contradict D; rewrite X.
 by rewrite validPtUn /= X andbC /= -btExtendV_fold.
 Qed.
 
