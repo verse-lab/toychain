@@ -234,6 +234,13 @@ by rewrite E in D; contradict D; rewrite X.
 by rewrite validPtUn /= X andbC /= -btExtendV_fold.
 Qed.
 
+Lemma in_ext bt b : valid bt -> b ∈ btExtend bt b.
+Proof.
+Admitted.
+(* move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=; *)
+(*    rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H. *)
+(* Qed. *)
+
 (* Baisc property commutativity of additions *)
 
 Lemma btExtend_dom bt b :
@@ -1622,11 +1629,8 @@ have D: #b \in dom (btExtend bt b).
 case X: (b == GenesisBlock)=>//=.
 by move/eqP in X; subst b; move: (VAF_GB_first Hv) (HGood) ->.
 apply: compute_chain_prev=>//=.
-rewrite/btHasBlock D //=.
-(* What if new block introduced a hash collision? *)
-admit.
+by apply in_ext=>//=.
 by rewrite X.
-
 rewrite E in HGood.
 rewrite (btExtend_compute_chain b V Vh Ib HGood) -E.
 case Y: (b \in bc)=>//=.
@@ -1635,7 +1639,7 @@ rewrite -E in HGood.
 case: (good_chain_nocycle V Vh Ib E HGood Y).
 by rewrite X.
 by rewrite Hp=>/eqP.
-Admitted.
+Qed.
 
 Lemma chain_from_last bt c :
   valid bt -> validH bt -> has_init_block bt ->
@@ -2146,13 +2150,6 @@ Qed.
 Lemma geq_genesis bt :
   btChain bt >= [:: GenesisBlock].
 Proof. by rewrite btChain_alt; apply foldr_better_mono. Qed.
-
-Lemma in_ext bt b : valid bt -> b ∈ btExtend bt b.
-Proof.
-Admitted.
-(* move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=; *)
-(*    rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H. *)
-(* Qed. *)
 
 Lemma btExtend_within cbt bt b bs :
   valid cbt -> validH cbt -> has_init_block cbt ->
