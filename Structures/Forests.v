@@ -400,7 +400,7 @@ exists (#b) => //.
 move/andP: H=>[H1 H2]=>//=.
 rewrite/btHasBlock in H; rewrite/get_block.
 case X: (find _ _)=>[b'|].
-by move: (Vh _  _ X); move/hashB_inj.
+by case/andP: H; rewrite X eq_sym=>_ /eqP; case.
 move/andP: H=>[H1 H2]; rewrite X in H2.
 by contradict H2.
 Qed.
@@ -523,6 +523,17 @@ move=>V z/all_blocksP=>[[k]F]; apply/all_blocksP.
 exists k; rewrite/btExtend; case:ifP=>// N.
 rewrite findUnR ?N/=; last by rewrite validPtUn/= V N.
 by move/find_some: (F)=>->.
+Qed.
+
+Lemma compute_chain_no_block bt (pb : block) (hs : seq Hash) n :
+  pb ∉ bt -> compute_chain' bt pb hs n = [::].
+Proof.
+move=>Nb; case: n=>//=[|?].
+by case: ifP=>//=; case: ifP.
+case: ifP=>//=; case: ifP=>//=.
+move: Nb; rewrite/btHasBlock=>/nandP; case.
+by move=>H/andP[H1 H2]; rewrite H1 in H.
+by move=>H/andP[H1 [/eqP H2]]; rewrite H2 in H; move/eqP: H.
 Qed.
 
 Lemma compute_chain_no_block' bt (pb : block) (hs : seq Hash) n :
@@ -1223,15 +1234,6 @@ Lemma bc_spre_gt bc bc' :
   [bc <<< bc'] -> bc' > bc.
 Proof. by case=>h; case=>t=>eq; rewrite eq; apply FCR_ext. Qed.
 
-Lemma ohead_hash b0 (bt : seq block) :
-  b0 \in bt ->
-  ohead [seq b <- bt | hashB b == hashB b0] = Some b0.
-Proof.
-elim: bt=>//=h bt Hi; rewrite inE; case/orP=>[/eqP Z|/Hi H]/=.
-- by subst b0; rewrite eqxx.
-by case: ifP=>C//=; move/eqP/hashB_inj: C=>->.
-Qed.
-
 (*************************************************************)
 (************    Remaining properties   **********************)
 (*************************************************************)
@@ -1399,10 +1401,15 @@ have H3: n = size (dom (free (# b) bt)).
 case: ifP=>[X|X _]; rewrite Es in X; last first.
 - rewrite -H3; clear Hi En H3; case:n=>//=[|n]; first by case:ifP=>//=; case: ifP.
   by rewrite domF inE X; case:ifP; case: ifP.
-case: dom_find X=>// prev F _ _; move/Vh/hashB_inj: (F)=>Z; subst prev.
+case: dom_find X=>// prev F _ _ //=.
+(* c != prev, but #c = # prev. Collision detection in compute_chain' *)
 case: ifP; last first.
-rewrite/btHasBlock=>/nandP; case=>//=; by move: F ->=> /eqP.
-move=>_;
+move=>F' _; have Nc: (c ∉ (free (# b) bt)).
+    rewrite/btHasBlock; apply/nandP. rewrite domF inE //=;
+    case: ifP; first by left.
+    by rewrite findF eq_sym=>->; right; move/eqP: F'=>F'; apply/eqP.
+by rewrite -H3; move: (compute_chain_no_block (dom (free (# b) bt)) n Nc)=>->.
+move=>F'; (have Eq: (prev = c) by rewrite F in F'; move/eqP: F'=>[]); subst prev; clear F'.
 case D: ((prevBlockHash c) \in dom bt); last first.
 - case: dom_find (D)=>//->_; rewrite inE=>N; rewrite -H3.
   clear Hi; elim: n En H3=>/=[|n _]En H3; last first.
@@ -1420,7 +1427,7 @@ case D: ((prevBlockHash c) \in dom bt); last first.
   have X: #c \in dom (free (# b) bt).
   + rewrite domF inE.
     case: ifP=>C; last by apply: (find_some F).
-    by move/eqP/hashB_inj : C N=>->; rewrite eqxx.
+    by move/eqP: C F Hb1=>->->; rewrite eq_sym=>/eqP []; move/eqP: N.
   by move/esym/size0nil: H3=>E; rewrite E in X.
 
 (* Now an interesting, inductive, case *)
@@ -1430,14 +1437,14 @@ case: ifP.
   apply/eqP; rewrite eq_sym; apply/eqP; apply compute_chain_genesis=>//=.
   by apply validH_free.
   by apply has_init_block_free=>//=; case X: (# GenesisBlock == # b)=>//=;
-     move/eqP in X; move: (hashB_inj X) H=>->; move/eqP.
+     move/eqP: X F Hb1=>->->; rewrite eq_sym=>/eqP []; move/eqP: H.
 
 move/eqP=>Ng; move:Hn; case: ifP=>/eqP //= _ Hn.
 rewrite mem_rcons inE in Hn; case/norP: Hn=>/negbTE N Hn.
 have Dc: #c \in dom (free (# b) bt).
   + rewrite domF inE.
     case: ifP=>C; last by apply: (find_some F).
-    by move/eqP/hashB_inj : C N=>->; rewrite eqxx.
+    by move/eqP: C F Hb1=>->->; rewrite eq_sym=>/eqP[]; move/eqP: N.
 
 (* Now need to unfold massage the RHS of the goal with compute_chain', so
    it would match the Hi with (bt := free (# c) bt, c := pc) etc *)
@@ -1449,7 +1456,7 @@ have X: compute_chain' (free (# b) bt) c
                               (size (dom (free (# b) (free (# c) bt))))) c.
 - rewrite freeF.
   have Z: (#b == #c) = false
-    by apply/negP=>/eqP/hashB_inj=>?; subst c; rewrite eqxx in N.
+    by move: Dc; rewrite domF inE; case: ifP=>//=.
   rewrite Z.
   (* Given everything in the context, this should be a trivial lemma,
      please extract it and prove (takig bt' = free (# b) bt) *)
@@ -1461,7 +1468,8 @@ have X: compute_chain' (free (# b) bt) c
   suff X: prevBlockHash c == # b = false by rewrite findF X.
   apply/negP=>/eqP Y; rewrite -Y in Z.
   move/Vh: (F')=>E'; rewrite E' in Y Z F'.
-  move/hashB_inj : Y=>?; subst pc.
+  have Hb1': find (# b) bt == Some b by [].
+  move: Y F' Hb1'=>->->/eqP []=>Eq; subst pc.
   have T: exists m, n = m.+1.
   + rewrite Es in En.
     clear Hn Hi E' En H1 Vh; subst hs.
@@ -1498,6 +1506,7 @@ rewrite -(compute_chain_equiv (free (# c) bt) pc n U1 U2)//.
 by rewrite Es; apply: dom_rem2.
 Qed.
 
+(* Need to change this to account for collisions in # pb? *)
 Lemma compute_chain_prev bt b pb :
   valid bt -> validH bt -> b ∈ bt ->
   b != GenesisBlock ->
