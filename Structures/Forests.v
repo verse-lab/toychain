@@ -234,9 +234,18 @@ by rewrite E in D; contradict D; rewrite X.
 by rewrite validPtUn /= X andbC /= -btExtendV_fold.
 Qed.
 
-Lemma in_ext bt b : valid bt -> b ∈ btExtend bt b.
+Lemma in_ext bt b : valid bt -> validH bt -> b ∈ btExtend bt b.
 Proof.
-Admitted.
+move=>V Vh; rewrite/btHasBlock/btExtend; case: ifP=>//=; last first.
+- rewrite domUn inE ?validPtUn ?V //==>D; rewrite D domPt inE/=.
+  apply/andP; split.
+  by apply/orP; left.
+  by rewrite findUnL ?validPtUn ?V ?D //; rewrite domPt inE /=;
+      case: ifP=>/eqP//= _; rewrite findPt /=.
+move=>D; rewrite D /=.
+case: (um_eta D)=>b' [] F' _; move: (Vh _ _ F').
+by move/hashB_inj=>Eq; subst b'; apply/eqP.
+Qed.
 (* move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=; *)
 (*    rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H. *)
 (* Qed. *)
