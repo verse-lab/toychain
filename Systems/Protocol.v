@@ -391,7 +391,8 @@ Lemma procMsg_known_block_nc_blockTree :
     b ∈ bt -> bt = blockTree s2.
 Proof.
 move=>s1 from  b ts biT; destruct s1=>/=; rewrite/blockTree in biT.
-by apply (btExtend_withDup_noEffect biT).
+move: biT; rewrite/btHasBlock=>/andP[B0 B1].
+by apply (btExtend_withDup_noEffect B0).
 Qed.
 
 Lemma procMsg_known_block_nc_btChain (s1 : State) from (b : block) (ts : Timestamp) :

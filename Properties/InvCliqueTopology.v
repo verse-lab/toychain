@@ -327,11 +327,15 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       - rewrite/get_block. (* blockTree wrt. the state of (dst p) in w *)
         case X: (find hash blockTree0)=>[b|].
         -- case: ifP => //=; move/eqP => H_n'.
-           rewrite -E; suff BIn: (b ∈ can_bt) by apply (btExtend_withDup_noEffect BIn).
+           rewrite -E; suff BIn: (b ∈ can_bt)
+           by move: BIn; rewrite/btHasBlock=>/andP [BIn BIn1];
+              apply (btExtend_withDup_noEffect BIn).
            by move: (HExt _ _ F)=>/= ->; move: (find_some X)=>Dom;
               move: (c4 _ _ F hash b X)=>H; rewrite H in Dom;
               rewrite/btHasBlock;
-              move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Dom).
+              (have Hb: (b ∈ blockTree0) by
+                rewrite/btHasBlock Dom -H; move: X=>->; rewrite eq_refl);
+              move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Hb).
         -- move: (find_some hIB)=>hG.
            case: ifP => //=.
            move/eqP => H_n'.
@@ -339,11 +343,13 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       - by case ohead => [tx|] //=;
          case: ifP => //=; move/eqP => H_eq;
          rewrite -E;
-         (suff BIn: (GenesisBlock ∈ can_bt) by apply (btExtend_withDup_noEffect BIn));
+         (suff BIn: (GenesisBlock ∈ can_bt)
+           by move: BIn; rewrite/btHasBlock=>/andP [BIn BIn1];
+              apply (btExtend_withDup_noEffect BIn));
          move: C => [H_v H_v'] => H_ib;
          rewrite /has_init_block in H_ib;
-         rewrite /btHasBlock;
-         move: (find_some H_ib).
+         rewrite /btHasBlock H_ib eq_refl;
+         move: (find_some H_ib)=>->.
     * move/eqP=>Eq [Eq']; subst n' stPm.
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.

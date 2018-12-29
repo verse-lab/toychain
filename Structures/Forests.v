@@ -304,8 +304,15 @@ Proof. by move=>V; rewrite {2}/btExtend btExtend_in. Qed.
 (* Just a reformulation *)
 Lemma btExtend_preserve (bt : BlockTree) (ob b : block) :
   valid bt ->
-  hashB ob \in (dom bt) -> hashB ob \in dom (btExtend bt b).
-Proof. by move=>V/(btExtend_dom b V). Qed.
+  ob ∈ bt -> ob ∈ btExtend bt b.
+Proof.
+move=>V; rewrite/btHasBlock=>/andP [H0 H1].
+rewrite/btExtend; case: ifP=>//= X.
+by rewrite H0 H1.
+have V': (valid (# b \\-> b \+ bt)) by rewrite validPtUn V X.
+rewrite findUnR // H0 H1 domUn inE V' H0 /=.
+by apply/andP; split=>//=; apply/orP; right.
+Qed.
 
 Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : block):
   hashB b \in dom bt -> bt = (btExtend bt b).
@@ -1098,8 +1105,8 @@ by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-
 Qed.
 
 Lemma btExtend_fold_preserve (ob : block) bt bs:
-    valid bt -> # ob \in (dom bt) ->
-    # ob \in dom (foldl btExtend bt bs).
+    valid bt -> ob ∈ bt ->
+    ob ∈ foldl btExtend bt bs.
 Proof.
 move=>V Dom; elim/last_ind: bs=>[|xs x Hi]//.
 rewrite -cats1 foldl_cat /=.
