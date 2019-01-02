@@ -65,7 +65,7 @@ Axiom txValid_nil : forall t, txValid t [::].
 
 (* 3.  Hashes *)
 
-Axiom hashB_inj : injective hashB.
+(* Axiom hashB_inj : injective hashB. *)
 
 (* 4.  VAF *)
 
@@ -199,13 +199,27 @@ by case: ifP=>//=; rewrite valid_undef.
 by move=>Nd; rewrite validPtUn Nd //==>[/andP] [].
 Qed.
 
-Lemma btExtendV_fold bt bs b :
+Lemma btExtendV_fold1 bt bs b :
   valid (foldl btExtend bt (rcons bs b)) -> valid (foldl btExtend bt bs).
 Proof.
 rewrite -cats1 foldl_cat /= {1}/btExtend; case: ifP.
 case: ifP=>_ _ =>//=; last by rewrite valid_undef.
 by move=>_; rewrite validPtUn /= =>/andP[H _].
 Qed.
+
+Lemma btExtendV_fold bt xs ys :
+  valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt xs).
+Proof.
+elim/last_ind: ys=>[|ys y Hi]; first by rewrite cats0.
+by rewrite foldl_cat; move/btExtendV_fold1; rewrite -foldl_cat; apply Hi.
+Qed.
+
+Lemma btExtendV_fold_comm bt xs ys :
+  valid (foldl btExtend (foldl btExtend bt xs) ys) =
+  valid (foldl btExtend (foldl btExtend bt ys) xs).
+Proof.
+Admitted.
+
 
 Lemma btExtendH bt b : valid bt -> validH bt -> validH (btExtend bt b).
 Proof.
@@ -223,7 +237,7 @@ Lemma btExtendH_fold bt bs :
   validH (foldl btExtend bt bs).
 Proof.
 move=>Vh V'; elim/last_ind: bs V' =>[|xs x Hi] V'; first done.
-move: (btExtendV_fold V')=>V; move: (Hi V).
+move: (btExtendV_fold1 V')=>V; move: (Hi V).
 rewrite -cats1 foldl_cat /= {2}/btExtend; case: ifP.
 case: ifP=>//=; by move: validH_undef.
 move=>D H; rewrite/validH=>h b; rewrite findUnR ?validPtUn ?V ?D //=.
@@ -302,7 +316,7 @@ Lemma btExtend_dom_fold bt bs :
   valid (foldl btExtend bt bs) -> {subset dom bt <= dom (foldl btExtend bt bs)}.
 Proof.
 move=>V z; elim/last_ind: bs V=>[|xs x Hi]=>//.
-move=>V'; move: (btExtendV_fold V')=>V D; specialize (Hi V D).
+move=>V'; move: (btExtendV_fold1 V')=>V D; specialize (Hi V D).
 rewrite -cats1 foldl_cat /=; apply btExtend_dom=>//=.
 by move: V'; rewrite -cats1 foldl_cat /=.
 Qed.
@@ -312,7 +326,7 @@ Lemma btExtend_find_fold bt b bs :
   find (#b) (foldl btExtend bt bs) = Some b.
 Proof.
 move=>V F; elim/last_ind: bs V=>[|xs x Hi]=>//.
-move=>V'; move: (btExtendV_fold V')=>V; move: V'.
+move=>V'; move: (btExtendV_fold1 V')=>V; move: V'.
 rewrite -cats1 foldl_cat /= =>X; apply btExtend_find=>//.
 by move: (Hi V).
 Qed.
@@ -1065,16 +1079,16 @@ by exists GenesisBlock, [::]; case: H=>[G C]; subst b.
 Qed.
 
 Lemma btExtend_compute_chain bt a b :
-  valid bt -> validH bt -> has_init_block bt ->
+  valid (btExtend bt a) -> validH bt -> has_init_block bt ->
   good_chain (compute_chain bt b) ->
   (compute_chain (btExtend bt a) b) = compute_chain bt b.
 Proof.
-move=>V Vh Ib G.
+move=>V' Vh Ib G; move: (btExtendV V')=>V.
 move: (@btExtendH _ a V Vh)=>Vh'.
-move: (V);  rewrite (btExtendV bt a) =>V'.
-move: (btExtendIB a V Vh Ib)=>Ib'.
-case: (btExtend_chain_prefix a b V Vh)
-      (compute_chain_gb_not_within b V' Vh')=>p<- H.
+Check btExtendIB.
+move: (btExtendIB Vh V' Ib)=>Ib'.
+case: (btExtend_chain_prefix b V' Vh)
+      (compute_chain_gb_not_within b V' Vh')=>p <- H.
 suff X: p = [::] by subst p.
 case: H; first by elim: p=>//.
 case=>h[t][E]H; case:p E=>//=x xs[]->{x}Z; subst t.
@@ -1086,11 +1100,11 @@ Qed.
 
 (* Chains from blocks are only growing as BT is extended *)
 Lemma btExtend_chain_grows bt a b :
-  valid bt -> validH bt ->
+  valid (btExtend bt a) -> validH bt ->
   compute_chain (btExtend bt a) b >= compute_chain bt b.
 Proof.
-move=>V H; apply: FCR_subchain.
-by case: (btExtend_chain_prefix a b V H)=>p<-; exists p, [::]; rewrite cats0.
+move=>V' H; move: (btExtendV V')=>V; apply: FCR_subchain.
+by case: (btExtend_chain_prefix b V' H)=>p<-; exists p, [::]; rewrite cats0.
 Qed.
 
 Lemma init_chain bt :
@@ -1188,6 +1202,9 @@ Lemma better_chains1 bt b :
     f' h bc' >= f h bc.
 Proof.
 move=>V B Vh H/=h bc' bc Gt [T' Gb'] [T Gb]; rewrite /bc_fun/=.
+have V': valid (btExtend bt b)
+  by rewrite/btExtend/valid; case: ifP=>//= D;
+     move: (validR V)=>V'; contradict V; rewrite validPtUn D V' //=.
 set bc2 := compute_chain (# b \\-> b \+ bt) b.
 case E: (#b == h).
 - move/eqP:E=>Z; subst h.
@@ -1205,7 +1222,7 @@ case D: (h \in dom bt); last first.
   move => H_eq {H_eq}.
   case: dom_find D=>//->_{E h}.
   rewrite /take_better_bc/= !init_chain//; last first.
-  + by move: (btExtendIB b (validR V) Vh H); rewrite/btExtend(negbTE B).
+  + by move: (btExtendIB Vh V' H); rewrite/btExtend(negbTE B).
   by rewrite !(good_init Gb)!(good_init Gb') -(andbC false)/=.
 case: dom_find D=>//c F _ _.
 rewrite /get_block (findUnL _ V) domPtK inE.
@@ -1214,13 +1231,13 @@ move => H_eq {H_eq}.
 rewrite !F.
 move: (Vh h _ F); move/find_some: F=>D ?{E bc2}; subst h.
 have P : exists p, p ++ (compute_chain bt c) = compute_chain (# b \\-> b \+ bt) c.
-- by move: (btExtend_chain_prefix b c (validR V)Vh); rewrite /btExtend(negbTE B).
+- by move: (btExtend_chain_prefix c V' Vh); rewrite /btExtend(negbTE B).
 case:P=>p E; rewrite /take_better_bc.
 case G1: (good_chain (compute_chain bt c))=>/=; last first.
 - case G2: (good_chain (compute_chain (# b \\-> b \+ bt) c))=>//=.
   by case: ifP=>///andP[_ X]; right; apply: (FCR_trans_eq2 X).
 (* Now need a fact about goodness monotonicity *)
-move: (btExtend_compute_chain b (validR V) Vh H G1).
+move: (btExtend_compute_chain V' Vh H G1).
 rewrite /btExtend (negbTE B)=>->; rewrite G1/=.
 case:ifP=>[/andP[X1' X1]|X1]; case: ifP=>[/andP[X2' X2]|X2]=>//; do?[by left].
 - by right; apply: (FCR_trans_eq2 X1 Gt).
@@ -1284,13 +1301,15 @@ Qed.
 
 (* Monotonicity of BT => Monotonicity of btChain *)
 Lemma btExtend_sameOrBetter bt b :
-  valid bt -> validH bt -> has_init_block bt ->
+  valid (btExtend bt b) -> validH bt -> has_init_block bt ->
   btChain (btExtend bt b) >= btChain bt.
 Proof.
 rewrite /btChain.
-case B : (#b \in dom bt);
-  rewrite (btExtendV bt b) /btExtend B; first by left.
-move=>V Vh Ib; rewrite /all_chains/all_blocks -!seq.map_comp/=.
+case B : (#b \in dom bt).
+  by rewrite /btExtend B; case: ifP; [left|rewrite valid_undef].
+move=>V' Vh Ib; rewrite /all_chains/all_blocks -!seq.map_comp/=.
+move: (btExtendV V')=>V0; have V: (valid (# b \\-> b \+ bt)) by rewrite validPtUn V0 B.
+rewrite/btExtend B.
 case: (dom_insert V)=>ks1[ks2][->->]; rewrite -![# b :: ks2]cat1s.
 rewrite !foldr_map -/(bc_fun bt) -/(bc_fun (# b \\-> b \+ bt)) !foldr_cat.
 set f := (bc_fun bt).
@@ -1308,38 +1327,45 @@ by apply: better_chains_foldr=>//=; [by apply/negbT|by left | |]; do?[rewrite ?v
 Qed.
 
 Lemma btExtend_fold_comm (bt : BlockTree) (bs bs' : seq block) :
-    valid bt ->
+    valid (foldl btExtend (foldl btExtend bt bs) bs') ->
     foldl btExtend (foldl btExtend bt bs) bs' =
     foldl btExtend (foldl btExtend bt bs') bs.
 Proof.
-move=>V; elim/last_ind: bs'=>[|xs x Hi]/=; first done.
-rewrite -cats1 !foldl_cat Hi=>/=; clear Hi.
-elim/last_ind: bs=>[|ys y Hi]/=; first done.
-rewrite -cats1 !foldl_cat -Hi /=; apply btExtend_comm.
-by move: (btExtendV_fold bt xs) (btExtendV_fold (foldl btExtend bt xs) ys)=><-<-.
-Qed.
+elim/last_ind: bs'=>[|xs x Hi]/=; first done.
+move=>V; rewrite -cats1 !foldl_cat Hi=>/=; last by apply: btExtendV_fold1 V.
+specialize (Hi (btExtendV_fold1 V)).
+rewrite -Hi; clear Hi.
+elim/last_ind: bs V=>[|ys y H]//=.
+rewrite (btExtendV_fold_comm bt (rcons ys y) _); rewrite -{1}(cats1 ys y) foldl_cat //=.
+(* Losing info; will need to use this *)
+move/btExtendV; rewrite (btExtendV_fold_comm bt (rcons xs x) ys)=>V.
+specialize (H V).
+rewrite -{2}(cats1 ys y) foldl_cat //= -H.
+Admitted.
 
 Lemma btExtend_fold_preserve (ob : block) bt bs:
-    valid bt -> ob ∈ bt ->
+    valid (foldl btExtend bt bs) -> ob ∈ bt ->
     ob ∈ foldl btExtend bt bs.
 Proof.
-move=>V Dom; elim/last_ind: bs=>[|xs x Hi]//.
+elim/last_ind: bs=>[|xs x Hi]//.
 rewrite -cats1 foldl_cat /=.
-have: (valid (foldl btExtend bt xs)) by rewrite -btExtendV_fold.
-by move=>V'; move: (btExtend_preserve x V' Hi).
+move=>V'; move: (btExtendV V').
+move=>V H; specialize (Hi V H).
+by apply btExtend_preserve.
 Qed.
 
 Lemma btExtend_fold_sameOrBetter bt bs:
-  valid bt -> validH bt -> has_init_block bt ->
+  valid (foldl btExtend bt bs) -> validH bt -> has_init_block bt ->
   btChain (foldl btExtend bt bs) >= btChain bt.
 Proof.
-move=>V Vh Ib; elim/last_ind: bs=>[|xs x Hi]/=; first by left.
+elim/last_ind: bs=>[|xs x Hi]/=; first by left.
 rewrite -cats1 foldl_cat /=.
-(have: (btChain (btExtend (foldl btExtend bt xs) x)
-        >= btChain (foldl btExtend bt xs)) by
-    apply btExtend_sameOrBetter;
-    by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold])=>H.
-case: Hi; case: H.
+move=>Vx; have: valid (btExtend (foldl btExtend bt xs) x) by [].
+move/btExtendV=>V Vh Ib; specialize (Hi V Vh Ib).
+have: (btChain (btExtend (foldl btExtend bt xs) x)
+        >= btChain (foldl btExtend bt xs)).
+  by apply btExtend_sameOrBetter; do? [apply btExtendH_fold | apply btExtendIB_fold].
+move=>H; case: Hi; case: H.
 by move=>->->; left.
 by move=>H1 H2; rewrite H2 in H1; right.
 by move=>->; right.
@@ -1348,23 +1374,20 @@ Qed.
 
 (* monotonicity of (btChain (foldl btExtend bt bs)) wrt. bs *)
 Lemma btExtend_monotone_btChain (bs ext : seq block) bt:
-    valid bt -> validH bt -> has_init_block bt ->
-    btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
+  valid (foldl btExtend bt (bs ++ ext)) ->
+  validH bt -> has_init_block bt ->
+  btChain (foldl btExtend bt (bs ++ ext)) >= btChain (foldl btExtend bt bs).
 Proof.
-move=>V Vh Ib; elim/last_ind: ext=>[|xs x H]/=.
+elim/last_ind: ext=>[|xs x H]/=.
 by rewrite foldl_cat; left.
-rewrite -cats1.
-(have: valid (foldl btExtend bt (bs ++ xs)) by rewrite -btExtendV_fold)=>V'.
-move: (btExtend_fold_sameOrBetter [:: x] V')=>H'.
-case: H; case: H'; rewrite !foldl_cat.
-apply btExtendH_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold].
-apply btExtendIB_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold].
-by move=>->->; left.
-by move=>H1 H2; rewrite H2 in H1; right.
-apply btExtendH_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold].
-apply btExtendIB_fold; by [rewrite -btExtendV_fold|apply btExtendH_fold|apply btExtendIB_fold].
-by move=>->; right.
-by move=>H1 H2; move: (FCR_trans H1 H2); right.
+move=>V'; have: valid (foldl btExtend bt (bs ++ rcons xs x)) by [].
+rewrite foldl_cat; move/btExtendV_fold1=>V; rewrite -cats1.
+move=>Vh Ib.
+rewrite -foldl_cat in V; specialize (H V Vh Ib).
+apply btExtend_fold_sameOrBetter.
+by rewrite cats1 -foldl_cat.
+by apply btExtendH_fold=>//; apply: (btExtendV_fold V).
+apply btExtendIB_fold=>//; apply: (btExtendV_fold V).
 Qed.
 
 Lemma btExtend_not_worse (bt : BlockTree) (b : block) :
