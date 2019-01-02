@@ -360,6 +360,7 @@ Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : block):
   b ∈ bt -> bt = (btExtend bt b).
 Proof. by rewrite/btHasBlock/btExtend=>/andP[]->->. Qed.
 
+(* There must be a better way to prove this. *)
 Lemma btExtend_comm bt b1 b2 :
   valid (btExtend (btExtend bt b1) b2) ->
   btExtend (btExtend bt b1) b2 = btExtend (btExtend bt b2) b1.
@@ -494,7 +495,27 @@ case: ifP.
   by rewrite join_undefR.
   move=>D _ _ _. rewrite domUn inE D domPt //= inE=>/andP []_/orP[]//=.
   by move/eqP=><-; rewrite joinA pts_undef join_undefL.
-
+by move=>_/eqP A; rewrite A in A1; move/eqP: A1.
+by move=>_/eqP A; rewrite A in A1; move/eqP: A1.
+case: ifP; case: ifP.
+  by move/eqP=>B; rewrite B in B1; move/eqP: B1.
+  by rewrite dom_undef.
+  by move=>F D' _ _ D; move: F; rewrite findUnR ?validPtUn ?V0 ?D' //= D;
+     move/eqP=>A; rewrite A in A1; move/eqP: A1.
+  by rewrite join_undefR.
+case: ifP.
+  case: ifP; last by rewrite !join_undefR.
+  by move/eqP=> B; rewrite B in B1; move/eqP: B1.
+  rewrite join_undefR=>_ _ _ D _; rewrite joinA (joinC (#b1 \\-> _)).
+  suff: ~~ valid(#b1 \\-> b1 \+ bt) by move/invalidE; rewrite -joinA=>->; rewrite join_undefR.
+  by rewrite validPtUn V0 D.
+by case: ifP; [move=>_ _ -> | rewrite dom_undef].
+rewrite domPtUn inE=>_ /andP[]_/orP []; last by move=>->.
+  by move/eqP=>-> D; rewrite domPtUn inE eq_refl //= validPtUn V0 D.
+case: ifP.
+  by move/eqP=>B; rewrite B in B1; move/eqP: B1.
+  by move=>_D D' _; rewrite domPtUn validPtUn V0 inE D' //==>-> //= /norP[].
+by move=>_ _ _ _; rewrite !joinA (joinC (#b2 \\-> _)).
 Qed.
 
 Section BlockTreeProperties.
