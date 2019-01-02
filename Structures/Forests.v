@@ -156,9 +156,6 @@ Definition btHasBlock (bt : BlockTree) (b : block) :=
 Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
 Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 
-Definition valid_block b : bool :=
-  prevBlockHash b != #b.
-
 Definition has_init_block (bt : BlockTree) :=
   find (# GenesisBlock) bt = Some GenesisBlock.
 
@@ -174,129 +171,151 @@ Lemma validH_free bt (b : block) :
   validH bt -> validH (free (# b) bt).
 Proof. by move=>Vh h c; rewrite findF;case: ifP=>//_ /Vh. Qed.
 
-(* We only add "fresh blocks" *)
+Lemma validH_undef : validH um_undef.
+Proof. by rewrite/validH=>h b; rewrite find_undef. Qed.
+
 Definition btExtend (bt : BlockTree) (b : block) :=
-  if #b \in dom bt then bt else #b \\-> b \+ bt.
+  (* We only add "fresh" blocks *)
+  if #b \in dom bt then
+    if find (# b) bt == Some b then bt
+    (* A hash collision makes the blocktree undefined *)
+    else um_undef
+  else (#b \\-> b \+ bt).
+
+Lemma btExtendV bt b :
+  valid (btExtend bt b) -> valid bt.
+Proof.
+rewrite/btExtend; case: ifP.
+by case: ifP=>//=; rewrite valid_undef.
+by move=>Nd; rewrite validPtUn Nd //==>[/andP] [].
+Qed.
+
+Lemma btExtendV_fold bt bs b :
+  valid (foldl btExtend bt (rcons bs b)) -> valid (foldl btExtend bt bs).
+Proof.
+rewrite -cats1 foldl_cat /= {1}/btExtend; case: ifP.
+case: ifP=>_ _ =>//=; last by rewrite valid_undef.
+by move=>_; rewrite validPtUn /= =>/andP[H _].
+Qed.
 
 Lemma btExtendH bt b : valid bt -> validH bt -> validH (btExtend bt b).
 Proof.
 move=>V H z c; rewrite /btExtend.
-case: ifP=>X; first by move/H.
+case: ifP=>X.
+- case: ifP=>_; by [move/H | rewrite find_undef].
 rewrite findUnL ?validPtUn ?V ?X//.
 case: ifP=>Y; last by move/H.
 rewrite domPtK inE in Y; move/eqP: Y=>Y; subst z.
 by rewrite findPt; case=>->.
 Qed.
 
-Lemma btExtendV bt b : valid bt = valid (btExtend bt b).
+Lemma btExtendH_fold bt bs :
+  validH bt -> valid (foldl btExtend bt bs) ->
+  validH (foldl btExtend bt bs).
 Proof.
-rewrite /btExtend; case: ifP=>//N.
-by rewrite validPtUn/= N andbC.
-Qed.
-
-Lemma btExtendV_fold bt bs : valid bt = valid (foldl btExtend bt bs).
-Proof.
-elim/last_ind: bs=>[|xs x Hi]; first done.
-by rewrite -cats1 foldl_cat /= Hi; apply btExtendV.
-Qed.
-
-Lemma btExtendH_fold bt bs : valid bt -> validH bt -> validH (foldl btExtend bt bs).
-Proof.
-move=>V Vh; elim/last_ind: bs=>[|xs x Hi]; first done.
-rewrite (btExtendV_fold bt xs) in V.
-by rewrite -cats1 foldl_cat /=; apply btExtendH.
+move=>Vh V'; elim/last_ind: bs V' =>[|xs x Hi] V'; first done.
+move: (btExtendV_fold V')=>V; move: (Hi V).
+rewrite -cats1 foldl_cat /= {2}/btExtend; case: ifP.
+case: ifP=>//=; by move: validH_undef.
+move=>D H; rewrite/validH=>h b; rewrite findUnR ?validPtUn ?V ?D //=.
+case: ifP; first by move: (H h b).
+by rewrite findPt2; case: ifP=>//= /andP[/eqP ->] _ _ [] ->.
 Qed.
 
 Lemma btExtendIB bt b :
-  valid bt -> validH bt -> has_init_block bt ->
+  validH bt -> valid (btExtend bt b) -> has_init_block bt ->
   has_init_block (btExtend bt b).
 Proof.
-move=>V H; rewrite /btExtend/has_init_block=>Ib.
-case: ifP=>X; first done.
-rewrite findUnL ?validPtUn ?V ?X//.
-case: ifP=>Y; last done.
-rewrite domPtK inE in Y; move/eqP: Y=>Y.
-move: (find_some Ib)=>D.
-by rewrite Y in D; contradict X; rewrite D.
+move=>Vh V'; rewrite /btExtend/has_init_block=>Ib.
+move: (btExtendV V')=>V; case: ifP=>X; last first.
+by move: (find_some Ib)=>G; rewrite findUnR ?validPtUn ?X ?V //= G Ib.
+case: ifP=>//=.
+case: (um_eta X)=>v [F _].
+rewrite F=>/eqP; move: (Vh _ _ F)=>H Neq.
+contradict V'; rewrite/btExtend X; case: ifP.
+by rewrite F=>/eqP [] E; subst v.
+by rewrite valid_undef.
 Qed.
 
 Lemma btExtendIB_fold bt bs :
-  valid bt -> validH bt -> has_init_block bt ->
+  validH bt -> valid (foldl btExtend bt bs) -> has_init_block bt ->
   has_init_block (foldl btExtend bt bs).
 Proof.
-move=>V H; rewrite/has_init_block=>iB.
-elim/last_ind: bs=>[|xs x Hi]; first done.
-rewrite -cats1 foldl_cat /= {1}/btExtend.
-case: ifP=>//= X; move: (find_some Hi)=>D.
-rewrite findPtUn2.
-case: ifP=>// /eqP E.
-by rewrite E in D; contradict D; rewrite X.
-by rewrite validPtUn /= X andbC /= -btExtendV_fold.
+move=>Vh V'; rewrite/has_init_block=>iB.
+elim/last_ind: bs V'=>[|xs x Hi]; first done.
+rewrite -cats1 foldl_cat /= {1}/btExtend; case: ifP.
+- case: ifP; last by rewrite valid_undef.
+  by move=>F D V; rewrite{1}/btExtend D F; apply Hi.
+move=>Nd; rewrite validPtUn Nd /==>/andP[V _].
+rewrite{1}/btExtend Nd findUnR ?validPtUn ?V ?Nd //=.
+by move: (find_some (Hi V)) (Hi V)=>-> ->.
 Qed.
 
-Lemma in_ext bt b : valid bt -> validH bt -> b ∈ btExtend bt b.
+Lemma in_ext bt b : valid (btExtend bt b) -> validH bt -> b ∈ btExtend bt b.
 Proof.
-move=>V Vh; rewrite/btHasBlock/btExtend; case: ifP=>//=; last first.
+move=>V' Vh; rewrite/btHasBlock/btExtend;
+move: (btExtendV V')=>V; case: ifP=>//=; last first.
 - rewrite domUn inE ?validPtUn ?V //==>D; rewrite D domPt inE/=.
   apply/andP; split.
   by apply/orP; left.
   by rewrite findUnL ?validPtUn ?V ?D //; rewrite domPt inE /=;
       case: ifP=>/eqP//= _; rewrite findPt /=.
-move=>D; rewrite D /=.
-case: (um_eta D)=>b' [] F' _; move: (Vh _ _ F').
-by move/hashB_inj=>Eq; subst b'; apply/eqP.
+move=>D; case: ifP.
+by rewrite D=>/eqP ->; apply /andP; split=>//=.
+case: (um_eta D)=>b' [] F' _; move: (Vh _ _ F')=>H F.
+rewrite F' in F; contradict V'.
+rewrite/btExtend D; case: ifP; last by rewrite valid_undef.
+by rewrite F' F.
 Qed.
-(* move=>V; rewrite/btHasBlock/btExtend; case: ifP=>//=; *)
-(*    rewrite domPtUnE validPtUn V /==>H; apply/negP; rewrite H. *)
-(* Qed. *)
 
 (* Baisc property commutativity of additions *)
 
 Lemma btExtend_dom bt b :
-  valid bt -> {subset dom bt <= dom (btExtend bt b)}.
+  valid (btExtend bt b) -> {subset dom bt <= dom (btExtend bt b)}.
 Proof.
-move=>V z; rewrite/btExtend.
-case:ifP=>C//=D.
+move=>V' z; rewrite/btExtend; case:ifP=>C//=D.
+case: ifP=>//= F.
+by contradict V'; rewrite/btExtend C F valid_undef.
+move: (btExtendV V')=>V.
 by rewrite domUn inE andbC/= validPtUn/= V D/= C orbC.
 Qed.
 
 Lemma btExtend_find bt z b :
-  valid bt -> find (#b) bt = Some b -> find (#b) (btExtend bt z) = Some b.
+  valid (btExtend bt z) -> find (#b) bt = Some b -> find (#b) (btExtend bt z) = Some b.
 Proof.
-move=>V F; rewrite/btExtend.
+move=>V' F; rewrite/btExtend; move: (btExtendV V')=>V;
 case:ifP=>C //.
+by case: ifP=>//= C'; contradict V'; rewrite/btExtend C C' valid_undef.
 by rewrite findUnR ?validPtUn ?V ?C //; move: (find_some F)=>->.
 Qed.
 
 Lemma btExtend_dom_fold bt bs :
-  valid bt -> {subset dom bt <= dom (foldl btExtend bt bs)}.
+  valid (foldl btExtend bt bs) -> {subset dom bt <= dom (foldl btExtend bt bs)}.
 Proof.
-move=>V z; elim/last_ind: bs=>[|xs x Hi]=>//.
-by move=>In; move: (Hi In); rewrite -cats1 foldl_cat /=;
-   apply btExtend_dom; rewrite -(btExtendV_fold _ xs).
+move=>V z; elim/last_ind: bs V=>[|xs x Hi]=>//.
+move=>V'; move: (btExtendV_fold V')=>V D; specialize (Hi V D).
+rewrite -cats1 foldl_cat /=; apply btExtend_dom=>//=.
+by move: V'; rewrite -cats1 foldl_cat /=.
 Qed.
 
 Lemma btExtend_find_fold bt b bs :
-  valid bt -> find (#b) bt = Some b -> find (#b) (foldl btExtend bt bs) = Some b.
+  valid (foldl btExtend bt bs) -> find (#b) bt = Some b ->
+  find (#b) (foldl btExtend bt bs) = Some b.
 Proof.
-move=>V F; elim/last_ind: bs=>[|xs x Hi]=>//.
-rewrite -cats1 foldl_cat /=; apply btExtend_find=>//.
-by rewrite -(btExtendV_fold _ xs).
-Qed.
-
-Lemma btExtend_in bt b :
-  valid bt -> hashB b \in dom (btExtend bt b).
-Proof.
-move=>V; rewrite /btExtend/=; case: ifP=>//= N.
-by rewrite domUn inE domPtK !inE eqxx andbC/= validPtUn/= V N.
+move=>V F; elim/last_ind: bs V=>[|xs x Hi]=>//.
+move=>V'; move: (btExtendV_fold V')=>V; move: V'.
+rewrite -cats1 foldl_cat /= =>X; apply btExtend_find=>//.
+by move: (Hi V).
 Qed.
 
 Lemma btExtend_in_either bt b b' :
-  valid bt ->  b ∈ btExtend bt b' -> b ∈ bt \/ b == b'.
+  valid (btExtend bt b) ->  b ∈ btExtend bt b' -> b ∈ bt \/ b == b'.
 Proof.
-move=>V; rewrite /btExtend/=; case: ifP=>//= N.
-by left.
-rewrite/btHasBlock domUn inE domPtK validPtUn V N /=.
+move=>V'; rewrite /btExtend/=;
+move: (btExtendV V')=>V; case: ifP=>//= N.
+case: ifP=>//=; first by left.
+by rewrite/btHasBlock=>_/andP[]; rewrite dom_undef.
+rewrite/btHasBlock domUn inE domPtK validPtUn V N.
 move/andP=>[] /orP; case; last first.
 move=>D /eqP; rewrite findUnL ?validPtUn ?V ?N //; case: ifP.
 by rewrite domPtK inE=>/eqP hE; contradict D; rewrite hE N.
@@ -307,42 +326,175 @@ by move=>_ ->; rewrite D //=; left.
 Qed.
 
 Lemma btExtend_idemp bt b :
-  valid bt -> btExtend bt b = btExtend (btExtend bt b) b.
-Proof. by move=>V; rewrite {2}/btExtend btExtend_in. Qed.
+  valid (btExtend bt b) -> btExtend bt b = btExtend (btExtend bt b) b.
+Proof.
+move=>V'; move: (btExtendV V')=>V; rewrite{2}/btExtend; case: ifP.
+case: ifP=>//=.
+move=>X; rewrite{1}/btExtend; case: ifP=>D.
+case: ifP=>F; last by rewrite dom_undef.
+by move=>_; contradict X; rewrite/btExtend D F F.
+by contradict X; rewrite/btExtend D; rewrite findPtUn ?validPtUn ?V ?D //= eq_refl.
+move=>X; contradict X.
+rewrite/btExtend; case: ifP=>D.
+case: ifP=>F; first by rewrite D.
+by contradict V'; rewrite/btExtend D F valid_undef.
+by rewrite domPtUn inE validPtUn V D //= eq_refl.
+Qed.
 
 (* Just a reformulation *)
 Lemma btExtend_preserve (bt : BlockTree) (ob b : block) :
-  valid bt ->
+  valid (btExtend bt b) ->
   ob ∈ bt -> ob ∈ btExtend bt b.
 Proof.
-move=>V; rewrite/btHasBlock=>/andP [H0 H1].
-rewrite/btExtend; case: ifP=>//= X.
-by rewrite H0 H1.
-have V': (valid (# b \\-> b \+ bt)) by rewrite validPtUn V X.
-rewrite findUnR // H0 H1 domUn inE V' H0 /=.
+move=>V'; move: (btExtendV V')=>V; rewrite/btHasBlock=>/andP [H0 H1].
+rewrite/btExtend; case: ifP=>D.
+- case: ifP=>F.
+  by rewrite H0 H1.
+  by contradict V'; rewrite/btExtend D F valid_undef.
+have Vu: (valid (# b \\-> b \+ bt)) by rewrite validPtUn V D.
+rewrite findUnR // H0 H1 domUn inE Vu H0 /=.
 by apply/andP; split=>//=; apply/orP; right.
 Qed.
 
 Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : block):
-  hashB b \in dom bt -> bt = (btExtend bt b).
-Proof. by rewrite /btExtend=>->. Qed.
+  b ∈ bt -> bt = (btExtend bt b).
+Proof. by rewrite/btHasBlock/btExtend=>/andP[]->->. Qed.
 
 Lemma btExtend_comm bt b1 b2 :
-  valid bt ->
+  valid (btExtend (btExtend bt b1) b2) ->
   btExtend (btExtend bt b1) b2 = btExtend (btExtend bt b2) b1.
 Proof.
-move=>V.
-case C1 : (hashB b1 \in dom bt).
-- by rewrite ![btExtend _ b1]/btExtend C1 (btExtend_dom b2 V C1).
-case C2 : (hashB b2 \in dom bt).
-- by rewrite ![btExtend _ b2]/btExtend C2 (btExtend_dom b1 V C2).
-case B: (hashB b1 == hashB b2); first by move/eqP/hashB_inj: B=>B; subst b2.
-have D1: hashB b2 \in dom (btExtend bt b1) = false.
-- by rewrite /btExtend C1/= domUn !inE C2/= domPt inE B andbC/=.
-have D2: hashB b1 \in dom (btExtend bt b2) = false.
-- by rewrite /btExtend C2/= domUn !inE C1/= domPt inE eq_sym B andbC/=.
-rewrite /btExtend D1 D2 C1 C2/= !joinA.
-by rewrite -!(joinC bt) (joinC (# b2 \\-> b2)).
+move=>V2; move: (btExtendV V2)=>V1; move: (btExtendV V1)=>V0.
+have V1': valid (btExtend bt b2).
+rewrite/btExtend; case: ifP.
+- case: ifP=>//= F D.
+  contradict V2; rewrite{2}/btExtend; case: ifP.
+  case: ifP=>_ _; rewrite/btExtend.
+    by rewrite D F valid_undef.
+    by rewrite dom_undef validPtUn //= dom_undef valid_undef //=.
+  move=>Nd;
+  by rewrite/btExtend domPtUn validPtUn inE Nd V0 D Bool.orb_true_r //=;
+     rewrite findUnR ?validPtUn ?V0 ?Nd //= D F valid_undef.
+by move=>Nd; rewrite validPtUn V0 Nd.
+(* Now have V1' *)
+case A: (b1 ∈ bt).
+- move/andP: A=>[A0 A1].
+  rewrite ![btExtend _ b1]/btExtend A0 A1 (btExtend_dom V1' A0).
+  case: ifP=>//=; rewrite{1}/btExtend; case: ifP.
+  case: ifP; first by rewrite A1.
+  by move=>F D; contradict V1'; rewrite/btExtend D F valid_undef.
+  by move=>Nd; move: V1'; rewrite{1}/btExtend Nd=>V;
+     rewrite findUnR ?V1' //= A0 A1.
+case B: (b2 ∈ bt).
+- move/andP: B=>[B0 B1].
+  rewrite ![btExtend _ b2]/btExtend B0 (btExtend_dom V1 B0).
+  case: ifP; first by rewrite B1.
+  rewrite{1}/btExtend; move/nandP: A=>[A0|A1].
+  case: ifP; first by move=>D; rewrite D in A0.
+    by clear A0; move=>A0; rewrite findUnR ?validPtUn ?V0 ?A0 //= B0 B1.
+  rewrite B1; case: ifP.
+  case: ifP; first by move/eqP=>F; rewrite F in A1; move/eqP: A1.
+    by clear A1; move=>A1 A0 _; rewrite/btExtend A0 A1.
+   by move=>Nd; rewrite findUnR ?validPtUn ?V0 ?A0 ?Nd //= B0 B1.
+
+move/nandP: A=>[A0|A1]; move/nandP: B=>[B0|B1].
+- have VPt1: (forall a, valid (# b1 \\-> a \+ bt)). by move=>a; rewrite validPtUn V0 A0.
+  apply Bool.negb_true_iff in A0; apply Bool.negb_true_iff in B0.
+  rewrite/btExtend A0 B0; case: ifP.
+  + rewrite domPtUn VPt1 inE B0 //= =>/orP [] //==>/eqP H.
+    rewrite -H findUnR //= A0 domPtUn inE eq_refl VPt1 A0 findUnR //= A0 !findPt /=.
+    case: ifP; rewrite eq_sym=>/eqP; case: ifP=>/eqP=>//=.
+    by case=>->.
+  have VPt2: (forall a, valid (# b2 \\-> a \+ bt)). by move=>a; rewrite validPtUn V0 B0.
+  move=>X; have H: ((# b1 == # b2) = false)
+   by move: X; rewrite domPtUn inE VPt1 B0 //==>/norP [/eqP H _]; apply/eqP.
+  rewrite findUnR //= A0 domPtUn inE VPt2 A0 findPt2 eq_sym H //=.
+  by rewrite (joinC (#b1 \\-> _)) (joinC (#b2 \\-> _));
+    rewrite (joinC (#b2 \\-> _)) joinA (joinC bt).
+- have VPt1: (forall a, valid (# b1 \\-> a \+ bt)). by move=>a; rewrite validPtUn V0 A0.
+  apply Bool.negb_true_iff in A0;
+  rewrite/btExtend A0.
+  rewrite domPtUn VPt1 inE //=; case: ifP.
+  + move=>/orP [].
+    by move/eqP=>H; rewrite -H findUnR //= A0 findPt domUn VPt1 !inE domPt A0 inE eq_refl //=;
+       rewrite findUnR //= A0 findPt //= eq_sym; case: ifP=>//= /eqP[]->.
+    move=>D; rewrite findUnR //= D; case: ifP.
+      by move/eqP=>E; rewrite E in B1; move/eqP: B1.
+      by rewrite dom_undef //= join_undefR.
+  move/norP=>[Nh Nd]; case: ifP; case: ifP.
+  case: ifP; do? by move=>_ D; rewrite D in Nd.
+  by rewrite domPtUn inE A0=>Nd' /andP [] VPt2 /orP []=>//=;
+     move/eqP=>H; rewrite H in Nh; move/eqP: Nh.
+  by move=>D; rewrite D in Nd.
+  move=>_ _;
+  by rewrite (joinC (#b1 \\-> _)) (joinC (#b2 \\-> _));
+    rewrite (joinC (#b2 \\-> _)) joinA (joinC bt).
+- have VPt2: (forall a, valid (# b2 \\-> a \+ bt)). by move=>a; rewrite validPtUn V0 B0.
+  apply Bool.negb_true_iff in B0.
+  rewrite/btExtend B0 domPtUn VPt2 inE //=.
+  case: ifP; case: ifP; case: ifP;
+  do? by [
+    move/eqP=>A; rewrite A in A1; move/eqP: A1 |
+    rewrite dom_undef
+  ]. case: ifP.
+  move=>/orP [] //= /eqP H; rewrite H findUnL; last by rewrite -H; apply VPt2.
+  rewrite domPt inE eq_refl //= findUnR; last by rewrite -H; apply VPt2.
+  move=>F ->; rewrite findPt //=; case: ifP=>/eqP; first by case=>E; subst b2.
+  by move: F; rewrite findPt //= eq_sym=>/eqP.
+  by move/norP=>[]Nh _ F Nd;
+     rewrite domPtUn inE B0 //==>/andP [] _ /orP[]=>//= /eqP H;
+     rewrite H in Nh; move/eqP: Nh.
+  move=>X Y; rewrite domPtUn inE B0=>/andP [] _ /orP []=>//=/eqP H.
+  rewrite -H eq_refl //= findUnL; last by rewrite H; apply VPt2.
+  rewrite domPt inE eq_refl //= findPt //=; case: ifP=>//=.
+  move/eqP=>[E]; subst b2; contradict X.
+  by rewrite findUnR ?validPtUn ?V0 ?B0 //= findPt //==>/eqP.
+  move=>_ D; rewrite findUnR ?VPt2 //= D -(Bool.if_negb _ (find (# b1) bt == Some b1) _) A1.
+  case: ifP=>_ _; first by rewrite join_undefR.
+  have X: (# b1 \\-> b1 \+ bt = um_undef) by
+    apply invalidE; rewrite validPtUn V0 D.
+  by rewrite joinA (joinC (#b1 \\-> _)) -X joinA.
+  by move/orP=>[] //= /eqP H; rewrite H=>D; rewrite H in VPt2;
+     rewrite domPtUn inE D eq_refl VPt2.
+  by rewrite (joinC (#b1 \\-> _)) (joinC (#b2 \\-> _));
+    rewrite (joinC (#b2 \\-> _)) joinA (joinC bt).
+(* Nastiest case - 16 subcases to be handled one-by-one *)
+rewrite/btExtend; case: ifP; case: ifP; case: ifP; case: ifP.
+by move/eqP=>B; rewrite B in B1; move/eqP: B1.
+by move=>_ /eqP A; rewrite A in A1; move/eqP: A1.
+by rewrite dom_undef.
+by rewrite dom_undef.
+case: ifP; case: ifP.
+  by move/eqP=>B; rewrite B in B1; move/eqP: B1.
+  by rewrite dom_undef.
+  move=>_ D; rewrite domPtUn inE=>/andP[] _ /orP[].
+  by move/eqP=>H F Nd; move: F; rewrite H findUnL ?validPtUn ?V0 ?Nd //=;
+    rewrite domPt inE eq_refl findPt //==>/eqP[]->.
+  by move=>->.
+  move=>Nf Nd2 _ F Nd1. rewrite domPtUn inE Nd2 //==>/andP[]_ /orP[]=>//= /eqP H.
+  move: F; rewrite -H findUnL ?validPtUn ?V0 ?Nd1 //= domPt inE eq_refl //= findPt //=.
+  move/eqP=>[]E; subst b2; contradict Nf.
+  by rewrite findUnL ?validPtUn ?V0 ?Nd1 //= domPt inE eq_refl //= findPt //==>/eqP [].
+case: ifP.
+  case: ifP=>//=.
+  move=>_ D; contradict V1';
+  rewrite/btExtend D; case: ifP=>/eqP E;
+    by [rewrite E in B1; move/eqP: B1|rewrite valid_undef].
+  move=>D A F B; rewrite domPtUn inE D=>/andP []_/orP[] //= /eqP H; rewrite H.
+  by contradict A; rewrite domPtUn inE eq_sym H eq_refl D validPtUn V0 D.
+case: ifP; case: ifP=>//=.
+  by move/eqP=>B; rewrite B in B1; move/eqP: B1.
+  by rewrite dom_undef.
+  move=>F D _ Nf D'; move: F Nf; rewrite !findUnL ?validPtUn ?V0 ?D ?D' //=.
+  rewrite !domPt !inE //= inE (eq_sym (#b2)); case: ifP.
+  by move/eqP=>->; rewrite !findPt //==>/eqP []-> /eqP.
+  by move=>_ /eqP F; move: (find_some F)=>Nd'; rewrite Nd' in D'.
+case: ifP.
+  case: ifP; first by move/eqP=> B; move/eqP: B1; rewrite B.
+  by rewrite join_undefR.
+  move=>D _ _ _. rewrite domUn inE D domPt //= inE=>/andP []_/orP[]//=.
+  by move/eqP=><-; rewrite joinA pts_undef join_undefL.
+
 Qed.
 
 Section BlockTreeProperties.
