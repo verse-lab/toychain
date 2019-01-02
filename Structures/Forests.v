@@ -171,6 +171,15 @@ Lemma validH_free bt (b : block) :
   validH bt -> validH (free (# b) bt).
 Proof. by move=>Vh h c; rewrite findF;case: ifP=>//_ /Vh. Qed.
 
+Lemma validH_PtUn bt (b : block) :
+  valid (#b \\-> b \+ bt) -> validH bt -> validH (#b \\-> b \+ bt).
+Proof.
+move=>V Vh; rewrite/validH=>ha a; rewrite findUnR ?V //=; case: ifP.
+by specialize (Vh ha a).
+rewrite findPt2 //=; case: ifP=>//=.
+by move/andP=>[/eqP H _]; subst ha=>D; case=>E; subst b.
+Qed.
+
 Lemma validH_undef : validH um_undef.
 Proof. by rewrite/validH=>h b; rewrite find_undef. Qed.
 
@@ -705,13 +714,16 @@ End BlockTreeProperties.
 
 Section BtChainProperties.
 
-Lemma btExtend_blocks (bt : BlockTree) (b : block) : valid bt ->
+Lemma btExtend_blocks (bt : BlockTree) (b : block) : valid (btExtend bt b) ->
   {subset all_blocks bt <= all_blocks (btExtend bt b)}.
 Proof.
 move=>V z/all_blocksP=>[[k]F]; apply/all_blocksP.
 exists k; rewrite/btExtend; case:ifP=>// N.
-rewrite findUnR ?N/=; last by rewrite validPtUn/= V N.
+case: ifP=>//=.
+by move=>Nf; contradict V; rewrite/btExtend N Nf valid_undef.
+rewrite findUnR.
 by move/find_some: (F)=>->.
+by rewrite validPtUn N //=; move: V; rewrite/btExtend N validPtUn N.
 Qed.
 
 Lemma compute_chain_no_block bt (pb : block) (hs : seq Hash) n :
@@ -897,22 +909,17 @@ by right; rewrite inE; apply/eqP.
 by right; rewrite mem_rcons inE; apply/orP; left.
 Qed.
 
-Lemma btExtend_chain_prefix bt a b :
-  valid bt -> validH bt ->
-  exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b .
+Lemma btExtend_chain_prefix_ind bt a b n hs :
+  valid (btExtend bt a) -> validH bt -> valid bt ->
+  hs = dom bt -> n = size hs -> (# a \in dom bt) = false ->
+  exists p : seq block,
+    p ++ compute_chain' bt b hs n =
+    compute_chain' (# a \\-> a \+ bt) b (dom (# a \\-> a \+ bt))
+      (size (dom (# a \\-> a \+ bt))).
 Proof.
-(* TODO: This existential is sooper-annoying. Can we have a better
-   proof principle for this? *)
-move=>V Vh.
-case B: (#a \in dom bt); rewrite /btExtend B; first by exists [::].
-rewrite /compute_chain.
-(* Massaging the goal, for doing the induction on the size of (dom bt). *)
-have Ek: dom bt = dom bt by [].
-have Es: size (dom bt) = size (dom bt) by [].
-move: {-2}(size (dom bt)) Es=>n.
-move: {-2}(dom bt) Ek=>hs Es En.
+move=>V0 Vh V Es En B.
 rewrite size_domUn ?validPtUn ?V ?B// domPtK-!Es-En [_ + _] addnC addn1.
-elim: n b bt V Vh B hs Es En=>[|n Hi] b bt V Vh B hs Es En.
+elim: n b bt V0 V Vh B hs Es En=>[|n Hi] b bt V0 V Vh B hs Es En.
 - rewrite {1}/compute_chain'; move/esym/size0nil: En=>->.
   by move: (compute_chain' _ _ _ 1)=>c/=; exists c; rewrite cats0.
 have V': valid (# a \\-> a \+ bt) by rewrite validPtUn V B.
@@ -959,11 +966,13 @@ rewrite (freePtUn2 (#b) V') !Bn' !(Vh _ _ Hf).
 subst hs.
 rewrite findUnR ?validPtUn ?V ?B//; move: (Vh (prevBlockHash b) pb Hf)=><-; rewrite D1 Hf.
 (* It's time to unleash the induction hypothesis! *)
+have H0: valid (btExtend (free (# b) bt) a)
+  by rewrite/btExtend domF inE B Bn' validPtUn validF V domF //= inE Bn' B.
 have H1: valid (free (# b) bt) by rewrite validF.
-have H2: validH (free (# b) bt) by apply: validH_free.
+have H2: validH (free (# b) bt) by apply validH_free.
 have H3: (# a \in dom (free (# b) bt)) = false by rewrite domF inE Bn' B.
 have H4: n = size (dom (free (# b) bt)) by apply: size_free.
-case: (Hi pb (free (# b) bt) H1 H2 H3 (dom (free (# b) bt)) (erefl _) H4)=>q E.
+case: (Hi pb (free (# b) bt) H0 H1 H2 H3 (dom (free (# b) bt)) (erefl _) H4)=>q E.
 case: ifP; last by rewrite/btHasBlock Bb X findUnR ?B// X=>->.
 move=>_ _.
 exists q; rewrite -rcons_cat; congr (rcons _ b).
@@ -972,6 +981,30 @@ rewrite (compute_chain_equiv _ _ _ _ _ (dom_rem2 (#b) bt))
         ?(uniq_dom _) ?(rem_uniq _ (uniq_dom bt))// E.
 by rewrite -(compute_chain_equiv _ _ _ _ _ (dom_rem1 V' Bn'))
            ?(uniq_dom _) ?(rem_uniq _ (uniq_dom _)).
+Qed.
+
+Lemma btExtend_chain_prefix bt a b :
+  valid (btExtend bt a) -> validH bt ->
+  exists p, p ++ (compute_chain bt b) = compute_chain (btExtend bt a) b .
+Proof.
+move=>V0 Vh; move: (btExtendV V0)=>V.
+case B: (a ∈ bt); rewrite/btHasBlock in B.
+by exists [::]; move/andP: B=>[B0 B1]; rewrite /btExtend B0 B1.
+rewrite /compute_chain.
+have Ek: dom bt = dom bt by [].
+have Es: size (dom bt) = size (dom bt) by [].
+move: {-2}(size (dom bt)) Es=>n.
+move: {-2}(dom bt) Ek=>hs Es En.
+
+move/nandP: B=>[B|B]; rewrite/btExtend.
+- case: ifP; first by move=>X; rewrite X in B.
+  clear B; move=>B.
+  by apply btExtend_chain_prefix_ind.
+case: ifP.
+case: ifP; first by move/eqP=>B'; rewrite B' in B; move/eqP: B.
+by clear B; move=>B D; contradict V0; rewrite/btExtend D B valid_undef.
+move: B=>_ B.
+by apply btExtend_chain_prefix_ind.
 Qed.
 
 Lemma compute_chain_gb_not_within' bt b:
