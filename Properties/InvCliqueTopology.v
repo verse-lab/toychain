@@ -99,16 +99,18 @@ Lemma btExtend_foldG bt bs :
   all (pred1 GenesisBlock) bs ->
   (foldl btExtend bt bs) = bt.
 Proof.
-move=>hG; move/all_pred1P=>->; rewrite/nseq/ncons/iter/=.
+move=>F; move/all_pred1P=>->; rewrite/nseq/ncons/iter/=.
 elim: (size bs)=>//n Hi/=.
-by rewrite/has_init_block in hG; move: (find_some hG)=>H;
-   move: (btExtend_withDup_noEffect H)=><-.
+rewrite/has_init_block in F; move: (find_some F)=>D.
+have H: (GenesisBlock ∈ bt) by rewrite/btHasBlock F D=>//=.
+by move: (btExtend_withDup_noEffect H)=><-.
 Qed.
 
 Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
   foldl f init [:: val] = f init val.
 Proof. done. Qed.
 
+(* This doesn't need validity of the foldl *)
 Lemma rem_non_block w bt p :
   valid bt -> validH bt ->
   has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->
@@ -125,7 +127,7 @@ have X: msg_block (msg p) = GenesisBlock.
 - by case: (msg p) Nb=>//b Nb; move: (Nb b); move/negbTE; rewrite eqxx.
 rewrite X -cat1s foldl_cat; clear X.
 have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
-by rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold.
+rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold=>//=.
 Qed.
 
 Lemma foldl_btExtend_last bt ps b :

@@ -79,6 +79,7 @@ Axiom VAF_GB_first :
 Axiom FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
+(* TODO: strengthen to only valid chains *)
 Axiom FCR_ext :
   forall (bc : Blockchain) (b : block) (ext : seq block),
     bc ++ (b :: ext) > bc.
@@ -214,14 +215,69 @@ elim/last_ind: ys=>[|ys y Hi]; first by rewrite cats0.
 by rewrite foldl_cat; move/btExtendV_fold1; rewrite -foldl_cat; apply Hi.
 Qed.
 
+Lemma btExtendV_fold_dom bt xs b :
+  valid (foldl btExtend bt xs) -> b \in xs ->
+  # b \in dom (foldl btExtend bt xs).
+Proof.
+elim/last_ind: xs=>[|xs x Hi]//=.
+move=>V; move: (btExtendV_fold1 V)=>V0; specialize (Hi V0).
+rewrite -cats1 mem_cat inE=>/orP; case; last first.
+- move/eqP=>E; subst x.
+  rewrite foldl_cat //= {1}/btExtend; case: ifP; last first.
+  by move=>X; rewrite domPtUn validPtUn V0 X inE X //=; apply/orP; left.
+  case: ifP=>//= F D.
+  by move: V; rewrite -cats1 foldl_cat //= {1}/btExtend D F valid_undef.
+move=>X; specialize (Hi X).
+rewrite foldl_cat //= {1}/btExtend; case: ifP; last first.
+by move=>D; rewrite domPtUn validPtUn V0 D inE Hi //=; apply/orP; right.
+case: ifP=>//= F D.
+by move: V; rewrite -cats1 foldl_cat //= {1}/btExtend D F valid_undef.
+Qed.
+
+Definition no_collisions (bt : BlockTree) (xs : seq block) :=
+  valid bt /\
+  forall a, a \in xs ->
+    (forall b, b \in xs -> # a = # b -> a = b) /\
+    (forall b, # b \in dom bt -> # a = # b -> a = b).
+
+Lemma btExtendV_fold_no_collisions bt xs :
+  valid (foldl btExtend bt xs) <-> no_collisions bt xs.
+Proof.
+elim/last_ind: xs=>[|xs x Hi] //=.
+by rewrite/no_collisions; split; by [case|split].
+split; move: Hi=>[] H0 H1.
+- move=>V; move: (btExtendV_fold1 V)=>V1; specialize (H0 V1).
+  move: H0; rewrite/no_collisions.
+  move=>[] V0 N; split=>//=.
+  move=>a; rewrite -cats1 mem_cat inE=>/orP; case; last first.
+  * move/eqP=>E; subst a; split.
+    move=>b; rewrite mem_cat inE=>/orP; case; last first.
+    by rewrite eq_sym=>/eqP.
+    move=>X E; move: V; rewrite -cats1 foldl_cat //= {1}/btExtend.
+    move: (btExtendV_fold_dom V1 X)=>D.
+    rewrite E D; case: ifP; last by rewrite valid_undef.
+    move=>F _.
+    (* What do? *)
+    clear H1 N.
+    elim/last_ind: xs V1 X D F=>[|ys y Hi]//=.
+    move=>V1 X D F; move: (btExtendV_fold1 V1)=>V.
+    specialize (Hi V).
+Admitted.
+
+Lemma btExtendV_fold_comm' bt xs ys :
+  valid (foldl btExtend (foldl btExtend bt xs) ys) ->
+  valid (foldl btExtend (foldl btExtend bt ys) xs).
+Proof.
+elim/last_ind: ys=>[|ys y V1]//= V.
+move: (btExtendV_fold1 V)=>V0; specialize (V1 V0).
+Admitted.
+
+(* Do it as an equivalence *)
 Lemma btExtendV_fold_comm bt xs ys :
   valid (foldl btExtend (foldl btExtend bt xs) ys) =
   valid (foldl btExtend (foldl btExtend bt ys) xs).
 Proof.
-elim/last_ind: xs=>[|xs x Hi] //=.
-rewrite -{2}cats1 foldl_cat //=; rewrite {3}/btExtend.
-case: ifP; last first.
-move=>D; rewrite validPtUn D//= -Hi.
+
 Admitted.
 
 Lemma btExtendV_fold' bt xs ys :
@@ -1336,6 +1392,7 @@ apply: (FCR_trans_eq2 B2).
 by apply: better_chains_foldr=>//=; [by apply/negbT|by left | |]; do?[rewrite ?valid_chain_init ?eqxx//].
 Qed.
 
+(* This should not actually require validity! *)
 Lemma btExtend_fold_comm (bt : BlockTree) (bs bs' : seq block) :
     valid (foldl btExtend (foldl btExtend bt bs) bs') ->
     foldl btExtend (foldl btExtend bt bs) bs' =
