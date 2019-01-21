@@ -200,6 +200,90 @@ by case: ifP=>//=; rewrite valid_undef.
 by move=>Nd; rewrite validPtUn Nd //==>[/andP] [].
 Qed.
 
+Lemma btExtendV_comm bt a b :
+  valid (btExtend (btExtend bt a) b) =
+  valid (btExtend (btExtend bt b) a).
+Proof.
+rewrite/btExtend; case: ifP; case: ifP; case: ifP; case: ifP;
+move=>A B C D.
+by rewrite D C B.
+by rewrite D dom_undef in_nil validPtUn valid_undef.
+by rewrite dom_undef in D.
+by rewrite dom_undef in D.
+- case: ifP; case: ifP.
+  case: ifP=>X Y Z.
+  by rewrite Y X in A; rewrite A in C.
+  by rewrite find_undef in Z.
+  by move=>X; move: D; rewrite domPtUn inE X Bool.orb_false_r=>/andP [] _;
+     move/eqP=>->_ ; rewrite !validPtUn !inE.
+  case: ifP=>X Y Z.
+  by rewrite Y X in A; rewrite A in C.
+  by rewrite Y X dom_undef in A.
+  move=>X; move: D; rewrite domPtUn inE X Bool.orb_false_r=>/andP[]->.
+    move/eqP=>E; move: A; rewrite X domPtUn inE=>/andP[]V _.
+    move: B; rewrite E findUnR; last by move: V; rewrite !validPtUn.
+    rewrite X findPt //==>/eqP []E'; subst b;
+    by rewrite findUnR ?V //= X findPt //==>/eqP [].
+- case: ifP.
+  case: ifP=>X Y //=.
+  by move: D; rewrite domPtUn inE Y=>/andP[] V _;
+    move: B; rewrite findUnR ?V //= Y X.
+  by move=>X; move: D; rewrite domPtUn inE X Bool.orb_false_r=>/andP [] V;
+    move/eqP=>E; move: A; rewrite X E domPtUn inE eq_refl Bool.orb_true_l;
+    move: V; rewrite !validPtUn C X !Bool.andb_true_r//==>->.
+- case: ifP; case: ifP=>//=.
+  case: ifP=>X Y Z=>//=.
+  by rewrite Y X in A; rewrite A in C.
+  move=>X; move: D; rewrite domPtUn inE X Bool.orb_false_r=>/andP [] V.
+  move/eqP=>E; move: B; rewrite E !findUnR;
+    do? by move:V; rewrite !validPtUn C X //=.
+  by rewrite X !findPt //= eq_sym=>->.
+- case: ifP.
+  case: ifP=>X Y; move: B; rewrite findUnR.
+  by case: ifP; [rewrite X | rewrite Y].
+  by move: D; rewrite domPtUn inE validPtUn Y C //==>/andP[].
+  by case: ifP; rewrite join_undefR.
+  by move: D; rewrite domPtUn inE validPtUn Y C //==>/andP[].
+  by rewrite joinA (joinC (#a \\-> _) (#b \\-> _)) -joinA;
+     rewrite validPtUn inE D //= Bool.andb_false_r valid_undef.
+- rewrite D in A *; case: ifP=>//=.
+  rewrite findUnR. by rewrite C B.
+  by move: A; rewrite domPtUn inE=>/andP[].
+- rewrite D in A *.
+  by rewrite validPtUn D !validPtUn A D //= !Bool.andb_true_r.
+- case: ifP; case: ifP; do? by rewrite join_undefR.
+  case: ifP=>X Y Z.
+  by rewrite Z in B.
+  by rewrite find_undef in Z.
+  move=>X; rewrite findUnR. by rewrite C B.
+  by move: A; rewrite X domPtUn validPtUn inE X C //=;
+     rewrite Bool.orb_true_r !Bool.andb_true_r.
+- case: ifP.
+  case: ifP=>X Y; first by rewrite Y X C in A.
+  by rewrite !join_undefR.
+  rewrite joinA (joinC (#a \\-> _) (#b \\-> _)) -joinA.
+  suff: (# a \\-> a \+ bt) = um_undef by move=>->.
+  by apply invalidE; rewrite validPtUn C Bool.andb_false_r.
+- case: ifP; case: ifP=>X Y; do? by rewrite X C in B.
+  by rewrite find_undef in Y.
+  by rewrite X dom_undef in_nil in B.
+- case: ifP; first by rewrite !validPtUn A C D //= !Bool.andb_true_r.
+  move: B; rewrite domPtUn inE C Bool.orb_false_r=>/andP[]V /eqP E.
+  contradict D.
+  rewrite domPtUn inE E eq_refl Bool.orb_true_l Bool.andb_true_r.
+  by move: V; rewrite !validPtUn C //= Bool.andb_true_r=>/andP[]->.
+- case: ifP=>X.
+  contradict D.
+    rewrite domPtUn inE A Bool.orb_true_r validPtUn C //=.
+    case V: (valid bt)=>//=.
+    move: (invalidE bt); rewrite V //=; case=>Z _.
+    have T: true by []. specialize (Z T).
+    by move: Z A=>->; rewrite dom_undef in_nil.
+  by rewrite joinA (joinC (#b \\-> _)) -joinA !validPtUn //=;
+     rewrite A //= Bool.andb_false_r valid_undef !Bool.andb_false_l.
+by rewrite !joinA (joinC (#b \\-> _) (#a \\-> _)).
+Qed.
+
 Lemma btExtendV_fold1 bt bs b :
   valid (foldl btExtend bt (rcons bs b)) -> valid (foldl btExtend bt bs).
 Proof.
@@ -234,6 +318,36 @@ case: ifP=>//= F D.
 by move: V; rewrite -cats1 foldl_cat //= {1}/btExtend D F valid_undef.
 Qed.
 
+Lemma rem_rcons {T: eqType} (xs : seq T) (q x : T) :
+  seq.rem q (rcons xs x) = seq.rem q xs \/
+  seq.rem q (rcons xs x) = rcons (seq.rem q xs) x.
+Proof.
+elim: xs=>[|y ys H]//=; first by case: ifP; [left|right].
+case: ifP; first by right.
+by case: H=>-> _; [left|right].
+Qed.
+
+Lemma btExtendV_fold_rem bt xs q:
+  valid (foldl btExtend bt xs) ->
+  valid (foldl btExtend bt (seq.rem q xs)).
+Proof.
+elim/last_ind: xs=>[|xs x H]//=.
+move=>V; move: (btExtendV_fold1 V)=>V0; specialize (H V0).
+case: (rem_rcons xs q x); first by move=>->.
+move=>->; rewrite -cats1 foldl_cat //= {1}/btExtend.
+case: ifP; last by move=>D; rewrite validPtUn H //= D.
+case: ifP=>//=.
+Admitted.
+
+Lemma btExtendV_fold_dup bt xs a b :
+  valid (foldl btExtend bt (rcons xs a)) ->
+  b \in xs -> #a = #b -> a = b.
+Proof.
+elim/last_ind: xs=>[|xs x H]//=.
+rewrite -!cats1 !foldl_cat //=.
+Check btExtendV_comm.
+Admitted.
+
 Definition no_collisions (bt : BlockTree) (xs : seq block) :=
   valid bt /\
   forall a, a \in xs ->
@@ -253,15 +367,19 @@ split; move: Hi=>[] H0 H1.
   * move/eqP=>E; subst a; split.
     move=>b; rewrite mem_cat inE=>/orP; case; last first.
     by rewrite eq_sym=>/eqP.
-    move=>X E; move: V; rewrite -cats1 foldl_cat //= {1}/btExtend.
-    move: (btExtendV_fold_dom V1 X)=>D.
-    rewrite E D; case: ifP; last by rewrite valid_undef.
-    move=>F _.
+    (* Here *)
+    apply (btExtendV_fold_dup V).
+
+    (* move=>X E; move: V; rewrite -cats1 foldl_cat //= {1}/btExtend. *)
+    (* move: (btExtendV_fold_dom V1 X)=>D. *)
+    (* rewrite E D; case: ifP; last by rewrite valid_undef. *)
+    (* move=>F _. *)
     (* What do? *)
-    clear H1 N.
-    elim/last_ind: xs V1 X D F=>[|ys y Hi]//=.
-    move=>V1 X D F; move: (btExtendV_fold1 V1)=>V.
-    specialize (Hi V).
+    admit.
+    admit.
+  (* * move=>X; specialize (N a X); split=>b; case: N=>N0 N1. *)
+  (*   rewrite mem_cat inE=>/orP; case; last first. *)
+
 Admitted.
 
 Lemma btExtendV_fold_comm' bt xs ys :
@@ -270,15 +388,28 @@ Lemma btExtendV_fold_comm' bt xs ys :
 Proof.
 elim/last_ind: ys=>[|ys y V1]//= V.
 move: (btExtendV_fold1 V)=>V0; specialize (V1 V0).
-Admitted.
+rewrite -foldl_cat; apply btExtendV_fold_no_collisions.
+rewrite/no_collisions; split.
+have X: (xs = [::] ++ xs) by [].
+by move: V0; rewrite -foldl_cat X; move/btExtendV_fold/btExtendV_fold.
+move: V; rewrite -foldl_cat; move/btExtendV_fold_no_collisions.
+rewrite/no_collisions; case=>V H.
+move=>a; rewrite mem_cat Bool.orb_comm=>X.
+specialize (H a); rewrite mem_cat in H; specialize (H X).
+case: H=>H0 H1; split=>//=.
+move=>b; rewrite mem_cat Bool.orb_comm -mem_cat; apply H0.
+Qed.
 
-(* Do it as an equivalence *)
 Lemma btExtendV_fold_comm bt xs ys :
   valid (foldl btExtend (foldl btExtend bt xs) ys) =
   valid (foldl btExtend (foldl btExtend bt ys) xs).
 Proof.
-
-Admitted.
+have T: true by [].
+have X: forall (a b : bool), a <-> b -> a = b.
+by move=>a b []; case: a; case: b=>//= A B;
+   [specialize (A T) | specialize (B T)].
+by apply X; split; apply btExtendV_fold_comm'.
+Qed.
 
 Lemma btExtendV_fold' bt xs ys :
   valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt ys).
