@@ -10,6 +10,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* A formalization of a block forests *)
+(* TODO: Go through this file and put the lemmas in a sensible order. *)
 
 (************************************************************)
 (******************* <parameters> ***************************)
@@ -354,73 +355,6 @@ by rewrite -Hh joinA (joinC _ (foldl btExtend _ _));
    move=>_; apply/negP; apply invalidE; rewrite pts_undef join_undefR.
 Qed.
 
-Definition no_collisions (bt : BlockTree) (xs : seq block) :=
-  valid bt /\
-  forall a, a \in xs ->
-    (forall b, b \in xs -> # a = # b -> a = b) /\
-    (forall b, # b \in dom bt -> # a = # b -> a = b).
-
-Lemma btExtendV_fold_no_collisions bt xs :
-  valid (foldl btExtend bt xs) <-> no_collisions bt xs.
-Proof.
-elim/last_ind: xs=>[|xs x Hi] //=.
-by rewrite/no_collisions; split; by [case|split].
-split; move: Hi=>[] H0 H1.
-- move=>V; move: (btExtendV_fold1 V)=>V1; specialize (H0 V1).
-  move: H0; rewrite/no_collisions.
-  move=>[] V0 N; split=>//=.
-  move=>a; rewrite -cats1 mem_cat inE=>/orP; case; last first.
-  * move/eqP=>E; subst a; split.
-    move=>b; rewrite mem_cat inE=>/orP; case; last first.
-    by rewrite eq_sym=>/eqP.
-    (* Here *)
-    apply (btExtendV_fold_dup V).
-
-    (* move=>X E; move: V; rewrite -cats1 foldl_cat //= {1}/btExtend. *)
-    (* move: (btExtendV_fold_dom V1 X)=>D. *)
-    (* rewrite E D; case: ifP; last by rewrite valid_undef. *)
-    (* move=>F _. *)
-    (* What do? *)
-    admit.
-    admit.
-  (* * move=>X; specialize (N a X); split=>b; case: N=>N0 N1. *)
-  (*   rewrite mem_cat inE=>/orP; case; last first. *)
-
-Admitted.
-
-Lemma btExtendV_fold_comm' bt xs ys :
-  valid (foldl btExtend (foldl btExtend bt xs) ys) ->
-  valid (foldl btExtend (foldl btExtend bt ys) xs).
-Proof.
-elim/last_ind: ys=>[|ys y V1]//= V.
-move: (btExtendV_fold1 V)=>V0; specialize (V1 V0).
-rewrite -foldl_cat; apply btExtendV_fold_no_collisions.
-rewrite/no_collisions; split.
-have X: (xs = [::] ++ xs) by [].
-by move: V0; rewrite -foldl_cat X; move/btExtendV_fold/btExtendV_fold.
-move: V; rewrite -foldl_cat; move/btExtendV_fold_no_collisions.
-rewrite/no_collisions; case=>V H.
-move=>a; rewrite mem_cat Bool.orb_comm=>X.
-specialize (H a); rewrite mem_cat in H; specialize (H X).
-case: H=>H0 H1; split=>//=.
-move=>b; rewrite mem_cat Bool.orb_comm -mem_cat; apply H0.
-Qed.
-
-Lemma btExtendV_fold_comm bt xs ys :
-  valid (foldl btExtend (foldl btExtend bt xs) ys) =
-  valid (foldl btExtend (foldl btExtend bt ys) xs).
-Proof.
-have T: true by [].
-have X: forall (a b : bool), a <-> b -> a = b.
-by move=>a b []; case: a; case: b=>//= A B;
-   [specialize (A T) | specialize (B T)].
-by apply X; split; apply btExtendV_fold_comm'.
-Qed.
-
-Lemma btExtendV_fold' bt xs ys :
-  valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt ys).
-Proof. by rewrite foldl_cat btExtendV_fold_comm -foldl_cat=>/btExtendV_fold. Qed.
-
 Lemma btExtendH bt b : valid bt -> validH bt -> validH (btExtend bt b).
 Proof.
 move=>V H z c; rewrite /btExtend.
@@ -491,7 +425,6 @@ rewrite/btExtend D; case: ifP; last by rewrite valid_undef.
 by rewrite F' F.
 Qed.
 
-(* Baisc property commutativity of additions *)
 Lemma btExtend_dom bt b :
   valid (btExtend bt b) -> {subset dom bt <= dom (btExtend bt b)}.
 Proof.
@@ -748,6 +681,95 @@ case: ifP.
   by move=>_D D' _; rewrite domPtUn validPtUn V0 inE D' //==>-> //= /norP[].
 by move=>_ _ _ _; rewrite !joinA (joinC (#b2 \\-> _)).
 Qed.
+
+
+Definition no_collisions (bt : BlockTree) (xs : seq block) :=
+  valid bt /\
+  forall a, a \in xs ->
+    (forall b, b \in xs -> # a = # b -> a = b) /\
+    (forall b, b ∈ bt -> # a = # b -> a = b).
+
+Lemma btExtendV_fold_no_collisions bt xs :
+  valid (foldl btExtend bt xs) <-> no_collisions bt xs.
+Proof.
+elim/last_ind: xs=>[|xs x Hi] //=.
+by rewrite/no_collisions; split; by [case|split].
+split; move: Hi=>[] H0 H1.
+(* --> *)
+- move=>V; move: (btExtendV_fold1 V)=>V1; specialize (H0 V1).
+  move: H0; rewrite/no_collisions.
+  move=>[] V0 N; split=>//=.
+  move=>a; rewrite -cats1 mem_cat inE=>/orP; case; last first.
+  * move/eqP=>E; subst a; split.
+    move=>b; rewrite mem_cat inE=>/orP; case; last first.
+    by rewrite eq_sym=>/eqP.
+    by apply (btExtendV_fold_dup V).
+    move=>b; rewrite/btHasBlock=>/andP[D F] Hh.
+    move: V; rewrite -cats1 foldl_cat //= {1}/btExtend.
+    move: (btExtend_dom_fold V1 D)=>D'; rewrite Hh D'.
+    case: ifP; last by rewrite valid_undef.
+    move=>F' _; move/eqP in F'.
+    by move: (btExtend_find_fold V1 D F'); move/eqP: F=>-> []->.
+  move=>X; specialize (N a X); case: N=>N0 N1; split=>b; last by apply N1.
+  rewrite mem_cat inE=>/orP; case; first by apply N0.
+  move/eqP=>E; subst b=>/eqP Hh; rewrite eq_sym in Hh; move/eqP in Hh.
+  by move: (btExtendV_fold_dup V X Hh)=>->.
+(* <-- *)
+rewrite/no_collisions; case=>V N.
+have N0: no_collisions bt xs.
+rewrite/no_collisions; split=>//=.
+  move=>a X; have X0: a \in rcons xs x
+    by rewrite mem_rcons inE X Bool.orb_true_r.
+  specialize (N a X0); move: N=>[]N0 N1; split=>b; last by apply N1.
+  move=>X1; have X2: b \in rcons xs x.
+    by rewrite mem_rcons inE X1 Bool.orb_true_r.
+  by apply N0.
+specialize (H1 N0); rewrite -cats1 foldl_cat //= {1}/btExtend.
+case: ifP; last by move=>D; rewrite validPtUn H1 D.
+case: ifP=>//= F D; contradict H1.
+(* Hmm *)
+have X: (x \in rcons xs x) by rewrite mem_rcons mem_head.
+specialize (N x X); move: N0=>N'; case: N=>N0 N1.
+move: (um_eta D)=>[b] [F'] zz; rewrite F' in F.
+specialize (N0 b); specialize (N1 b).
+(* Need validH to have # x = # b *)
+
+Admitted.
+
+Lemma btExtendV_fold_comm' bt xs ys :
+  valid (foldl btExtend (foldl btExtend bt xs) ys) ->
+  valid (foldl btExtend (foldl btExtend bt ys) xs).
+Proof.
+elim/last_ind: ys=>[|ys y V1]//= V.
+move: (btExtendV_fold1 V)=>V0; specialize (V1 V0).
+rewrite -foldl_cat; apply btExtendV_fold_no_collisions.
+rewrite/no_collisions; split.
+have X: (xs = [::] ++ xs) by [].
+by move: V0; rewrite -foldl_cat X; move/btExtendV_fold/btExtendV_fold.
+move: V; rewrite -foldl_cat; move/btExtendV_fold_no_collisions.
+rewrite/no_collisions; case=>V H.
+move=>a; rewrite mem_cat Bool.orb_comm=>X.
+specialize (H a); rewrite mem_cat in H; specialize (H X).
+case: H=>H0 H1; split=>//=.
+move=>b; rewrite mem_cat Bool.orb_comm -mem_cat; apply H0.
+Qed.
+
+Lemma btExtendV_fold_comm bt xs ys :
+  valid (foldl btExtend (foldl btExtend bt xs) ys) =
+  valid (foldl btExtend (foldl btExtend bt ys) xs).
+Proof.
+have T: true by [].
+have X: forall (a b : bool), a <-> b -> a = b.
+by move=>a b []; case: a; case: b=>//= A B;
+   [specialize (A T) | specialize (B T)].
+by apply X; split; apply btExtendV_fold_comm'.
+Qed.
+
+Lemma btExtendV_fold' bt xs ys :
+  valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt ys).
+Proof. by rewrite foldl_cat btExtendV_fold_comm -foldl_cat=>/btExtendV_fold. Qed.
+
+
 
 Section BlockTreeProperties.
 
