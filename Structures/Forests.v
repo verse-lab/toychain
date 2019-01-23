@@ -493,6 +493,31 @@ by move=>_ ->; rewrite D //=; left.
   by move=>_ /eqP F; move: (findPt_inv F); case=>_ ->; right.
   by move=>_ /eqP F; contradict N; move: (find_some F)=>->.
 Qed.
+
+Lemma btExtend_fold_in_either bt xs b :
+  valid (foldl btExtend bt xs) -> b ∈ (foldl btExtend bt xs) ->
+  b ∈ bt \/ b \in xs.
+Proof.
+elim/last_ind: xs=>[|xs x H]; first by left.
+move=>V'; move: (btExtendV_fold1 V')=>V; specialize (H V).
+rewrite -cats1 foldl_cat //= {1}/btExtend.
+case: ifP; last first.
+- move=>D; rewrite/btHasBlock=>/andP [].
+  rewrite domPtUn inE=>/andP[]Z/orP; case.
+  * move/eqP=>Hh; rewrite Hh findPtUn; last by rewrite -Hh.
+    move/eqP=>[]E; subst x; right.
+    by rewrite mem_cat inE eq_refl Bool.orb_true_r.
+  move=>A; rewrite findPtUn2 ?Z //=; case: ifP.
+  by move=>_ /eqP[]->; right; rewrite mem_cat inE eq_refl Bool.orb_true_r.
+  move=>_ B; have X: (b ∈ foldl btExtend bt xs) by rewrite/btHasBlock A B.
+  move: (H X); case; first by rewrite/btHasBlock=>->; left.
+  by move=>M; right; rewrite mem_cat M Bool.orb_true_l.
+case: ifP.
+move=>_ _ M; case: (H M); first by left.
+by move=>X; right; rewrite mem_cat X Bool.orb_true_l.
+by move=> _ _; rewrite/btHasBlock dom_undef in_nil Bool.andb_false_l.
+Qed.
+
 Lemma btExtend_idemp bt b :
   valid (btExtend bt b) -> btExtend bt b = btExtend (btExtend bt b) b.
 Proof.
@@ -682,7 +707,6 @@ case: ifP.
 by move=>_ _ _ _; rewrite !joinA (joinC (#b2 \\-> _)).
 Qed.
 
-
 Definition no_collisions (bt : BlockTree) (xs : seq block) :=
   valid bt /\
   forall a, a \in xs ->
@@ -733,6 +757,9 @@ specialize (N x X); move: N0=>N'; case: N=>N0 N1.
 move: (um_eta D)=>[b] [F'] zz; rewrite F' in F.
 specialize (N0 b); specialize (N1 b).
 (* Need validH to have # x = # b *)
+(* D + F = b ∈ (foldl btExtend bt xs) *)
+(* Need a lemma --> either b ∈ bt or b \in xs *)
+(* Thus get a contradiction with F! *)
 
 Admitted.
 
