@@ -713,13 +713,10 @@ Definition no_collisions (bt : BlockTree) (xs : seq block) :=
     (forall b, b \in xs -> # a = # b -> a = b) /\
     (forall b, b ∈ bt -> # a = # b -> a = b).
 
-Lemma btExtendV_fold_no_collisions bt xs :
-  valid (foldl btExtend bt xs) <-> no_collisions bt xs.
+Lemma btExtendV_valid_no_collisions bt xs :
+  valid (foldl btExtend bt xs) -> no_collisions bt xs.
 Proof.
-elim/last_ind: xs=>[|xs x Hi] //=.
-by rewrite/no_collisions; split; by [case|split].
-split; move: Hi=>[] H0 H1.
-(* --> *)
+elim/last_ind: xs=>[|xs x H0] //=.
 - move=>V; move: (btExtendV_fold1 V)=>V1; specialize (H0 V1).
   move: H0; rewrite/no_collisions.
   move=>[] V0 N; split=>//=.
@@ -738,8 +735,14 @@ split; move: Hi=>[] H0 H1.
   rewrite mem_cat inE=>/orP; case; first by apply N0.
   move/eqP=>E; subst b=>/eqP Hh; rewrite eq_sym in Hh; move/eqP in Hh.
   by move: (btExtendV_fold_dup V X Hh)=>->.
-(* <-- *)
-rewrite/no_collisions; case=>V N.
+Qed.
+
+Lemma btExtendV_no_collisions_valid bt xs :
+  validH bt -> no_collisions bt xs -> valid (foldl btExtend bt xs).
+Proof.
+elim/last_ind: xs=>[|xs x H1] //=.
+by rewrite/no_collisions=>_; case.
+rewrite/no_collisions=>Vh; case=>V N.
 have N0: no_collisions bt xs.
 rewrite/no_collisions; split=>//=.
   move=>a X; have X0: a \in rcons xs x
@@ -748,7 +751,7 @@ rewrite/no_collisions; split=>//=.
   move=>X1; have X2: b \in rcons xs x.
     by rewrite mem_rcons inE X1 Bool.orb_true_r.
   by apply N0.
-specialize (H1 N0); rewrite -cats1 foldl_cat //= {1}/btExtend.
+specialize (H1 Vh N0); rewrite -cats1 foldl_cat //= {1}/btExtend.
 case: ifP; last by move=>D; rewrite validPtUn H1 D.
 case: ifP=>//= F D; contradict H1.
 (* Hmm *)
@@ -756,12 +759,16 @@ have X: (x \in rcons xs x) by rewrite mem_rcons mem_head.
 specialize (N x X); move: N0=>N'; case: N=>N0 N1.
 move: (um_eta D)=>[b] [F'] zz; rewrite F' in F.
 specialize (N0 b); specialize (N1 b).
-(* Need validH to have # x = # b *)
-(* D + F = b ∈ (foldl btExtend bt xs) *)
-(* Need a lemma --> either b ∈ bt or b \in xs *)
-(* Thus get a contradiction with F! *)
-
-Admitted.
+move: (btExtendH_fold Vh (dom_valid D) F')=>Hh.
+rewrite Hh in D F'; have H: b ∈ (foldl btExtend bt xs).
+  by rewrite/btHasBlock D F' eq_refl.
+case Z: (x == b); first by move/eqP: Z F=>->; rewrite eq_refl.
+case: (btExtend_fold_in_either (dom_valid D) H).
+by move=>Q; move: (N1 Q Hh) Z=>->; rewrite eq_refl.
+move=>R; have Q: (b \in rcons xs x)
+  by rewrite -cats1 mem_cat inE R Bool.orb_true_l.
+by move: (N0 Q Hh) Z=>->; rewrite eq_refl.
+Qed.
 
 Lemma btExtendV_fold_comm' bt xs ys :
   valid (foldl btExtend (foldl btExtend bt xs) ys) ->
