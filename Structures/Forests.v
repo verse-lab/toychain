@@ -300,6 +300,13 @@ elim/last_ind: ys=>[|ys y Hi]; first by rewrite cats0.
 by rewrite foldl_cat; move/btExtendV_fold1; rewrite -foldl_cat; apply Hi.
 Qed.
 
+Lemma btExtendV_fold_xs bt xs :
+  valid (foldl btExtend bt xs) -> valid bt.
+Proof.
+have X: xs = ([::] ++ xs) by rewrite cat0s.
+by rewrite X; move/btExtendV_fold.
+Qed.
+
 Lemma btExtendV_fold_dom bt xs b :
   valid (foldl btExtend bt xs) -> b \in xs ->
   # b \in dom (foldl btExtend bt xs).
@@ -533,6 +540,7 @@ case: ifP=>F; first by rewrite D.
 by contradict V'; rewrite/btExtend D F valid_undef.
 by rewrite domPtUn inE validPtUn V D //= eq_refl.
 Qed.
+
 (* Just a reformulation *)
 Lemma btExtend_preserve (bt : BlockTree) (ob b : block) :
   valid (btExtend bt b) ->
@@ -547,9 +555,11 @@ have Vu: (valid (# b \\-> b \+ bt)) by rewrite validPtUn V D.
 rewrite findUnR // H0 H1 domUn inE Vu H0 /=.
 by apply/andP; split=>//=; apply/orP; right.
 Qed.
+
 Lemma btExtend_withDup_noEffect (bt : BlockTree) (b : block):
   b ∈ bt -> bt = (btExtend bt b).
 Proof. by rewrite/btHasBlock/btExtend=>/andP[]->->. Qed.
+
 (* There must be a better way to prove this. *)
 Lemma btExtend_comm bt b1 b2 :
   valid (btExtend (btExtend bt b1) b2) ->
@@ -771,16 +781,18 @@ by move: (N0 Q Hh) Z=>->; rewrite eq_refl.
 Qed.
 
 Lemma btExtendV_fold_comm' bt xs ys :
+  validH bt ->
   valid (foldl btExtend (foldl btExtend bt xs) ys) ->
   valid (foldl btExtend (foldl btExtend bt ys) xs).
 Proof.
+move=>Vh.
 elim/last_ind: ys=>[|ys y V1]//= V.
 move: (btExtendV_fold1 V)=>V0; specialize (V1 V0).
-rewrite -foldl_cat; apply btExtendV_fold_no_collisions.
+rewrite -foldl_cat; apply btExtendV_no_collisions_valid=>//=.
 rewrite/no_collisions; split.
 have X: (xs = [::] ++ xs) by [].
 by move: V0; rewrite -foldl_cat X; move/btExtendV_fold/btExtendV_fold.
-move: V; rewrite -foldl_cat; move/btExtendV_fold_no_collisions.
+move: V; rewrite -foldl_cat; move/btExtendV_valid_no_collisions.
 rewrite/no_collisions; case=>V H.
 move=>a; rewrite mem_cat Bool.orb_comm=>X.
 specialize (H a); rewrite mem_cat in H; specialize (H X).
@@ -789,9 +801,11 @@ move=>b; rewrite mem_cat Bool.orb_comm -mem_cat; apply H0.
 Qed.
 
 Lemma btExtendV_fold_comm bt xs ys :
+  validH bt ->
   valid (foldl btExtend (foldl btExtend bt xs) ys) =
   valid (foldl btExtend (foldl btExtend bt ys) xs).
 Proof.
+move=>Vh.
 have T: true by [].
 have X: forall (a b : bool), a <-> b -> a = b.
 by move=>a b []; case: a; case: b=>//= A B;
@@ -800,10 +814,8 @@ by apply X; split; apply btExtendV_fold_comm'.
 Qed.
 
 Lemma btExtendV_fold' bt xs ys :
-  valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt ys).
-Proof. by rewrite foldl_cat btExtendV_fold_comm -foldl_cat=>/btExtendV_fold. Qed.
-
-
+  validH bt-> valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt ys).
+Proof. by move=>Vh; rewrite foldl_cat btExtendV_fold_comm //= -foldl_cat=>/btExtendV_fold. Qed.
 
 Section BlockTreeProperties.
 
@@ -1592,18 +1604,20 @@ Qed.
 
 (* This should not actually require validity! *)
 Lemma btExtend_fold_comm (bt : BlockTree) (bs bs' : seq block) :
-    valid (foldl btExtend (foldl btExtend bt bs) bs') ->
-    foldl btExtend (foldl btExtend bt bs) bs' =
-    foldl btExtend (foldl btExtend bt bs') bs.
+  validH bt ->
+  valid (foldl btExtend (foldl btExtend bt bs) bs') ->
+  foldl btExtend (foldl btExtend bt bs) bs' =
+  foldl btExtend (foldl btExtend bt bs') bs.
 Proof.
+move=>Vh;
 elim/last_ind: bs'=>[|xs x Hi]/=; first done.
 move=>V; rewrite -cats1 !foldl_cat Hi=>/=; last by apply: btExtendV_fold1 V.
 specialize (Hi (btExtendV_fold1 V)).
 rewrite -Hi; clear Hi.
 elim/last_ind: bs V=>[|ys y H]//=.
-rewrite (btExtendV_fold_comm bt (rcons ys y) _); rewrite -{1}(cats1 ys y) foldl_cat //=.
+rewrite (btExtendV_fold_comm (rcons ys y) _) //=; rewrite -{1}(cats1 ys y) foldl_cat //=.
 (* Losing info; will need to use this *)
-move/btExtendV; rewrite (btExtendV_fold_comm bt (rcons xs x) ys)=>V.
+move/btExtendV; rewrite (btExtendV_fold_comm (rcons xs x) ys)//==>V.
 specialize (H V).
 rewrite -{2}(cats1 ys y) foldl_cat //= -H.
 Admitted.
@@ -1676,11 +1690,12 @@ by apply: FCR_excl.
 Qed.
 
 Lemma btExtendV_within bt bs b :
+  validH bt ->
   valid (foldl btExtend bt bs) ->
   b \in bs ->
   valid (btExtend bt b).
 Proof.
-move=>V H; move: (in_seq H)=>[bf] [af] H0.
+move=>Vh V H; move: (in_seq H)=>[bf] [af] H0.
 rewrite H0 in V; clear H0; elim: bf V=>[|x xs Hi]//=.
 have E:
   valid (foldl btExtend (btExtend bt b) af) =
@@ -1695,27 +1710,30 @@ move=>D.
 have X: (# x \\-> x \+ bt = btExtend bt x) by rewrite/btExtend D.
 have Y: (btExtend bt x) = foldl btExtend bt [:: x] by [].
 rewrite X Y -(foldl_cat _ _ [:: x] _).
-by move/btExtendV_fold'; rewrite cat1s; apply Hi.
+by move/btExtendV_fold'=>Z; move: (Z Vh); rewrite cat1s; apply Hi.
 Qed.
 
 Lemma btExtend_fold_within bt bs bf b af :
+  validH bt ->
   valid (foldl btExtend bt bs) ->
   bs = bf ++ b::af ->
   foldl btExtend (btExtend bt b) (af ++ bf) =
   foldl btExtend bt bs.
 Proof.
-move=>V E; subst bs; rewrite -cat1s catA.
+move=>Vh V E; subst bs; rewrite -cat1s catA.
+move: (btExtendV_fold_xs V)=>V0.
 rewrite (foldl_cat _ _ (bf ++ [::b]) _).
 have X: foldl btExtend bt (bf ++ [:: b]) =
         foldl btExtend bt ([:: b] ++ bf).
-rewrite !foldl_cat; apply btExtend_fold_comm.
-by rewrite -cat1s catA in V; move/btExtendV_fold: V; rewrite -foldl_cat.
+rewrite !foldl_cat; apply btExtend_fold_comm=>//=.
+by rewrite -cat1s catA in V; move/btExtendV_fold: V; rewrite foldl_cat.
 rewrite X -foldl_cat -catA //= !foldl_cat; apply btExtend_fold_comm.
+apply btExtendH=>//=.
 have Y: (btExtend bt b = foldl btExtend bt [:: b]) by [].
 rewrite -foldl_cat.
 have A: valid (foldl btExtend (btExtend bt b) (af ++ bf)) =
         valid (foldl btExtend (btExtend bt b) (bf ++ af))
-by rewrite !foldl_cat btExtendV_fold_comm.
+by rewrite !foldl_cat btExtendV_fold_comm //=; apply btExtendH.
 by rewrite A Y -foldl_cat catA foldl_cat -X -foldl_cat -catA //=.
 Qed.
 
@@ -1726,7 +1744,7 @@ Lemma btExtend_seq_same bt b bs:
 Proof.
 move=>V Vh Ib H1.
 move: (in_seq H1)=>[bf] [af] H2; rewrite H2.
-move: (btExtendV_within V H1)=>V'.
+move: (btExtendV_within Vh V H1)=>V'.
 move: (btExtendV V')=>V0.
 move=>H;
 move: (btExtend_sameOrBetter V' Vh Ib)=>H0.
@@ -1737,7 +1755,8 @@ rewrite foldl_cat btExtend_fold_comm. rewrite foldl_cat /= - foldl_cat.
 (have: validH (btExtend bt b) by apply btExtendH)=>Vh'.
 (have: has_init_block (btExtend bt b) by apply btExtendIB)=>Ib'.
 apply btExtend_fold_not_worse=>//=.
-by move: (btExtend_fold_within V H2)=>Eq; rewrite Eq.
+by move: (btExtend_fold_within Vh V H2)=>Eq; rewrite Eq.
+done.
 by rewrite H2 in V; rewrite -foldl_cat //=.
 Qed.
 
@@ -1759,7 +1778,7 @@ Lemma btExtend_seq_sameOrBetter_fref :
     bc >= btChain (btExtend bt b).
 Proof.
 move=> bc bt b bs V Vh Ib H HGt HGt'.
-move: (btExtendV_within V H)=>V'.
+move: (btExtendV_within Vh V H)=>V'.
 move: (btExtendV V')=>V0.
 move: (in_seq H)=>[bf] [af] H'; rewrite H' in HGt'; clear H;
 (have: validH (btExtend bt b) by apply btExtendH)=>Vh';
@@ -1768,7 +1787,7 @@ move: (btExtend_sameOrBetter V' Vh Ib)=>H.
 move: (btExtend_fold_sameOrBetter V Vh Ib).
 rewrite -cat1s foldl_cat btExtend_fold_comm in HGt' *.
 rewrite foldl_cat /= -foldl_cat in HGt' *.
-move: (btExtend_fold_within V H')=>Eq.
+move: (btExtend_fold_within Vh V H')=>Eq.
 have V1: valid (foldl btExtend (btExtend bt b) (af ++ bf)) by rewrite Eq.
 move=>H0; case: HGt; case: HGt'; case: H; case: H0; move=>h0 h1 h2 h3.
 - by left; rewrite h1 h3.
@@ -1793,6 +1812,7 @@ have: (btChain (foldl btExtend (btExtend bt b) (af ++ bf))
 case=>[|H].
 by move=><-; right.
 by right; move: (FCR_trans h2 H).
+done.
 by rewrite -foldl_cat cat1s -H'.
 Qed.
 
@@ -2693,7 +2713,7 @@ move: (btExtendV V') (btExtendV Vl')=>V Vl.
 have Z: (btExtend bt b = foldl btExtend bt [:: b]) by [].
 have V0: valid (foldl btExtend (foldl btExtend bt bs) [::b]) by rewrite -Ec.
 have H1: btChain (btExtend bt b) \in good_chains (btExtend cbt b).
-- rewrite Ec; move: (btExtend_fold_comm V0)=>/=->.
+- rewrite Ec; move: (btExtend_fold_comm Vhl V0)=>/=->.
   apply: btExtend_good_chains_fold=>//=.
   by rewrite Z btExtendV_fold_comm.
   by apply: (btExtendH Vl Vhl).
@@ -2747,7 +2767,7 @@ rewrite Q Ec in Gt.
 have Z: (btExtend (foldl btExtend bt bs) b =
          foldl btExtend (foldl btExtend bt bs) [:: b]) by [].
 have Vz: valid (foldl btExtend (foldl btExtend bt bs) [:: b]) by rewrite -Ec.
-move: (btExtend_fold_comm Vz)=>Ez; rewrite Z Ez //= in Gt.
+move: (btExtend_fold_comm Vhl Vz)=>Ez; rewrite Z Ez //= in Gt.
 (* move: (btExtend_fold_comm bs [::b] Vl)=>/==>Z; rewrite Z in Gt. *)
 
 (* Boring stuff *)
@@ -2812,7 +2832,7 @@ rewrite Ec -(@foldl1 _ _ btExtend (foldl _ _ _)) btExtend_fold_comm /= //.
 apply/eqP; rewrite eq_sym; apply/eqP; apply btExtend_compute_chain_fold=>//.
 
 have Z: (btExtend bt b = foldl btExtend bt [::b]) by [].
-by rewrite Z btExtendV_fold_comm -Ec//=.
+rewrite Z btExtendV_fold_comm ?Vh //= -Ec //=.
 by rewrite -Ec.
 
 rewrite Eq in Gt. move: Gt.
