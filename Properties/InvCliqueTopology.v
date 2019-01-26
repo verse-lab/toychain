@@ -19,16 +19,6 @@ blocks towars it "in flight" are received and used to extend the local
 block tree. *)
 (*******************************************************************)
 
-Definition saturated_chain w bc :=
-  (* For any tree that induces bc *)
-  forall bt, bc = btChain bt ->
-    (* For any node in the world *)
-    forall (n : Address), holds n w
-    (* For any block in its local BlockTree *)
-    (fun st => forall b, b ∈ blockTree st ->
-    (* This block is not going to affect the blockchain out of bt *)
-    btChain (btExtend bt b) = bc).
-
 Definition valid_with_bc bt bc :=
   [/\ valid bt, validH bt & has_init_block bt] /\
    bc = btChain bt.
@@ -41,7 +31,7 @@ Definition GSyncing_clique w :=
    largest_chain w bc,
 
    (* An "accumulated" block-tree and its chain *)
-   valid_with_bc bt bc,
+   valid_with_bc bt bc \/ ~~ valid bt,
 
    (* bt is complete *)
    good_bt bt,
@@ -58,14 +48,24 @@ Definition clique_inv (w : World) :=
   Coh w /\ GSyncing_clique w.
 
 Lemma clique_eventual_consensus w :
-  clique_inv w -> exists bc,
-    largest_chain w bc /\
-    forall n, blocksFor n w == [::] ->
-              holds n w (fun st => (has_chain bc st)).
+  clique_inv w -> (forall n, blocksFor n w == [::]) ->
+  exists bc, largest_chain w bc /\
+  forall n, holds n w (fun st => (has_chain bc st)).
 Proof.
-case=>C; case=>[bc][bt][can_n][H1 H2 [_ H3] H4 H5 H6]. 
-exists bc; split=>// n Na st Fw; move/eqP:Na=>Na.
-by move:(H6 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
+case=>C; case=>[bc][bt][can_n] [H1 H2 H3 H4 H5 H6]=>N; case: H3=>V.
+exists bc; split=>// n st Fw; move: (N n)=>Na; move/eqP:Na=>Na.
+move:(H6 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
+by move: V; rewrite/valid_with_bc=>[] [] _.
+(* After a hash collision, the GenesisBlock is the canonical chain. *)
+(* Once this is propagated, it becomes the largest chain. *)
+exists [::GenesisBlock]; split; last first.
+move=>n st Fw; move: (N n)=>Na; move/eqP: Na=>Na; move:(H6 n _ Fw);
+rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
+by move/invalidE: V=>->; rewrite/btChain/all_chains/all_blocks dom_undef.
+rewrite/largest_chain/has_chain=>n' bc'.
+move: (H6 n'); rewrite/holds=>X st F; move: (X st F); move: (N n')=>/eqP-> //= <- /eqP;
+move/invalidE: V=>->; rewrite/btChain/all_chains/all_blocks dom_undef //=.
+by left.
 Qed.
 
 (*********************************************************)
@@ -110,9 +110,10 @@ Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
   foldl f init [:: val] = f init val.
 Proof. done. Qed.
 
-(* This doesn't need validity of the foldl *)
 Lemma rem_non_block w bt p :
-  valid bt -> validH bt ->
+  valid (foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- inFlightMsgs w & dst p0 == dst p]) ->
+  validH bt ->
   has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->
   foldl btExtend bt [seq msg_block (msg p0) |
                  p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p] =
@@ -121,22 +122,33 @@ Lemma rem_non_block w bt p :
 Proof.
 move=>V Vh H Nb.
 case B: (p \in (inFlightMsgs w)); last by move/negbT/rem_id: B=>->.
-case: (in_seq_neq B)=>xs [ys][->]Ni{B}.
-rewrite rem_elem// !filter_cat !map_cat !foldl_cat/= eqxx map_cons.
+case: (in_seq_neq B)=>xs [ys][E]; rewrite E=>Ni{B}.
+move: V; rewrite E.
+rewrite rem_elem// !filter_cat !map_cat !foldl_cat/= eqxx map_cons=>V.
 have X: msg_block (msg p) = GenesisBlock.
 - by case: (msg p) Nb=>//b Nb; move: (Nb b); move/negbTE; rewrite eqxx.
 rewrite X -cat1s foldl_cat; clear X.
 have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
 rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold=>//=.
+by move: V; rewrite -foldl_cat; move/btExtendV_fold.
 Qed.
 
 Lemma foldl_btExtend_last bt ps b :
-  valid bt ->
-  foldl btExtend bt ((rcons ps) b) = foldl btExtend (btExtend bt b) ps.
+  valid (foldl btExtend bt (rcons ps b)) ->
+  validH bt ->
+  foldl btExtend bt (rcons ps b) = foldl btExtend (btExtend bt b) ps.
 Proof.
-move=>V; rewrite -cats1 foldl_cat.
-elim: ps b bt V=>//=x xs Hi b bt V; rewrite btExtend_comm//.
-by rewrite Hi// -btExtendV.
+move=>V Vh; rewrite -cats1 foldl_cat.
+have V0: valid bt.
+  by move: V; move/btExtendV_fold1; move/btExtendV_fold_xs.
+elim: ps b bt V Vh V0=>//=x xs Hi b bt V Vh V0; rewrite btExtend_comm//.
+rewrite Hi //=.
+apply btExtendH=>//=;
+move: V; rewrite -cats1 foldl_cat btExtendV_fold_comm.
+by move: V; move/btExtendV_fold_xs.
+move: V; rewrite -cats1 foldl_cat btExtendV_fold_comm.
+by move/btExtendV_fold_xs=>//=; rewrite btExtendV_comm.
+by apply btExtendH=>//=.
 Qed.
 
 Lemma broadcast_reduce id peers X n :
@@ -211,16 +223,22 @@ Ltac no_change can_bc can_bt can_n w F F' HExt c5 :=
        move: (HExt _ _ F').
 
 Lemma foldl_expand cbt bt bs :
-  valid bt ->
+  valid (foldl btExtend bt bs) ->
+  validH bt ->
   cbt = foldl btExtend bt bs -> exists q, cbt = bt \+ q.
 Proof.
-move=>V.
-elim: bs cbt=>//=[|b bs Hi]cbt E; first by by exists Unit; rewrite unitR.
-rewrite -foldl_btExtend_last//= -cats1 foldl_cat/= in E.
-case: (Hi (foldl btExtend bt bs) (erefl _))=>q E'.
+move=>V Vh; move: (btExtendV_fold_xs V)=>V0.
+elim: bs cbt V=>//=[|b bs Hi]cbt V E; first by by exists Unit; rewrite unitR.
+have V': valid (foldl btExtend (btExtend bt b) bs) by [].
+rewrite -foldl_btExtend_last//= in E V. rewrite -cats1 foldl_cat/= in E V.
+have Vx: valid (foldl btExtend bt bs) by move/btExtendV: V.
+case: (Hi (foldl btExtend bt bs) Vx (erefl _))=>q E'.
 rewrite E' in E; subst cbt; rewrite /btExtend.
-case:ifP=>X; first by exists q.
+case:ifP=>X.
+- case: ifP; first by exists q.
+  by exists um_undef; rewrite join_undefR.
 by exists (# b \\-> b \+ q); rewrite joinCA.
+by rewrite -cats1 foldl_cat btExtendV_fold_comm.
 Qed.
 
 (********************************************************************)
