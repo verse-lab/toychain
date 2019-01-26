@@ -19,19 +19,17 @@ blocks towars it "in flight" are received and used to extend the local
 block tree. *)
 (*******************************************************************)
 
-Definition valid_with_bc bt bc :=
-  [/\ valid bt, validH bt & has_init_block bt] /\
-   bc = btChain bt.
-
 Definition GSyncing_clique w :=
+  (* There exists a priviledged node, "canonical" blocktree and blockchain *)
   exists (bc : Blockchain) (bt : BlockTree) (n : Address),
-  [/\ holds n w (has_chain bc),
+    (* The priviledged node holds the canonical blocktree *)
+  [/\ holds n w (has_bt bt),
 
-   (* The canonical chain is the largest in the network *)
-   largest_chain w bc,
-
-   (* An "accumulated" block-tree and its chain *)
-   valid_with_bc bt bc \/ ~~ valid bt,
+   (* Either:
+      a) the canonical chain is largest in the network, OR
+      b) a hash collision has occured
+    *)
+   (valid_with_bc bt bc /\ largest_chain w bc) \/ ~~ valid bt,
 
    (* bt is complete *)
    good_bt bt,
@@ -52,18 +50,18 @@ Lemma clique_eventual_consensus w :
   exists bc, largest_chain w bc /\
   forall n, holds n w (fun st => (has_chain bc st)).
 Proof.
-case=>C; case=>[bc][bt][can_n] [H1 H2 H3 H4 H5 H6]=>N; case: H3=>V.
+case=>C; case=>[bc][bt][can_n] [H1 H2 H3 H4 H5]=>N; case: H2=>[[V Gt]|V].
 exists bc; split=>// n st Fw; move: (N n)=>Na; move/eqP:Na=>Na.
-move:(H6 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
+move:(H5 n _ Fw); rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
 by move: V; rewrite/valid_with_bc=>[] [] _.
 (* After a hash collision, the GenesisBlock is the canonical chain. *)
 (* Once this is propagated, it becomes the largest chain. *)
 exists [::GenesisBlock]; split; last first.
-move=>n st Fw; move: (N n)=>Na; move/eqP: Na=>Na; move:(H6 n _ Fw);
+move=>n st Fw; move: (N n)=>Na; move/eqP: Na=>Na; move:(H5 n _ Fw);
 rewrite Na/= /has_chain=><-; rewrite eq_sym; apply/eqP.
 by move/invalidE: V=>->; rewrite/btChain/all_chains/all_blocks dom_undef.
 rewrite/largest_chain/has_chain=>n' bc'.
-move: (H6 n'); rewrite/holds=>X st F; move: (X st F); move: (N n')=>/eqP-> //= <- /eqP;
+move: (H5 n'); rewrite/holds=>X st F; move: (X st F); move: (N n')=>/eqP-> //= <- /eqP;
 move/invalidE: V=>->; rewrite/btChain/all_chains/all_blocks dom_undef //=.
 by left.
 Qed.
@@ -194,10 +192,14 @@ Ltac NBlockMsg_dest_btChain q st p b Msg P H :=
   move: (procMsg_non_block_nc_btChain st (src p) (ts q) H);
   rewrite/has_chain Msg P /==><-.
 
-Ltac BlockMsg_dest q st from b iF P Msg :=
+Ltac BlockMsg_dest_btChain q st from b iF P Msg :=
   rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
   rewrite/has_chain (procMsg_block_btExtend_btChain st from b (ts q));
   move: (b_in_blocksFor iF Msg)=>iB.
+
+Ltac BlockMsg_dest_bt P Msg :=
+  rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>P _;
+  rewrite/has_bt -P Msg procMsg_block_btExtend_bt.
 
 Ltac simplw w :=
 have: ((let (_, inFlightMsgs, _) := w in inFlightMsgs) = inFlightMsgs w) by [];
@@ -245,32 +247,83 @@ Qed.
 (************* Invariant inductivity proof **************************)
 (********************************************************************)
 
+(* Move in an appropriate place *)
+Lemma btExtend_undef b :
+  btExtend um_undef b = um_undef.
+Proof. by rewrite/btExtend dom_undef in_nil join_undefR. Qed.
+
 Lemma clique_inv_step w w' q :
   clique_inv w -> system_step w w' q -> clique_inv w'.
 Proof.
 move=>Iw S; rewrite/clique_inv; split; first by apply (Coh_step S).
 case: S; first by elim; move=>_ <-; apply Iw.
 (* Deliver *)
-move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5 c6] Al iF F.
+move=> p st Cw. assert (Cw' := Cw). case Cw'=>[c1 c2 c3 c4 c5] Al iF F.
 case: Iw=>_ GSyncW.
 case: GSyncW=>can_bc [can_bt] [can_n] []
-             HHold HGt [C] [HBc] HGood HCliq HExt.
+             HHold C HGood HCliq HExt.
   move=>P; assert (P' := P).
   move: P; case P: (procMsg _ _ _ _)=>[stPm ms]; move=>->.
-  (* The canonical chain is guaranteed to remain the same for any Msg *)
-  exists can_bc, can_bt, can_n; split=>//.
-
-  (* can_n still retains can_bc *)
+  exists can_bc, can_bt, can_n; case: C=>C; last first.
+  (** Case 1: the global block forest is invalid. **)
+  split=>//=.
+  (* can_n still retains can_bt *)
   + move=>st'; rewrite findU c1 /=;
     case: ifP; last by move=>_ F'; apply (HHold _ F').
     move/eqP=>Eq [Eq']; subst can_n stPm.
-    case Msg: (msg p)=>[||b|||]; rewrite Msg in P;
-    do? by [NBlockMsg_dest_btChain q st p b Msg P H; move: (HHold _ F)].
-    BlockMsg_dest q st (src p) b iF P Msg;
-    move: (c3 (dst p) _ F) (c4 (dst p) _ F) (c5 (dst p) _ F)=>V Vh Ib;
-    rewrite -(btExtend_seq_same V Vh Ib iB); move: (HHold _ F); first done.
-    by rewrite/has_chain=>/eqP->; rewrite HBc;
-       move: (HExt (dst p) _ F)=><-.
+    case Msg: (msg p)=>[||b|||]; do? by
+    [NBlockMsg_dest_bt q st p b Msg H; move/eqP: (HHold _ F);
+      rewrite/has_bt P //==>-><-].
+    by BlockMsg_dest_bt P Msg;
+        move/eqP: (HHold _ F)=>->; move/invalidE: C=>->;
+        apply/eqP; apply btExtend_undef.
+
+  (* bt is still invalid *)
+  + by right.
+
+  (* clique topology is maintained *)
+  (* literally copy/paste; TODO: remove duplication *)
+  + move=>n' st'; rewrite findU c1 /=;
+    move: (HCliq (dst p) _ F)=>H1;
+    move: (step_nodes (Deliver Cw Al iF F P'))=>H2;
+    simplw w=>H3 _;
+    rewrite P in P'; rewrite P' /localState H3 in H2; clear P' H3.
+    case: ifP.
+    * move/eqP=>Eq [Eq']; subst n' stPm;
+      move=>z; specialize (H1 z); specialize (H2 z).
+      rewrite H2 in H1; move=>H3. specialize (H1 H3).
+      case Msg: (msg p)=>[prs|||||]; rewrite Msg in P;
+      rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
+      destruct st; rewrite/procMsg/=; do? by [];
+      do? rewrite /Protocol.peers in H1.
+      case filter => //= s l.
+      by rewrite mem_undup mem_cat; apply/orP; left.
+      by case: ifP=>_;
+         [rewrite mem_undup|rewrite -cat1s mem_cat mem_undup; apply/orP; right].
+    * case: ifP=>//_; first by case: ifP; move/eqP => //= H_eq; case ohead.
+      move/eqP => H_neq.
+      move => F'; clear H1; move: (HCliq n' _ F')=>H1.
+      move=>z; specialize (H1 z); specialize (H2 z).
+      by rewrite H2 in H1=>H3; specialize (H1 H3).
+
+  (* applying is conserved *)
+  + admit. 
+
+  (** Case 2: the global block forest is valid. **)
+  case: C=>V Gt; split=>//.
+  (* can_n still retains can_bt *)
+  + move=>st'; rewrite findU c1 /=;
+    case: ifP; last by move=>_ F'; apply (HHold _ F').
+    move/eqP=>Eq [Eq']; subst can_n stPm.
+    case Msg: (msg p)=>[||b|||]; do? by
+    [NBlockMsg_dest_bt q st p b Msg H; move/eqP: (HHold _ F);
+      rewrite/has_bt P //==>-><-].
+    BlockMsg_dest_bt P Msg.
+    move: (HHold _ F); rewrite/has_bt=>/eqP Eq.
+    move: V; rewrite/valid_with_bc=>[[][]]V Vh Ib Cbc.
+    move: (b_in_blocksFor iF Msg)=>iB.
+    rewrite Eq -(btExtend_seq_same_bt _ Vh Ib iB) //=;
+    by move: (HExt (dst p) _ F); rewrite Eq=><-.
 
   (* can_bc is still the largest chain *)
   + move=>n' bc'; rewrite/holds findU c1 /=; case: ifP.
