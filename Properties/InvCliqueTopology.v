@@ -387,9 +387,15 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       case Msg: (msg p)=>[|||||hash];
       set old_msgs := [seq msg_block (msg p) | p <- inFlightMsgs w & dst p == n'];
       set bt := (foldl btExtend (blockTree st') old_msgs);
-      move: (c3 _ _ F')=>h3; move: (c4 _ _ F')=>h4; move: (c5 _ _ F')=>h5;
-      move: (btExtendIB_fold old_msgs h3 h4 h5)=>hIB; rewrite-/bt in hIB;
-      clear h3 h4 h5;
+      move: (c3 _ _ F')=>h3; move: (c4 _ _ F')=>h4;
+      move: Vc; rewrite/valid_with_bc=>[[][]]Vc' Vh' Ib' Cbc;
+      (have V0: valid (blockTree st')
+        by move: Vc'; move: (HExt _ _ F')=>->; move/btExtendV_fold_xs);
+      specialize (h3 V0); specialize (h4 V0);
+      (have h2:  valid (foldl btExtend (blockTree st') (blocksFor n' w))
+        by rewrite (HExt _ _ F') in Vc');
+      move: (btExtendIB_fold h3 h2 h4)=>hIB; rewrite-/bt in hIB;
+      clear h2 h3 h4;
       rewrite X-/bt; clear X=>E;
       do? by [
         (have: (msg_type (msg p) != MGetData) by rewrite Msg)=>notGD;
@@ -404,29 +410,25 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       - rewrite/get_block. (* blockTree wrt. the state of (dst p) in w *)
         case X: (find hash blockTree0)=>[b|].
         -- case: ifP => //=; move/eqP => H_n'.
-           rewrite -E; suff BIn: (b ∈ can_bt)
-           by move: BIn; rewrite/btHasBlock=>/andP [BIn BIn1];
-              apply (btExtend_withDup_noEffect BIn).
-           by move: (HExt _ _ F)=>/= ->; move: (find_some X)=>Dom;
-              move: (c4 _ _ F hash b X)=>H; rewrite H in Dom;
-              rewrite/btHasBlock;
-              (have Hb: (b ∈ blockTree0) by
-                rewrite/btHasBlock Dom -H; move: X=>->; rewrite eq_refl);
-              move: (btExtend_fold_preserve (blocksFor (dst p) w) (c3 _ _ F) Hb).
-        -- move: (find_some hIB)=>hG.
-           case: ifP => //=.
-           move/eqP => H_n'.
+           rewrite -E; suff BIn: (b ∈ can_bt).
+             by apply (btExtend_withDup_noEffect BIn).
+           move: (HExt _ _ F)=>/= ->; apply btExtend_fold_preserve.
+           by move: (HExt _ _ F)=><-.
+           rewrite/btHasBlock; move: (find_some X)=>Dom.
+           have V0': valid blockTree0.
+            by move: Vc'; move: (HExt _ _ F)=>//=->; move/btExtendV_fold_xs.
+           by move: (c3 _ _ F V0' _ _ X)=>Eq; subst hash; rewrite Dom X eq_refl.
+        -- move: hIB; rewrite/has_init_block=>ibF.
+           move: (find_some ibF)=>ibD.
+           case: ifP => //=. move/eqP => H_n'.
+           have hG: (GenesisBlock ∈ bt) by rewrite/btHasBlock ibF ibD eq_refl.
            by move: (btExtend_withDup_noEffect hG)=><-.
-      - by case ohead => [tx|] //=;
+      - case ohead => [tx|] //=; by
          case: ifP => //=; move/eqP => H_eq;
          rewrite -E;
-         (suff BIn: (GenesisBlock ∈ can_bt)
-           by move: BIn; rewrite/btHasBlock=>/andP [BIn BIn1];
-              apply (btExtend_withDup_noEffect BIn));
-         move: C => [H_v H_v'] => H_ib;
-         rewrite /has_init_block in H_ib;
-         rewrite /btHasBlock H_ib eq_refl;
-         move: (find_some H_ib)=>->.
+         (suff BIn: (GenesisBlock ∈ can_bt) by apply (btExtend_withDup_noEffect BIn));
+         move: Ib'; rewrite/has_init_block=>ibF; move: (find_some ibF)=>ibD;
+         rewrite/btHasBlock ibF ibD eq_refl.
     * move/eqP=>Eq [Eq']; subst n' stPm.
       rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
       move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
