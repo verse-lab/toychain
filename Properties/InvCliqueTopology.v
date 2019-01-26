@@ -307,10 +307,10 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       by rewrite H2 in H1=>H3; specialize (H1 H3).
 
   (* applying is conserved *)
-  + admit. 
+  + admit.
 
   (** Case 2: the global block forest is valid. **)
-  case: C=>V Gt; split=>//.
+  case: C=>Vc HGt; split=>//.
   (* can_n still retains can_bt *)
   + move=>st'; rewrite findU c1 /=;
     case: ifP; last by move=>_ F'; apply (HHold _ F').
@@ -320,19 +320,20 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       rewrite/has_bt P //==>-><-].
     BlockMsg_dest_bt P Msg.
     move: (HHold _ F); rewrite/has_bt=>/eqP Eq.
-    move: V; rewrite/valid_with_bc=>[[][]]V Vh Ib Cbc.
+    move: Vc; rewrite/valid_with_bc=>[[][]]Vc Vh Ib Cbc.
     move: (b_in_blocksFor iF Msg)=>iB.
     rewrite Eq -(btExtend_seq_same_bt _ Vh Ib iB) //=;
     by move: (HExt (dst p) _ F); rewrite Eq=><-.
 
   (* can_bc is still the largest chain *)
+  left; split=>//=.
   + move=>n' bc'; rewrite/holds findU c1 /=; case: ifP.
     move/eqP=>Eq st' [Eq']; subst n' stPm.
     case Msg: (msg p)=>[||b|||]; rewrite Msg in P;
     do? by
     [NBlockMsg_dest_btChain q st p b Msg P H=>Hc; move: (HGt (dst p) bc' _ F Hc)].
-    by BlockMsg_dest q st (src p) b iF P Msg;
-       move: (c3 (dst p) _ F) (c4 (dst p) _ F) (c5 (dst p) _ F)=>V Vh Ib;
+    BlockMsg_dest_btChain q st (src p) b iF P Msg;
+       move: (c3 (dst p) _ F) (c4 (dst p) _ F) (c5 (dst p) _ F)=>Vh Ib _;
        move/eqP=>Eq; subst bc';
        (have: (has_chain (btChain (blockTree st)) st)
           by rewrite/has_chain eqxx)=>O;
@@ -340,9 +341,12 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
        move: (HExt (dst p) _ F)=>Ext;
        (have: (btChain can_bt =
                btChain (foldl btExtend (blockTree st) (blocksFor (dst p) w)))
-        by rewrite Ext);
-       rewrite -HBc; move=>Ext';
-       move: (btExtend_seq_sameOrBetter_fref' V Vh Ib iB Gt Ext').
+        by rewrite Ext).
+    move: Vc; rewrite/valid_with_bc=>[[][]]Vc' Vh' Ib' Cbc.
+    have V0: valid (blockTree st) by move: Vc'; rewrite Ext; move/btExtendV_fold_xs.
+    specialize (Vh V0); specialize (Ib V0).
+    rewrite -Cbc; move=>Ext'; rewrite Ext in Vc'.
+    by move: (btExtend_seq_sameOrBetter_fref' Vc' Vh Ib iB Gt Ext').
     by move=>_ st' F'; move: (HGt n' bc' st' F').
 
   (* clique topology is maintained *)
@@ -533,7 +537,7 @@ case: t P P'=>[tx|] P P'; last first.
       by move: (@btExtend_compute_chain_fold (btExtend blockTree new_block)
                (blocksFor proc w) new_block V' Vh' Ib' (proj1 Gc))=>->; move/andP: Gc.
       by move: (c3 _ _ F).
-    
+
     split=>//.
 
     (* HHold *)
@@ -612,7 +616,7 @@ case: t P P'=>[tx|] P P'; last first.
       by move: (@btExtend_compute_chain_fold (btExtend blockTree new_block)
                (blocksFor proc w) new_block V' Vh' Ib' (proj1 Gc))=>->; move/andP: Gc.
       by move: (c3 _ _ F).
-      
+
     split=>//.
 
     (* HHold *)
@@ -634,12 +638,12 @@ case: t P P'=>[tx|] P P'; last first.
 
     (* HBc *)
     rewrite HBc in Gt *.
-    move: (HExt _ _ F)=>/= H; move/FCR_dual:Gt=>Gt. 
+    move: (HExt _ _ F)=>/= H; move/FCR_dual:Gt=>Gt.
     case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
     have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
     by move: (@btExtend_within can_bt _ new_block _ C1 C2
                C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Z Gt P H Gt1).
-   
+
     (* HCliq *)
     procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
 
