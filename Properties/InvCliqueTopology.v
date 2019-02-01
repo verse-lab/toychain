@@ -108,6 +108,40 @@ Lemma foldl1 {A B : Type} (f : A -> B -> A) (init : A) (val : B) :
   foldl f init [:: val] = f init val.
 Proof. done. Qed.
 
+Lemma btExtend_undef b :
+  btExtend um_undef b = um_undef.
+Proof. by rewrite/btExtend dom_undef in_nil join_undefR. Qed.
+
+Lemma btExtend_fold_undef bs :
+  foldl btExtend um_undef bs = um_undef.
+Proof.
+elim/last_ind: bs=>//=bs b; rewrite -cats1 foldl_cat=>->//=; apply btExtend_undef.
+Qed.
+
+Lemma rem_non_block' w bt p :
+  validH bt ->
+  has_init_block bt -> (forall b : Block, msg p != BlockMsg b) ->
+  foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p] =
+  foldl btExtend bt [seq msg_block (msg p0) |
+                 p0 <- inFlightMsgs w & dst p0 == dst p].
+Proof.
+move=>Vh H Nb.
+case B: (p \in (inFlightMsgs w)); last by move/negbT/rem_id: B=>->.
+case: (in_seq_neq B)=>xs [ys][E]; rewrite E=>Ni{B}.
+rewrite rem_elem// !filter_cat !map_cat !foldl_cat/= eqxx map_cons.
+have X: msg_block (msg p) = GenesisBlock.
+- by case: (msg p) Nb=>//b Nb; move: (Nb b); move/negbTE; rewrite eqxx.
+rewrite X -cat1s foldl_cat; clear X.
+have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
+case V: (valid (foldl btExtend bt
+          [seq msg_block (msg p0) | p0 <- xs & dst p0 == dst p])).
+by rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold=>//=.
+move: V; rewrite -Bool.negb_true_iff=>V; move/invalidE: V=>->.
+by rewrite !btExtend_fold_undef.
+Qed.
+
+(* TODO: replace uses in invariant with above version*)
 Lemma rem_non_block w bt p :
   valid (foldl btExtend bt [seq msg_block (msg p0) |
                  p0 <- inFlightMsgs w & dst p0 == dst p]) ->
@@ -117,18 +151,35 @@ Lemma rem_non_block w bt p :
                  p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p] =
   foldl btExtend bt [seq msg_block (msg p0) |
                  p0 <- inFlightMsgs w & dst p0 == dst p].
+Proof. by move=>V Vh Ib Nb; apply rem_non_block'. Qed.
+
+Lemma rem_block w bt p b :
+  valid bt ->
+  validH bt ->
+  p \in (inFlightMsgs w) ->
+  msg p = BlockMsg b ->
+  foldl btExtend (btExtend bt b)
+       [seq msg_block (msg p0) | p0 <- seq.rem p (inFlightMsgs w) & dst p0 == dst p] =
+  foldl btExtend bt
+       [seq msg_block (msg p0) | p0 <- inFlightMsgs w & dst p0 == dst p].
 Proof.
-move=>V Vh H Nb.
-case B: (p \in (inFlightMsgs w)); last by move/negbT/rem_id: B=>->.
+move=>V Vh B X.
 case: (in_seq_neq B)=>xs [ys][E]; rewrite E=>Ni{B}.
-move: V; rewrite E.
-rewrite rem_elem// !filter_cat !map_cat !foldl_cat/= eqxx map_cons=>V.
-have X: msg_block (msg p) = GenesisBlock.
-- by case: (msg p) Nb=>//b Nb; move: (Nb b); move/negbTE; rewrite eqxx.
-rewrite X -cat1s foldl_cat; clear X.
-have A : all (pred1 GenesisBlock) [:: GenesisBlock] by rewrite /=eqxx.
-rewrite (btExtend_foldG _ A)//; apply: btExtendIB_fold=>//=.
-by move: V; rewrite -foldl_cat; move/btExtendV_fold.
+rewrite rem_elem//; clear E Ni.
+elim: xs; first by rewrite //= eq_refl -cat1s map_cat foldl_cat //= X.
+move=>x xs H.
+rewrite -cat1s -!catA !filter_cat !map_cat //= eq_refl.
+case: ifP=>_; last first.
+- have Q: [seq msg_block (msg p0) | p0 <- [::]] = [::] by [].
+  by rewrite Q !cat0s -!map_cat -!filter_cat H {1}filter_cat {1}map_cat;
+     rewrite map_cat -cat1s filter_cat map_cat //= eq_refl.
+
+rewrite (foldl_cat _ (btExtend bt b) [seq msg_block (msg p0) | p0 <- [:: x]]).
+rewrite (foldl_cat _ bt [seq msg_block (msg p0) | p0 <- [:: x]]).
+rewrite btExtend_fold_comm.
+rewrite (btExtend_fold_comm _ _ Vh).
+by rewrite -map_cat -filter_cat H filter_cat map_cat -cat1s filter_cat map_cat //= eq_refl.
+by apply btExtendH.
 Qed.
 
 Lemma foldl_btExtend_last bt ps b :
@@ -247,11 +298,7 @@ Qed.
 (************* Invariant inductivity proof **************************)
 (********************************************************************)
 
-(* Move in an appropriate place *)
-Lemma btExtend_undef b :
-  btExtend um_undef b = um_undef.
-Proof. by rewrite/btExtend dom_undef in_nil join_undefR. Qed.
-
+(** This would be _significantly_ shorter with good proof automation. **)
 Lemma clique_inv_step w w' q :
   clique_inv w -> system_step w w' q -> clique_inv w'.
 Proof.
@@ -307,7 +354,48 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       by rewrite H2 in H1=>H3; specialize (H1 H3).
 
   (* applying is conserved *)
-  + admit.
+  + move=>n' st'; rewrite findU c1 /=; case: ifP; last first.
+    * move=>NDst F'; move: (HExt _ st' F').
+      rewrite/blocksFor{2}/inFlightMsgs.
+      rewrite filter_cat map_cat foldl_cat.
+      have X: [seq msg_block (msg p0) |
+               p0 <- seq.rem p (inFlightMsgs w) & dst p0 == n']
+              = [seq msg_block (msg p0) | p0 <- inFlightMsgs w & dst p0 == n'].
+      - elim : (inFlightMsgs w)=>//x xs Hi/=.
+        case:ifP=>[/eqP Z|_/=]; first by subst x; rewrite eq_sym NDst.
+        by case: ifP=>///eqP Z; subst n'; rewrite/= Hi.
+      by rewrite X=><-; move/invalidE: C=>->; rewrite btExtend_fold_undef.
+
+    * move/eqP=>Eq [Eq']; subst n' stPm.
+      rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->; rewrite/procMsg.
+      move: (P); rewrite [procMsg _ _ _ _] surjective_pairing; case=>Z1 Z2.
+      rewrite filter_cat map_cat foldl_cat.
+      case V0: (valid (blockTree st)); last first.
+      (* Invalid block forests stay invalid *)
+      - move: V0; rewrite -Bool.negb_true_iff=>V0.
+        case Msg: (msg p)=>[||b|||];
+        do? by[
+          (have Nb: (forall b : block, (msg p) != BlockMsg b) by move=>b; rewrite Msg);
+          rewrite -Z1 -(procMsg_non_block_nc_blockTree st (src p) (ts q)) ?Nb //=;
+          move/invalidE: C=>->; move/invalidE: V0=>->; rewrite -foldl_cat;
+          rewrite btExtend_fold_undef
+        ].
+        by BlockMsg_dest_bt P Msg;
+           move/invalidE: C=>->; move/invalidE: V0=>->; rewrite -foldl_cat;
+           rewrite btExtend_undef btExtend_fold_undef.
+
+      - case Msg: (msg p)=>[||b|||];
+        do?[
+          (have Nb: (forall b : block, (msg p) != BlockMsg b) by move=>b; rewrite Msg);
+          rewrite -Z1 -(procMsg_non_block_nc_blockTree st (src p) (ts q)) ?Nb //=;
+          rewrite rem_non_block' ?Nb//=; do? by [move: (c3 _ _ F V0)|move: (c4 _ _ F V0)];
+          by move: (HExt _ _ F); rewrite/blocksFor=><-; move/invalidE: C=>->;
+             rewrite btExtend_fold_undef
+        ].
+        BlockMsg_dest_bt P Msg.
+        rewrite rem_block ?V0 ?iF //=; last by move: (c3 _ _ F V0).
+        by move: (HExt _ _ F); rewrite/blocksFor=><-; move/invalidE: C=>->;
+           rewrite btExtend_fold_undef.
 
   (** Case 2: the global block forest is valid. **)
   case: C=>Vc HGt; split=>//.
@@ -372,6 +460,7 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       move => F'; clear H1; move: (HCliq n' _ F')=>H1.
       move=>z; specialize (H1 z); specialize (H2 z).
       by rewrite H2 in H1=>H3; specialize (H1 H3).
+
   (* applying conserved *)
   + move=>n' st'; rewrite findU c1 /=; case: ifP; last first.
     * move=>NDst F'; move: (HExt _ st' F').
@@ -522,6 +611,11 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
             do? by [move: (c3 _ _ F V0)];
             do? by [move: (c4 _ _ F V0)];
             do? by [move=>b'; rewrite Msg].
+
+    (* Remaining proof obligation from earlier *)
+    have V0: valid (blockTree st)
+      by move: Vc'; move: (HExt _ _ F)=>->//=; move/btExtendV_fold_xs.
+    by rewrite -Z1; apply procMsg_validH=>//=; move: (c3 _ _ F V0).
 
 (* Internal *)
 move=>proc t st [c1 c2 c3 c4 c5 c6] Al F.
