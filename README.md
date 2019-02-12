@@ -8,9 +8,9 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ### Requirements
 
-* [Coq 8.7 or 8.8](https://coq.inria.fr)
-* [Mathematical Components 1.6.4 or 1.7.0](http://math-comp.github.io/math-comp/) (`ssreflect`)
-* [FCSL PCM library 1.0.0](https://github.com/imdea-software/fcsl-pcm)
+* [Coq](https://coq.inria.fr) (8.7, 8.8, or 8.9)
+* [Mathematical Components](http://math-comp.github.io/math-comp/) (`ssreflect` suffices)
+* [FCSL PCM library](https://github.com/imdea-software/fcsl-pcm)
 
 ### Building
 
@@ -34,7 +34,7 @@ The top-level structure consists of the following folders:
 * `Properties` - proved properties of the protocol, e.g., eventual
   consistency for a clique-like network topology;
 
-### Obsolete development
+### Obsolete Files
 
 * `Obsolete` -- properties that might or might not hold, as were
   verified out of many optimistically assumed axioms at the beginning

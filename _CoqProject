@@ -1,7 +1,10 @@
 -Q Structures Toychain
 -Q Systems Toychain
 -Q Properties Toychain
--arg "-w -notation-overridden,-local-declaration,-redundant-canonical-projection,-projection-no-head-constant"
+
+-arg -w -arg -notation-overridden
+-arg -w -arg -redundant-canonical-projection
+-arg -w -arg -projection-no-head-constant
 
 Structures/SeqFacts.v
 Structures/Chains.v
