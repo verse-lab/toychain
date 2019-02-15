@@ -484,29 +484,11 @@ move=>Nd'; rewrite findPt2 //=; case: ifP=>//=.
 by move: (btExtend_dom_fold V D); rewrite Nd'.
 Qed.
 
-Lemma btExtend_in_either bt b b' :
-  valid (btExtend bt b) ->  b ∈ btExtend bt b' -> b ∈ bt \/ b == b'.
-Proof.
-move=>V'; rewrite /btExtend/=;
-move: (btExtendV V')=>V; case: ifP=>//= N.
-case: ifP=>//=; first by left.
-by rewrite/btHasBlock=>_/andP[]; rewrite dom_undef.
-rewrite/btHasBlock domUn inE domPtK validPtUn V N.
-move/andP=>[] /orP; case; last first.
-move=>D /eqP; rewrite findUnL ?validPtUn ?V ?N //; case: ifP.
-by rewrite domPtK inE=>/eqP hE; contradict D; rewrite hE N.
-by move=>_ ->; rewrite D //=; left.
-- rewrite inE=>/eqP ->; rewrite findUnL ?validPtUn ?V ?N //; case: ifP.
-  by move=>_ /eqP F; move: (findPt_inv F); case=>_ ->; right.
-  by move=>_ /eqP F; contradict N; move: (find_some F)=>->.
-Qed.
-
 Lemma btExtend_fold_in_either bt xs b :
-  valid (foldl btExtend bt xs) -> b ∈ (foldl btExtend bt xs) ->
+  b ∈ (foldl btExtend bt xs) ->
   b ∈ bt \/ b \in xs.
 Proof.
 elim/last_ind: xs=>[|xs x H]; first by left.
-move=>V'; move: (btExtendV_fold1 V')=>V; specialize (H V).
 rewrite -cats1 foldl_cat //= {1}/btExtend.
 case: ifP; last first.
 - move=>D; rewrite/btHasBlock=>/andP [].
@@ -523,6 +505,14 @@ case: ifP.
 move=>_ _ M; case: (H M); first by left.
 by move=>X; right; rewrite mem_cat X Bool.orb_true_l.
 by move=> _ _; rewrite/btHasBlock dom_undef in_nil Bool.andb_false_l.
+Qed.
+
+Lemma btExtend_in_either bt b b' :
+  b ∈ btExtend bt b' -> b ∈ bt \/ b == b'.
+Proof.
+move=>X0; have X: (b ∈ (foldl btExtend bt [:: b'])) by [].
+case: (btExtend_fold_in_either X); first by left.
+by rewrite inE=>->; right.
 Qed.
 
 Lemma btExtend_fold_in bt xs b :
@@ -807,7 +797,7 @@ move: (btExtendH_fold Vh (dom_valid D) F')=>Hh.
 rewrite Hh in D F'; have H: b ∈ (foldl btExtend bt xs).
   by rewrite/btHasBlock D F' eq_refl.
 case Z: (x == b); first by move/eqP: Z F=>->; rewrite eq_refl.
-case: (btExtend_fold_in_either (dom_valid D) H).
+case: (btExtend_fold_in_either H).
 by move=>Q; move: (N1 Q Hh) Z=>->; rewrite eq_refl.
 move=>R; have Q: (b \in rcons xs x)
   by rewrite -cats1 mem_cat inE R Bool.orb_true_l.
