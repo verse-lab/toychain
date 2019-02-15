@@ -22,8 +22,11 @@ block tree. *)
 Definition GSyncing_clique w :=
   (* There exists a priviledged node, "canonical" blocktree and blockchain *)
   exists (bc : Blockchain) (bt : BlockTree) (n : Address),
-    (* The priviledged node holds the canonical blocktree *)
-  [/\ holds n w (has_bt bt),
+    (* The priviledged node holds the canonical blockchain,
+        BUT not neccessarily the canonical blocktree!
+     *)
+    (* "can_bc" has no meaning if can_bt is invalid. *)
+  [/\ holds n w (has_chain bc) \/ ~~ valid bt,
 
    (* Either:
       a) the canonical chain is largest in the network, OR
@@ -331,18 +334,9 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
   exists can_bc, can_bt, can_n; case: C=>C; last first.
   (** Case 1: the global block forest is invalid. **)
   split=>//=.
-  (* can_n still retains can_bt *)
-  + move=>st'; rewrite findU c1 /=;
-    case: ifP; last by move=>_ F'; apply (HHold _ F').
-    move/eqP=>Eq [Eq']; subst can_n stPm.
-    case Msg: (msg p)=>[||b|||]; do? by
-    [NBlockMsg_dest_bt q st p b Msg H; move/eqP: (HHold _ F);
-      rewrite/has_bt P //==>-><-].
-    by BlockMsg_dest_bt P Msg;
-        move/eqP: (HHold _ F)=>->; move/invalidE: C=>->;
-        apply/eqP; apply btExtend_undef.
 
-  (* bt is still invalid *)
+   (* bt is still invalid *)
+  + by right.
   + by right.
 
   (* clique topology is maintained *)
@@ -416,19 +410,24 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
 
   (** Case 2: the global block forest is valid. **)
   case: C=>Vc HGt; split=>//.
-  (* can_n still retains can_bt *)
+  left; case: HHold; last by move: Vc; rewrite/valid_with_bc=>[][][]=>->.
+  move=>HHold.
+  (* can_n still retains can_bc *)
   + move=>st'; rewrite findU c1 /=;
     case: ifP; last by move=>_ F'; apply (HHold _ F').
     move/eqP=>Eq [Eq']; subst can_n stPm.
     case Msg: (msg p)=>[||b|||]; do? by
     [NBlockMsg_dest_bt q st p b Msg H; move/eqP: (HHold _ F);
-      rewrite/has_bt P //==>-><-].
-    BlockMsg_dest_bt P Msg.
+      rewrite/has_chain P //==><-->].
+    rewrite/has_chain; BlockMsg_dest_bt P Msg.
     move: (HHold _ F); rewrite/has_bt=>/eqP Eq.
     move: Vc; rewrite/valid_with_bc=>[[][]]Vc Vh Ib Cbc.
     move: (b_in_blocksFor iF Msg)=>iB.
-    rewrite Eq -(btExtend_seq_same_bt _ Vh Ib iB) //=;
-    by move: (HExt (dst p) _ F); rewrite Eq=><-.
+    have V0: (valid (blockTree st)) by move: (HExt _ _ F) Vc=>->; move/btExtendV_fold_xs.
+    rewrite -(btExtend_seq_same _ (c3 _ _ F V0) (c4 _ _ F V0) iB).
+    by rewrite Eq.
+    by move: (HExt _ _ F)=><-.
+    by rewrite Eq Cbc; move: (HExt _ _ F)=>->.
 
   (* can_bc is still the largest chain *)
   left; split=>//=.
@@ -723,8 +722,9 @@ case: t P P'=>[tx|] P P'.
     split=>//.
 
     (* HHold *)
+    left.
     rewrite/holds/localState findU c1 /=; case: ifP; last by move/eqP.
-    by move=>_ st [Eq]; subst st; rewrite/has_chain.
+    move=>_ st [Eq]; subst st; rewrite/has_chain//=.
 
     (* HGt *)
     move: (HGt proc (btChain blockTree) _ F); rewrite/has_chain eqxx.
