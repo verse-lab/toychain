@@ -798,64 +798,107 @@ case: t P P'=>[tx|] P P'.
       by rewrite -Break Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F' v)) /=;
          rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c5 _ _ F)) /=.
 
+  (* The newly minted block doesn't extend the heaviest chain *)
+  (* Does it introduce a hash collision, though? *)
+  case V': (valid (btExtend can_bt new_block)); last first.
+  (** Case 1: yes **)
+  (* This is literally copy/paste from above. CODE SMELL! *)
+  exists [:: GenesisBlock], um_undef, can_n; split.
+  + by right; rewrite valid_undef.
+  + by right; rewrite valid_undef.
+  + by rewrite/good_bt=>b; rewrite/all_blocks dom_undef.
+  + by procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
+  (* When there's a hash collision, everything (eventually) breaks! *)
+  have Break: (btExtend can_bt new_block = um_undef) by move/negbT: V'; move/invalidE.
+  + move=>n st; rewrite/localState; simplw w=>-> _.
+    rewrite findU c1 /=; case: ifP;
+    [move/eqP=>Eq [Eq']; assert (F' := F); rewrite -Eq in F' * | move=> _ F'];
+    rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
+    rewrite filter_cat map_cat foldl_cat; do? [rewrite -Eq'];
+    move: (HCliq proc _ F)=>/= Cliq;
+    move: (HExt n _ F')=>/= Ext; rewrite/blocksFor in Ext.
+    - case V0: (valid blockTree); last first.
+      by move/negbT: V0; move/invalidE=>->; rewrite btExtend_undef !btExtend_fold_undef.
+      case V: (valid (btExtend blockTree new_block)); last first.
+      by move/negbT: V; move/invalidE=>->; rewrite !btExtend_fold_undef.
+      by rewrite -Break Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F' V0)) /=;
+         rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c5 _ _ F)) /=;
+         rewrite -(btExtend_idemp V).
+    - case v: (valid (Protocol.blockTree st)); last first.
+      by move/negbT: v; move/invalidE=>->; rewrite !btExtend_fold_undef.
+      by rewrite -Break Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F' v)) /=;
+         rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c5 _ _ F)) /=.
+
+  (** Case 2: no hash collision **)
+  case: HHold; last by move/invalidE=>E; move: E V'=>->; rewrite btExtend_undef valid_undef.
+  move=>HHold.
+  case: C; last by move/btExtendV: V'=>->.
+  move=>[][][]=>V Vh Ib Cbc HGt.
+  have V0: (valid blockTree) by move: (HExt _ _ F) V=>//=->; move/btExtendV_fold_xs.
+  have Vh0: (validH blockTree) by move: (c3 _ _ F V0).
+  have V0': (valid (btExtend blockTree new_block)).
+  move: (HExt _ _ F) V'=>//=;
+  have Q: (btExtend can_bt new_block = foldl btExtend can_bt [:: new_block]) by [].
+  rewrite Q=>->; rewrite btExtendV_fold_comm //=.
+  by move/btExtendV_fold_xs.
+
   * exists can_bc, (btExtend can_bt new_block), can_n.
     case Dst: (can_n == proc). (* Isn't true. *)
     contradict Gt; move/eqP in Dst; subst can_n.
     suff W: (btChain (btExtend blockTree new_block) > can_bc) by rewrite W.
     move: (HHold _ F); rewrite/has_chain/==>/eqP <-.
-    by apply: (@btExtend_mint _ new_block (c3 _ _ F)(c4 _ _ F)(c5 _ _ F)).
+    apply: btExtend_mint=>//=.
+    by move: (c4 _ _ F V0).
 
     (* HGood *)
+    (* copy/paste again :-( *)
     have HGood': good_bt (btExtend can_bt new_block).
     - rewrite/good_bt in HGood *.
       move=>b; move/all_blocksP'=>InE.
-      move: (@btExtendH _ new_block C1 C2)=>/=Vh. move: (InE Vh)=>InE'.
-      case: (btExtend_in_either C1 InE').
-      move/all_blocksP'=>In; specialize (In C2);
+      move: (@btExtendH _ new_block V Vh)=>/=Vh'; move: (InE Vh')=>InE'.
+      case: (btExtend_in_either InE').
+      move/all_blocksP'=>In; specialize (In Vh);
       specialize (HGood b In); move/andP in HGood.
-      by move: (@btExtend_compute_chain _ new_block b C1 C2 C3 (proj1 HGood))=>->;
+      by move: (@btExtend_compute_chain _ new_block b V' Vh Ib (proj1 HGood))=>->;
          apply/andP; apply HGood.
       move/eqP=>Eq; subst b.
       set lst := last GenesisBlock (btChain blockTree).
       (have:  prevBlockHash new_block = # lst by [])=>Hp.
-      (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c5 _ _ F)))=>InC.
-      move: (@btExtend_mint_good_valid _ new_block (c3 _ _ F) (c4 _ _ F)
-              (c5 _ _ F) Z (btChain_good blockTree) Hp)=>Gc.
+      (have: btChain blockTree \in all_chains blockTree by move: (btChain_in_bt (c4 _ _ F V0)))=>InC.
+      move: (btExtend_mint_good_valid V0' (c3 _ _ F V0) (c4 _ _ F V0)
+                                      Z (btChain_good blockTree) Hp)=>Gc.
       move: (HExt _ _ F)=>/= Eq; rewrite Eq.
-      rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm /=.
-      move: (c3 _ _ F)=>/=; rewrite (btExtendV blockTree new_block)=>V'.
-      move: (@btExtendH _ new_block (c3 _ _ F) (c4 _ _ F))=>Vh'.
-      move: (@btExtendIB _ new_block (c3 _ _ F) (c4 _ _ F) (c5 _ _ F))=>Ib'.
-      by move: (@btExtend_compute_chain_fold (btExtend blockTree new_block)
-               (blocksFor proc w) new_block V' Vh' Ib' (proj1 Gc))=>->; move/andP: Gc.
-      by move: (c3 _ _ F).
+      rewrite -(@foldl1 BlockTree Block btExtend (foldl _ _ _)) btExtend_fold_comm //=.
+      have V1: (valid (foldl btExtend (btExtend blockTree new_block) (blocksFor proc w))).
+      have Q: (btExtend blockTree new_block = foldl btExtend blockTree [:: new_block]) by [].
+        by move: (HExt _ _ F); rewrite Q btExtendV_fold_comm //==><-.
+      move: (@btExtendH _ new_block V0 Vh0)=>Vh0'.
+      move: (btExtendIB Vh0 V0' (c4 _ _ F V0))=>Ib'.
+      by move: (btExtend_compute_chain_fold V1 Vh0' Ib' (proj1 Gc))=>->; move/andP: Gc.
 
     split=>//.
 
     (* HHold *)
-    move=>st; rewrite/localState; simplw w=>-> _.
+    left;
+    move=>st; rewrite/localState; simplw w=>-> _;
     rewrite findU c1 /=; case: ifP; first by rewrite Dst.
     by move=>_ F'; move: (HHold _ F').
 
+    left; split; last first.
     (* HGt *)
     move=>n bc st; rewrite/localState; simplw w=>-> _.
     rewrite findU c1 /=; case: ifP.
     by move/eqP=>Eq[Eq']; subst n st; rewrite/has_chain=>/eqP<-; apply FCR_dual.
     by move=>_ F'; move: (HGt n bc _ F').
 
-    split; [split|].
-    (* Validity *)
-    + by rewrite -(btExtendV can_bt new_block).
-    + by apply (btExtendH C1 C2).
-    + by apply (btExtendIB new_block C1 C2 C3).
-
-    (* HBc *)
-    rewrite HBc in Gt *.
+    (* valid with bc *)
+    split.
+    split=>//=; by [apply btExtendH | apply btExtendIB].
+    rewrite Cbc in Gt *.
     move: (HExt _ _ F)=>/= H; move/FCR_dual:Gt=>Gt.
-    case: (btExtend_sameOrBetter new_block C1 C2 C3)=>//Gt1.
+    case: (btExtend_sameOrBetter V')=>//Gt1.
     have P : prevBlockHash new_block = # last GenesisBlock (btChain blockTree) by [].
-    by move: (@btExtend_within can_bt _ new_block _ C1 C2
-               C3 (c3 _ _ F) (c4 _ _ F) (c5 _ _ F) HGood HGood' Z Gt P H Gt1).
+    by move: (btExtend_within V' Vh Ib V0' Vh0 (c4 _ _ F V0) HGood HGood' Z Gt P H Gt1).
 
     (* HCliq *)
     procInt_clique_maintain proc n st w F Fn Cw Al PInt PInt' P' HCliq H1 H2 c1 z.
@@ -864,13 +907,18 @@ case: t P P'=>[tx|] P P'.
     move=>n st; rewrite/localState; simplw w=>-> _.
     rewrite findU c1 /=; case: ifP;
     [move/eqP=>Eq [Eq']; assert (F' := F); rewrite -Eq in F' * | move=> _ F'];
-    by rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
-       rewrite filter_cat map_cat foldl_cat; do? [rewrite -Eq'];
-       move: (HCliq proc _ F)=>/= Cliq;
-       move: (HExt n _ F')=>/= Ext; rewrite/blocksFor in Ext; subst can_bc;
-       rewrite Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F')) /=;
-       rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c6 _ _ F)) /=;
-       do? [rewrite -(btExtend_idemp _ (c3 _ _ F))].
+    rewrite/blocksFor/inFlightMsgs; simplw w=>_ ->;
+    rewrite filter_cat map_cat foldl_cat; do? [rewrite -Eq'];
+    move: (HCliq proc _ F)=>/= Cliq;
+    move: (HExt n _ F')=>/= Ext; rewrite/blocksFor in Ext; subst can_bc.
+       by rewrite Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F' V0)) /=;
+       rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c5 _ _ F)) /=;
+       rewrite -(btExtend_idemp V0').
+    by
+    (have v: (valid (Protocol.blockTree st))
+      by move: (HExt _ _ F') V=>/=->; move/btExtendV_fold_xs);
+    rewrite Ext -foldl1 (btExtend_fold_comm _ _ (c3 _ _ F' v)) /=;
+    rewrite (broadcast_reduce _ _ (Cliq n (find_some F')) (c5 _ _ F)) /=.
 
   + no_change can_bc can_bt can_n w F F' HExt c5.
   + no_change can_bc can_bt can_n w F F' HExt c5.
