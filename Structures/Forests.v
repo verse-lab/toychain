@@ -923,7 +923,7 @@ Qed.
 (* Transaction validity *)
 Fixpoint valid_chain' (bc prefix : seq block) :=
   if bc is b :: bc'
-  then [&& VAF (proof b) prefix (txs b) && all [pred t | txValid t prefix] (txs b) & valid_chain' bc' (rcons prefix b)]
+  then [&& VAF b prefix (txs b) && all [pred t | txValid t prefix] (txs b) & valid_chain' bc' (rcons prefix b)]
   else true.
 
 Definition valid_chain bc := valid_chain' bc [::].
@@ -2190,7 +2190,7 @@ Lemma btExtend_mint_ext bt bc b :
   bc = compute_chain bt pb ->
   good_chain bc ->
   prevBlockHash b = #pb ->
-  VAF (proof b) bc (txs b) ->
+  VAF b bc (txs b) ->
   compute_chain (btExtend bt b) b = rcons bc b.
 Proof.
 move=>pb V' Vh Ib E HGood Hp Hv; move: (btExtendV V')=>V.
@@ -2252,10 +2252,10 @@ by rewrite/btHasBlock D F //=; (have: Some b == Some b by [])=>->.
 Qed.
 
 Definition valid_chain_block bc (b : block) :=
-  [&& VAF (proof b) bc (txs b) & all [pred t | txValid t bc] (txs b)].
+  [&& VAF b bc (txs b) & all [pred t | txValid t bc] (txs b)].
 
 Lemma valid_chain_last_ind c b prefix:
-  VAF (proof b) prefix (txs b) ->
+  VAF b prefix (txs b) ->
   all [pred t | txValid t prefix] (txs b) ->
   valid_chain' c (rcons prefix b) ->
   valid_chain' (b :: c) prefix.

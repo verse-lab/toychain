@@ -32,7 +32,7 @@ Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 
 Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
-Parameter VAF : VProof -> Blockchain -> TxPool -> bool.
+Parameter VAF : block -> Blockchain -> TxPool -> bool.
 
 Parameter FCR : Blockchain -> Blockchain -> bool.
 Notation "A > B" := (FCR A B).
@@ -48,10 +48,10 @@ Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
 Axiom txValid_nil : forall t, txValid t [::].
 
 (** VAF **)
-Axiom VAF_init : VAF (proof GenesisBlock) [::] (txs GenesisBlock).
+Axiom VAF_init : VAF GenesisBlock [::] (txs GenesisBlock).
 
 Axiom VAF_GB_first :
-  forall bc, VAF (proof GenesisBlock) bc (txs GenesisBlock) -> bc = [::].
+  forall bc, VAF GenesisBlock bc (txs GenesisBlock) -> bc = [::].
 
 
 (** FCR **)
