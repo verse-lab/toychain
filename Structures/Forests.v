@@ -1464,7 +1464,7 @@ Qed.
 
 Lemma tx_valid_init : all [pred t | txValid t [::]] (txs GenesisBlock).
 Proof.
-elim: (txs GenesisBlock) => //= tx txs IH.
+elim: (txs GenesisBlock)=> //= tx txs IH.
 apply/andP; split => //.
 exact: txValid_nil.
 Qed.
