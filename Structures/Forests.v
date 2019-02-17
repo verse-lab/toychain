@@ -12,10 +12,35 @@ Unset Printing Implicit Defensive.
 (* A formalization of a block forests *)
 (* TODO: Go through this file and put the lemmas in a sensible order. *)
 
-Notation "# b" := (hashB b) (at level 20).
+Module Type Forest (Params : ConsensusParams).
+Import Params.
+Parameter btExtend : BlockTree -> block -> BlockTree.
+Parameter btChain : BlockTree -> Blockchain.
+Parameter get_block : BlockTree -> Hash -> block.
+Parameter valid_chain_block : Blockchain -> block -> bool.
+Parameter validH : BlockTree -> Prop.
+Parameter has_init_block : BlockTree -> Prop.
+Parameter btHasBlock : BlockTree -> block -> bool.
 
-Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
+Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
+Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 
+Axiom btExtendV : forall bt b, valid (btExtend bt b) -> valid bt.
+Axiom btExtendH : forall bt b, valid bt -> validH bt -> validH (btExtend bt b).
+Axiom btExtendIB : forall bt b,
+  validH bt -> valid (btExtend bt b) -> has_init_block bt ->
+  has_init_block (btExtend bt b).
+Axiom btExtend_withDup_noEffect : forall bt b,
+  b ∈ bt -> bt = (btExtend bt b).
+Axiom btChain_mem2 : forall bt b,
+  valid bt -> has_init_block bt ->
+  b \in btChain bt -> b ∈ bt.
+
+End Forest.
+
+
+Module Forests (Params : ConsensusParams) <: (Forest Params).
+Import Params.
 
 Lemma FCR_trans_eq (A B C : Blockchain):
     A >= B -> B >= C -> A >= C.
@@ -2869,3 +2894,4 @@ by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Ec H1).
 Qed.
 
 End BtChainProperties.
+End Forests.

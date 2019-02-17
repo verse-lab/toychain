@@ -9,6 +9,14 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Type ConsensusNetwork.
+End ConsensusNetwork.
+
+Module Network (P : ConsensusParams) (Pr : ConsensusProtocol P)
+       (Ns : NetState P Pr) (F : Forest P)
+        <: ConsensusNetwork.
+Import P Pr Ns F.
+
 Definition PacketSoup := seq Packet.
 
 Record World :=
@@ -273,3 +281,4 @@ Proof.
 move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
+End Network.

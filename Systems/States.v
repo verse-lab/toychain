@@ -9,6 +9,21 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Type NetState (P : ConsensusParams) (Pr : ConsensusProtocol P).
+Import P Pr.
+Definition Address_ordMixin := fin_ordMixin Address.
+Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
+Definition StateMap := union_map [ordType of Address] State.
+Definition initState' s : StateMap := foldr (fun a m => (a \\-> Init a) \+ m) Unit s.
+Definition initState := initState' (enum Address).
+
+Axiom valid_initState' : forall s,  uniq s -> valid (initState' s).
+Axiom dom_initState' : forall s, uniq s -> dom (initState' s) =i s.
+End NetState.
+
+Module States (P : ConsensusParams) (Pr : ConsensusProtocol P) <: NetState P Pr.
+Import P Pr.
+
 Definition Address_ordMixin := fin_ordMixin Address.
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
@@ -49,3 +64,4 @@ Lemma dom_initState' s : uniq s -> dom (initState' s) =i s.
 Proof. by move => H_u; case: (initStateValidDom H_u). Qed.
 
 Definition initState := initState' (enum Address).
+End States.

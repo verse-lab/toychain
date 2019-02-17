@@ -9,26 +9,67 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Type ConsensusProtocol (P : ConsensusParams).
+Import P.
+Parameter State : Type.
+Parameter Message : Type.
+Parameter InternalTransition : Type.
+
+Definition peers_t := seq Address.
+Parameter Node : Address -> peers_t -> BlockTree -> TxPool -> State.
+Definition Init (n : Address) : State :=
+  Node n [:: n] (#GenesisBlock \\-> GenesisBlock) [::].
+
+(* XXX FIXME *)
+(* Need actual definitions for those. *)
+(* ... record types are a bit of a pain in modules, it seems *)
+Parameter blockTree : State -> BlockTree.
+Parameter peers : State -> peers_t.
+Parameter id : State -> Address.
+Parameter txPool : State -> TxPool.
+
+Parameter Packet : Type.
+Parameter eq_pkt : Packet -> Packet -> bool.
+Axiom eq_pktP : Equality.axiom eq_pkt.
+Canonical Packet_eqMixin := Eval hnf in EqMixin eq_pktP.
+Canonical Packet_eqType := Eval hnf in EqType Packet Packet_eqMixin.
+
+Parameter src : Packet -> Address.
+Parameter dst : Packet -> Address.
+Parameter msg : Packet -> Message.
+Definition ToSend := seq Packet.
+
+Parameter procMsg : State -> Address -> Message -> Timestamp -> State * ToSend.
+Parameter procInt : State -> InternalTransition -> Timestamp -> State * ToSend.
+
+
+End ConsensusProtocol.
+
+Module Protocol (P : ConsensusParams) (F : Forest P) <: ConsensusProtocol P.
+Import P F.
+
 (* Implementation of PoS protocol as a STS *)
 Definition peers_t := seq Address.
 
-Inductive Message :=
+Inductive _Message :=
   | AddrMsg of peers_t
-  | ConnectMsg 
+  | ConnectMsg
   | BlockMsg of block
   | TxMsg of Transaction
   | InvMsg of seq Hash
   | GetDataMsg of Hash.
+Definition Message := _Message.
 
-Inductive MessageType :=
+Inductive _MessageType :=
   | MAddr
   | MConnect
   | MBlock
   | MTx
   | MInv
   | MGetData.
+Definition MessageType := _MessageType.
 
-Module MsgTypeEq.
+Section MsgTypeEq.
 Definition eq_msg_type a b :=
   match a, b with
   | MAddr, MAddr => true
@@ -49,7 +90,6 @@ Qed.
 Canonical MsgType_eqMixin := Eval hnf in EqMixin eq_msg_typeP.
 Canonical MsgType_eqType := Eval hnf in EqType MessageType MsgType_eqMixin.
 End MsgTypeEq.
-Export MsgTypeEq.
 
 Definition msg_type (msg : Message) : MessageType :=
   match msg with
@@ -74,9 +114,10 @@ Definition msg_hashes (msg : Message) : seq Hash :=
   | _ => [::]
   end.
 
-Inductive InternalTransition :=
+Inductive _InternalTransition :=
   | TxT of Transaction
   | MintT.
+Definition InternalTransition := _InternalTransition.
 
 Module MsgEq.
 Definition eq_msg a b :=
@@ -123,15 +164,17 @@ case: ma=>[p||b|t|h|h].
   case B: (h == h'); [by case/eqP:B=><-; constructor 1|constructor 2].
   by case=>Z; subst h'; rewrite eqxx in B.
 Qed.
-  
+
 Canonical Msg_eqMixin := Eval hnf in EqMixin eq_msgP.
 Canonical Msg_eqType := Eval hnf in EqType Message Msg_eqMixin.
 End MsgEq.
 Export MsgEq.
 
-Record Packet := mkP {src: Address; dst: Address; msg: Message}.
+Record _Packet := mkP {src: Address; dst: Address; msg: Message}.
+Definition Packet := _Packet.
 
-Module PacketEq.
+
+Section PacketEq.
 Definition eq_pkt a b :=
   ((src a) == (src b)) && ((dst a) == (dst b)) && ((msg a) == (msg b)).
 
@@ -147,7 +190,6 @@ Qed.
 Canonical Packet_eqMixin := Eval hnf in EqMixin eq_pktP.
 Canonical Packet_eqType := Eval hnf in EqType Packet Packet_eqMixin.
 End PacketEq.
-Export PacketEq.
 
 
 Definition ToSend := seq Packet.
@@ -158,20 +200,23 @@ Definition emitMany (packets : ToSend) := packets.
 Definition emitBroadcast (from : Address) (dst : seq Address) (msg : Message) :=
   [seq (mkP from to msg) | to <- dst].
 
-Record State :=
-  Node {
+Record _State :=
+  _Node {
     id : Address;
     peers : peers_t;
     blockTree : BlockTree;
     txPool : TxPool;
   }.
+(* This is required for module instantiation *)
+Definition Node := _Node.
+Definition State := _State.
 
 Definition Init (n : Address) : State :=
   Node n [:: n] (#GenesisBlock \\-> GenesisBlock) [::].
 Lemma peers_uniq_init (n : Address) : uniq [::n]. Proof. by []. Qed.
 
 Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :=
-    let: Node n prs bt pool := st in
+    let: _Node n prs bt pool := st in
     match msg with
     | ConnectMsg =>
       let: ownHashes := dom bt ++ [seq hashT t | t <- pool] in
@@ -219,7 +264,7 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
     end.
 
 Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
-    let: Node n prs bt pool := st in
+    let: _Node n prs bt pool := st in
     match tr with
     | TxT tx => pair st (emitBroadcast n prs (TxMsg tx))
 
@@ -241,6 +286,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
       | None => pair st emitZero
       end
     end.
+
 
 (* Proofs *)
 Lemma procMsg_id_constant (s1 : State) from (m : Message) (ts : Timestamp) :
@@ -274,7 +320,7 @@ Qed.
 
 Lemma procInt_valid :
   forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
-    valid (blockTree (procInt s1 t ts).1) -> 
+    valid (blockTree (procInt s1 t ts).1) ->
     valid (blockTree s1).
 Proof.
 move=>s1 t ts.
@@ -346,7 +392,7 @@ Proof.
 case=> n1 p1 b1 t1 from; case; do? by []; simpl.
 - move=>? _ ?; case filter => //.
   by move => ? ?; rewrite undup_uniq.
-- move=>_ U; case: ifP=>X; rewrite //= ?undup_uniq//=. 
+- move=>_ U; case: ifP=>X; rewrite //= ?undup_uniq//=.
   rewrite andbC/=; apply/negbT/negP; rewrite mem_undup=>Z.
   by rewrite Z in X.
 - move=>s _ U; case: ifP => //=.
@@ -462,3 +508,4 @@ case.
 - by move=> f m ts ->; apply procMsg_peers_uniq.
 - by move=> t ts ->; apply procInt_peers_uniq.
 Qed.
+End Protocol.

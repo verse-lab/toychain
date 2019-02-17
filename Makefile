@@ -1,14 +1,7 @@
 all: default
 
 default: Makefile.coq
-	cp Structures/AbstractParameters.v Structures/Parameters.v
 	$(MAKE) -f Makefile.coq
-	rm Structures/Parameters.v
-
-extract: Makefile.coq
-	cp Extraction/Impl.v Structures/Parameters.v
-	$(MAKE) -f Makefile.coq
-	rm Structures/Parameters.v
 
 quick: Makefile.coq
 	$(MAKE) -f Makefile.coq quick

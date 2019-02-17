@@ -12,24 +12,28 @@ Unset Printing Implicit Defensive.
 (************************************************************)
 (******************* <parameters> ***************************)
 (************************************************************)
-
+Module Type ConsensusParams.
 Parameter Timestamp : Type.
 Parameter Hash : ordType.
 Parameter VProof : eqType.
 Parameter Transaction : eqType.
 Parameter Address : finType.
+
 Definition block := @Block Hash Transaction VProof.
+Parameter GenesisBlock : block.
+
 Definition Blockchain := seq block.
+Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 
 Definition TxPool := seq Transaction.
 (* In fact, it's a forest, as it also keeps orphan blocks *)
 Definition BlockTree := union_map Hash block.
 
-Parameter GenesisBlock : block.
 
 Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
+Notation "# b" := (hashB b) (at level 20).
 
 Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
 Parameter VAF : block -> Blockchain -> TxPool -> bool.
@@ -72,3 +76,4 @@ Axiom FCR_nrefl :
 
 Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
+End ConsensusParams.
