@@ -3,14 +3,15 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 From fcsl
 Require Import ordtype unionmap.
 From Toychain
-Require Import Blocks.
+Require Import Blocks Parameters.
 Require Import BinNat BinNatDef.
-(* Require Import Strings.String. *)
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (** Instantiate Toychain with a proof-of-work scheme **)
+
+Module ProofOfWork <: ConsensusParams.
 
 (* Need to do some massaging to get Coq types that extract nicely to
   play well with SSReflect. *)
@@ -46,7 +47,6 @@ Definition Timestamp := N_ordType.
 Definition Hash := N_ordType.
 Definition VProof := unit_ordType.
 Definition Transaction := N_ordType.
-Definition Address := N_ordType.
 
 Definition block := @Block Hash Transaction VProof.
 Definition Blockchain := seq block.
@@ -56,8 +56,8 @@ Definition TxPool := seq Transaction.
 (* In fact, it's a forest, as it also keeps orphan blocks *)
 Definition BlockTree := union_map Hash block.
 
-(* This has to be defined in the extraction to preserve proof structure! *)
 Definition GenesisBlock : block := mkB (N_of_nat 0) [::] tt.
+Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* TODO: Implement this in the extraction *)
 Parameter hashT : Transaction -> Hash.
@@ -106,15 +106,7 @@ Definition VAF (b : Block) (bc : Blockchain) (tp : TxPool) : bool :=
 (* For proof-of-work, this would be more aptly called "getNonce" *)
 (* TODO: Implement this in the extraction *)
 (* We can't (reasonably) implement this in Coq since it required randomness. *)
-Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
-
-(** Make all Definitions globally opaque such that proof structure
-remains the same as if they were totally generic. *)
-Global Opaque GenesisBlock.
-Global Opaque FCR.
-Global Opaque txValid.
-Global Opaque tpExtend.
-Global Opaque VAF.
+Parameter genProof : Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
 
 (************************************************************)
 (*********************** <axioms> ***************************)
@@ -147,3 +139,5 @@ Axiom FCR_nrefl :
 
 Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
+
+End ProofOfWork.
