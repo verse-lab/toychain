@@ -84,3 +84,7 @@ CoqMakefile.conf
 Makefile.coq.conf
 .coqdeps.d
 awk.Makefile
+
+
+# Toychain-specific
+Extraction/src

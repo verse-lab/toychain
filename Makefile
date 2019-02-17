@@ -1,6 +1,7 @@
 all: default
 
 default: Makefile.coq
+	mkdir -p Extraction/src
 	$(MAKE) -f Makefile.coq
 
 quick: Makefile.coq
@@ -12,6 +13,7 @@ install: Makefile.coq
 clean: Makefile.coq
 	$(MAKE) -f Makefile.coq cleanall
 	rm -f Makefile.coq Makefile.coq.conf
+	rm -rf Extraction/src
 
 Makefile.coq: _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq

@@ -1,6 +1,7 @@
 -Q Structures Toychain
 -Q Systems Toychain
 -Q Properties Toychain
+-Q Extraction Toychain
 -arg "-w -notation-overridden,-local-declaration,-redundant-canonical-projection,-projection-no-head-constant"
 
 Structures/SeqFacts.v
@@ -14,3 +15,4 @@ Systems/Network.v
 Properties/InvMisc.v
 Properties/InvCliqueTopology.v
 Extraction/Impl.v
+Extraction/Recipe.v
