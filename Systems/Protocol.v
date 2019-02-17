@@ -14,6 +14,9 @@ Unset Printing Implicit Defensive.
 Module Type ConsensusProtocol (P : ConsensusParams) (F : Forest P).
 Import P F.
 
+(* Address is an IP:port pair or something similar *)
+(* Needs to be finType because the global state is map from Address -> State *)
+Parameter Address : finType.
 Definition peers_t := seq Address.
 
 Inductive _Message :=
@@ -227,7 +230,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     | MintT =>
       let: bc := btChain bt in
       let: allowedTxs := [seq t <- pool | txValid t bc] in
-      match genProof n bc allowedTxs ts with
+      match genProof bc allowedTxs ts with
       | Some (txs, pf) =>
         let: prevBlock := last GenesisBlock bc in
         let: b := mkB (hashB prevBlock) txs pf in
@@ -468,6 +471,7 @@ End ConsensusProtocol.
 Module Protocol (P : ConsensusParams) (F : Forest P) <: ConsensusProtocol P F.
 Import P F.
 
+Parameter Address : finType.
 Definition peers_t := seq Address.
 
 Inductive _Message :=
@@ -681,7 +685,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     | MintT =>
       let: bc := btChain bt in
       let: allowedTxs := [seq t <- pool | txValid t bc] in
-      match genProof n bc allowedTxs ts with
+      match genProof bc allowedTxs ts with
       | Some (txs, pf) =>
         let: prevBlock := last GenesisBlock bc in
         let: b := mkB (hashB prevBlock) txs pf in

@@ -13,11 +13,10 @@ Unset Printing Implicit Defensive.
 (******************* <parameters> ***************************)
 (************************************************************)
 Module Type ConsensusParams.
-Parameter Timestamp : Type.
+Parameter Timestamp : ordType.
 Parameter Hash : ordType.
-Parameter VProof : eqType.
-Parameter Transaction : eqType.
-Parameter Address : finType.
+Parameter VProof : ordType.
+Parameter Transaction : ordType.
 
 Definition block := @Block Hash Transaction VProof.
 Parameter GenesisBlock : block.
@@ -35,7 +34,7 @@ Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 Notation "# b" := (hashB b) (at level 20).
 
-Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
+Parameter genProof : Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
 Parameter VAF : block -> Blockchain -> TxPool -> bool.
 
 Parameter FCR : Blockchain -> Blockchain -> bool.
