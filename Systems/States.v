@@ -9,7 +9,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Type NetState (P : ConsensusParams) (Pr : ConsensusProtocol P).
+Module Type NetState (P : ConsensusParams) (F : Forest P) (Pr : ConsensusProtocol P F).
 Import P Pr.
 Definition Address_ordMixin := fin_ordMixin Address.
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
@@ -21,7 +21,7 @@ Axiom valid_initState' : forall s,  uniq s -> valid (initState' s).
 Axiom dom_initState' : forall s, uniq s -> dom (initState' s) =i s.
 End NetState.
 
-Module States (P : ConsensusParams) (Pr : ConsensusProtocol P) <: NetState P Pr.
+Module States (P : ConsensusParams) (F : Forest P) (Pr : ConsensusProtocol P F) <: NetState P F Pr.
 Import P Pr.
 
 Definition Address_ordMixin := fin_ordMixin Address.
