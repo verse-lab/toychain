@@ -45,20 +45,37 @@ End NOrd.
 (******************* <parameters> ***************************)
 (************************************************************)
 
-Definition Timestamp := N_ordType.
-Definition Hash := N_ordType.
-Definition VProof := unit_ordType.
-Definition Transaction := N_ordType.
+Definition Timestamp := N.
+Definition Hash := N.
+Definition VProof := unit.
+Definition Transaction := N.
 
-Definition block := @Block Hash Transaction VProof.
+(* These need to be types that can be coerced into ordType *)
+Axiom Hash_eqMixin : Equality.mixin_of Hash.
+Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
+Axiom Hash_ordMixin : Ordered.mixin_of Hash_eqType.
+Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin.
+
+Axiom VProof_eqMixin : Equality.mixin_of VProof.
+Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
+Axiom VProof_ordMixin : Ordered.mixin_of VProof_eqType.
+Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
+
+Axiom Transaction_eqMixin : Equality.mixin_of Transaction.
+Canonical Transaction_eqType := Eval hnf in EqType Transaction Transaction_eqMixin.
+Axiom Transaction_ordMixin : Ordered.mixin_of Transaction_eqType.
+Canonical Transaction_ordType := Eval hnf in OrdType Transaction Transaction_ordMixin.
+
+Definition block := @Block [ordType of Hash] [ordType of Transaction] [ordType of VProof].
 Definition Blockchain := seq block.
 Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 
 Definition TxPool := seq Transaction.
 (* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map Hash block.
+Definition BlockTree := union_map [ordType of Hash] block.
 
-Definition GenesisBlock : block := mkB (N_of_nat 0) [::] tt.
+(* Definition GenesisBlock : block := mkB (N_of_nat 0) [::] tt. *)
+Parameter GenesisBlock : block.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* TODO: Implement this in the extraction *)
@@ -155,4 +172,8 @@ Definition IP := prod_finType half half.
 Definition Port := [finType of 'I_2048].
 
 Definition Address := prod_finType IP Port.
+Definition Address_ordMixin := fin_ordMixin Address.
+Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
+
+
 End Addr.

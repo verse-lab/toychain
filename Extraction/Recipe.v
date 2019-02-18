@@ -1,11 +1,11 @@
 Require Extraction.
 From Toychain
-Require Import Address Protocol Forests Parameters.
+Require Import Address Protocol Forests Parameters Impl.
 Require Import ExtrOcamlBasic ExtrOcamlString ExtrOcamlZInt.
 
 (* Instantiate modules *)
-Module ForestImpl := Forests CP.
-Module ProtocolImpl := Protocol CP ForestImpl Addr.
+Module ForestImpl := Forests ProofOfWork.
+Module ProtocolImpl := Protocol ProofOfWork ForestImpl Addr.
 
 (* This solves an error where the implementation of ssrbool.ml
    doesn't match the interface *)

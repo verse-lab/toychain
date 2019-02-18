@@ -12,8 +12,6 @@ Unset Printing Implicit Defensive.
 Module Type NetState (P : ConsensusParams) (F : Forest P)
        (A : NetAddr) (Pr : ConsensusProtocol P F A).
 Import P A Pr.
-Definition Address_ordMixin := fin_ordMixin Address.
-Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 Definition StateMap := union_map [ordType of Address] State.
 Definition initState' s : StateMap := foldr (fun a m => (a \\-> Init a) \+ m) Unit s.
 Definition initState := initState' (enum Address).

@@ -1532,7 +1532,7 @@ elim: n bt hs Es En=>[|n Hi] bt hs Es En Ib=>/=;
 subst hs; move/find_some: (Ib).
 - by move/esym/size0nil:En=>->.
 move=>->; case: ifP.
-by case (find (prevBlockHash GenesisBlock) bt)=>// b; case: ifP=>// /eqP.
+by case: (find (prevBlockHash GenesisBlock) bt)=>// b; case: ifP=>// /eqP.
 by move: Ib (find_some Ib); rewrite/has_init_block/btHasBlock=>-> ->; rewrite eq_refl.
 Qed.
 
