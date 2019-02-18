@@ -148,5 +148,11 @@ End ProofOfWork.
 (*** NetAddr ***)
 
 Module Addr <: NetAddr.
-Definition Address := unit_finType.
+Definition quad := [finType of 'I_256].
+Definition half := prod_finType quad quad.
+
+Definition IP := prod_finType half half.
+Definition Port := [finType of 'I_2048].
+
+Definition Address := prod_finType IP Port.
 End Addr.
