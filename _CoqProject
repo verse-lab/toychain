@@ -9,6 +9,7 @@ Structures/Chains.v
 Structures/Blocks.v
 Structures/Parameters.v
 Structures/Forests.v
+Systems/Address.v
 Systems/Protocol.v
 Systems/States.v
 Systems/Network.v

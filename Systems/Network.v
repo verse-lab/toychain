@@ -4,16 +4,16 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import Protocol Chains Parameters Forests States.
+Require Import Protocol Chains Parameters Forests States Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
 Module Type ConsensusNetwork
-       (P : ConsensusParams) (F : Forest P)
-       (Pr : ConsensusProtocol P F) (Ns : NetState P F Pr).
-Import P Pr Ns F.
+       (P : ConsensusParams) (F : Forest P) (A : NetAddr)
+       (Pr : ConsensusProtocol P F A) (Ns : NetState P F A Pr).
+Import P A Pr Ns F.
 
 
 Definition PacketSoup := seq Packet.
@@ -283,9 +283,9 @@ Qed.
 
 End ConsensusNetwork.
 
-Module Network (P : ConsensusParams) (F : Forest P)
-       (Pr : ConsensusProtocol P F) (Ns : NetState P F Pr)
-        <: ConsensusNetwork P F Pr Ns.
+Module Network (P : ConsensusParams) (F : Forest P) (A : NetAddr)
+       (Pr : ConsensusProtocol P F A) (Ns : NetState P F A Pr)
+        <: ConsensusNetwork P F A Pr Ns.
 
-Include ConsensusNetwork P F Pr Ns.
+Include ConsensusNetwork P F A Pr Ns.
 End Network.

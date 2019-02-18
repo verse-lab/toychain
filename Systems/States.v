@@ -4,13 +4,14 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Parameters Forests Protocol.
+Require Import SeqFacts Chains Blocks Parameters Forests Protocol Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Type NetState (P : ConsensusParams) (F : Forest P) (Pr : ConsensusProtocol P F).
-Import P Pr.
+Module Type NetState (P : ConsensusParams) (F : Forest P)
+       (A : NetAddr) (Pr : ConsensusProtocol P F A).
+Import P A Pr.
 Definition Address_ordMixin := fin_ordMixin Address.
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 Definition StateMap := union_map [ordType of Address] State.
@@ -21,8 +22,9 @@ Axiom valid_initState' : forall s,  uniq s -> valid (initState' s).
 Axiom dom_initState' : forall s, uniq s -> dom (initState' s) =i s.
 End NetState.
 
-Module States (P : ConsensusParams) (F : Forest P) (Pr : ConsensusProtocol P F) <: NetState P F Pr.
-Import P Pr.
+Module States (P : ConsensusParams) (F : Forest P)
+            (A : NetAddr) (Pr : ConsensusProtocol P F A) <: NetState P F A Pr.
+Import P A Pr.
 
 Definition Address_ordMixin := fin_ordMixin Address.
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.

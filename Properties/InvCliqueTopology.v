@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Protocol Blocks Chains Parameters Forests States Network InvMisc.
+Require Import SeqFacts Protocol Blocks Chains Parameters Forests States Network InvMisc Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -19,11 +19,11 @@ blocks towars it "in flight" are received and used to extend the local
 block tree. *)
 (*******************************************************************)
 
-Module CliqueConsensus (P : ConsensusParams) (F : Forest P)
-                       (Pr : ConsensusProtocol P F) (Ns : NetState P F Pr)
-                       (C : ConsensusNetwork P F Pr Ns)
-                       (Ip : InvProps P F Pr Ns C).
-Import P F Pr Ns C Ip.
+Module CliqueConsensus (P : ConsensusParams) (F : Forest P) (A : NetAddr)
+                       (Pr : ConsensusProtocol P F A) (Ns : NetState P F A Pr)
+                       (C : ConsensusNetwork P F A Pr Ns)
+                       (Ip : InvProps P F A Pr Ns C).
+Import P F A Pr Ns C Ip.
 
 Definition GSyncing_clique w :=
   (* There exists a priviledged node, "canonical" blocktree and blockchain *)

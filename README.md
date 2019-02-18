@@ -18,6 +18,7 @@ We recommend installing the requirements via [OPAM](https://opam.ocaml.org/doc/I
 ```
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install coq-mathcomp-ssreflect coq-fcsl-pcm
+opam install cryptokit
 ```
 
 Then, run `make clean; make` from the root folder. This will build all
@@ -34,8 +35,3 @@ The top-level structure consists of the following folders:
 * `Properties` - proved properties of the protocol, e.g., eventual
   consistency for a clique-like network topology;
 
-### Obsolete development
-
-* `Obsolete` -- properties that might or might not hold, as were
-  verified out of many optimistically assumed axioms at the beginning
-  of the project.

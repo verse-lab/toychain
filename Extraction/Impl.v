@@ -3,11 +3,13 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 From fcsl
 Require Import ordtype unionmap.
 From Toychain
-Require Import Blocks Parameters.
+Require Import Blocks Parameters Address.
 Require Import BinNat BinNatDef.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+(*** ConsensusParams ***)
 
 (** Instantiate Toychain with a proof-of-work scheme **)
 
@@ -141,3 +143,10 @@ Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
 
 End ProofOfWork.
+
+
+(*** NetAddr ***)
+
+Module Addr <: NetAddr.
+Definition Address := unit_finType.
+End Addr.

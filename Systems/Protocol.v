@@ -4,17 +4,14 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Parameters Forests.
+Require Import SeqFacts Chains Blocks Parameters Forests Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Type ConsensusProtocol (P : ConsensusParams) (F : Forest P).
-Import P F.
+Module Type ConsensusProtocol (P : ConsensusParams) (F : Forest P) (A : NetAddr).
+Import P F A.
 
-(* Address is an IP:port pair or something similar *)
-(* Needs to be finType because the global state is map from Address -> State *)
-Parameter Address : finType.
 Definition peers_t := seq Address.
 
 Inductive _Message :=
@@ -466,6 +463,6 @@ case.
 Qed.
 End ConsensusProtocol.
 
-Module Protocol (P : ConsensusParams) (F : Forest P) <: ConsensusProtocol P F.
-Include ConsensusProtocol P F.
+Module Protocol (P : ConsensusParams) (F : Forest P) (A : NetAddr) <: ConsensusProtocol P F A.
+Include (ConsensusProtocol P F A).
 End Protocol.
