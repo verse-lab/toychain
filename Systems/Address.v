@@ -11,3 +11,7 @@ Module Type NetAddr.
 (* Needs to be finType because the global state is map from Address -> State *)
 Parameter Address : finType.
 End NetAddr.
+
+Module Addr <: NetAddr.
+Include NetAddr.
+End Addr.
