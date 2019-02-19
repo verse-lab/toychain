@@ -9,8 +9,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(*** ConsensusParams ***)
-
 (** Instantiate Toychain with a proof-of-work scheme **)
 
 Module ProofOfWork <: ConsensusParams.
