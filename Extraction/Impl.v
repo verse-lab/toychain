@@ -13,9 +13,20 @@ Unset Printing Implicit Defensive.
 
 Module ProofOfWork <: ConsensusParams.
 
-(* Need to do some massaging to get Coq types that extract nicely to
-  play well with SSReflect. *)
-(* N is ordType *)
+Section NEq.
+Lemma eq_NP : Equality.axiom N.eqb.
+Proof.
+case=>[x|p x]//=; case: x.
+by constructor 1; apply N.Private_Tac.eq_refl.
+by constructor 2.
+by constructor 2.
+move=>p'; case X: (BinPos.Pos.eqb p p').
+by constructor 1; move/BinPos.Peqb_true_eq: X=>->.
+by constructor 2; case; move/BinPos.Pos.eqb_neq: X.
+Qed.
+End NEq.
+
+
 Section NOrd.
 Lemma irr_ltbN : irreflexive N.ltb.
 Proof. by case=>[|n]//; apply N.ltb_irrefl. Qed.
@@ -34,8 +45,8 @@ by constructor 1; apply/N.ltb_lt.
 by constructor 3; apply/N.ltb_lt.
 Qed.
 
-Definition N_ordMixin := OrdMixin irr_ltbN trans_ltbN total_ltbN.
-Canonical Structure N_ordType := OrdType N N_ordMixin.
+Canonical N_ordMixin := Eval hnf in OrdMixin irr_ltbN trans_ltbN total_ltbN.
+Canonical N_ordType := Eval hnf in OrdType N N_ordMixin.
 End NOrd.
 
 
@@ -45,24 +56,40 @@ End NOrd.
 
 Definition Timestamp := N.
 Definition Hash := N.
-Definition VProof := unit.
+Definition VProof := N.
 Definition Transaction := N.
 
-(* These need to be types that can be coerced into ordType *)
-Axiom Hash_eqMixin : Equality.mixin_of Hash.
+(* XXX Having to do this is immensely annoying. Is there a better way? *)
+Definition Hl (a b : Hash) := N.ltb a b.
+Lemma irr_Hl : irreflexive Hl. Proof. by apply irr_ltbN. Qed.
+Lemma trans_Hl : transitive Hl. Proof. by apply trans_ltbN. Qed.
+Lemma total_Hl x y : [|| Hl x y, x == y | Hl y x]. Proof. by apply total_ltbN. Qed.
+
+Canonical Hash_eqMixin := Eval hnf in EqMixin eq_NP.
 Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
-Axiom Hash_ordMixin : Ordered.mixin_of Hash_eqType.
+Canonical Hash_ordMixin := Eval hnf in OrdMixin irr_Hl trans_Hl total_Hl.
 Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin.
 
-Axiom VProof_eqMixin : Equality.mixin_of VProof.
+Definition Vl (a b : VProof) := N.ltb a b.
+Lemma irr_Vl : irreflexive Vl. Proof. by apply irr_ltbN. Qed.
+Lemma trans_Vl : transitive Vl. Proof. by apply trans_ltbN. Qed.
+Lemma total_Vl x y : [|| Vl x y, x == y | Vl y x]. Proof. by apply total_ltbN. Qed.
+
+Canonical VProof_eqMixin := Eval hnf in EqMixin eq_NP.
 Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
-Axiom VProof_ordMixin : Ordered.mixin_of VProof_eqType.
+Canonical VProof_ordMixin := Eval hnf in OrdMixin irr_Vl trans_Vl total_Vl.
 Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
 
-Axiom Transaction_eqMixin : Equality.mixin_of Transaction.
+Definition Tl (a b : Transaction) := N.ltb a b.
+Lemma irr_Tl : irreflexive Tl. Proof. by apply irr_ltbN. Qed.
+Lemma trans_Tl : transitive Tl. Proof. by apply trans_ltbN. Qed.
+Lemma total_Tl x y : [|| Tl x y, x == y | Tl y x]. Proof. by apply total_ltbN. Qed.
+
+Canonical Transaction_eqMixin := Eval hnf in EqMixin eq_NP.
 Canonical Transaction_eqType := Eval hnf in EqType Transaction Transaction_eqMixin.
-Axiom Transaction_ordMixin : Ordered.mixin_of Transaction_eqType.
+Canonical Transaction_ordMixin := Eval hnf in OrdMixin irr_Tl trans_Tl total_Tl.
 Canonical Transaction_ordType := Eval hnf in OrdType Transaction Transaction_ordMixin.
+
 
 Definition block := @Block [ordType of Hash] [ordType of Transaction] [ordType of VProof].
 Definition Blockchain := seq block.
@@ -72,8 +99,7 @@ Definition TxPool := seq Transaction.
 (* In fact, it's a forest, as it also keeps orphan blocks *)
 Definition BlockTree := union_map [ordType of Hash] block.
 
-(* Definition GenesisBlock : block := mkB (N_of_nat 0) [::] tt. *)
-Parameter GenesisBlock : block.
+Definition GenesisBlock : block := mkB ((N_of_nat 0) <: Hash) [::] ((N_of_nat 0) <: VProof).
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
 (* TODO: Implement this in the extraction *)
