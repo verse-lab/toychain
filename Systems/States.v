@@ -14,7 +14,7 @@ Module Type NetState (P : ConsensusParams) (F : Forest P)
 Import P A Pr.
 Definition StateMap := union_map [ordType of Address] State.
 Definition initState' s : StateMap := foldr (fun a m => (a \\-> Init a) \+ m) Unit s.
-Definition initState := initState' (enum Address).
+Definition initState := initState' (enum [finType of Address]).
 
 Axiom valid_initState' : forall s,  uniq s -> valid (initState' s).
 Axiom dom_initState' : forall s, uniq s -> dom (initState' s) =i s.
@@ -23,9 +23,6 @@ End NetState.
 Module States (P : ConsensusParams) (F : Forest P)
             (A : NetAddr) (Pr : ConsensusProtocol P F A) <: NetState P F A Pr.
 Import P A Pr.
-
-Definition Address_ordMixin := fin_ordMixin Address.
-Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
 Definition StateMap := union_map [ordType of Address] State.
 
@@ -41,7 +38,7 @@ move/andP => [H_ni H_u].
 move/IH: H_u => [H1 H2] {IH}.
 split; last first.
 - case: validUn; rewrite ?validPt ?H2//.
-  move=>k; rewrite domPt inE=>/eqP Z; subst k.
+  move=>k. rewrite domPt inE. move=>/eqP Z. subst k.
   by rewrite H1; move/negP: H_ni.
 - move=>z; rewrite domUn !inE !domPt !inE.
   rewrite H1.
@@ -63,5 +60,5 @@ Proof. by move => H_u; case: (initStateValidDom H_u). Qed.
 Lemma dom_initState' s : uniq s -> dom (initState' s) =i s.
 Proof. by move => H_u; case: (initStateValidDom H_u). Qed.
 
-Definition initState := initState' (enum Address).
+Definition initState := initState' (enum [finType of Address]).
 End States.
