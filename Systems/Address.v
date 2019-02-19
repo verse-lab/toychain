@@ -42,3 +42,7 @@ Definition Address_ordMixin := fin_ordMixin [finType of Address].
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
 End NetAddr.
+
+Module Addr <: NetAddr.
+Include NetAddr.
+End Addr.

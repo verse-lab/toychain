@@ -160,20 +160,3 @@ Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
 
 End ProofOfWork.
-
-
-(*** NetAddr ***)
-
-Module Addr <: NetAddr.
-Definition quad := [finType of 'I_256].
-Definition half := prod_finType quad quad.
-
-Definition IP := prod_finType half half.
-Definition Port := [finType of 'I_2048].
-
-Definition Address := prod_finType IP Port.
-Definition Address_ordMixin := fin_ordMixin Address.
-Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
-
-
-End Addr.
