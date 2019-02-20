@@ -5,6 +5,7 @@ Require Import ordtype unionmap.
 From Toychain
 Require Import Types Parameters Address.
 Require Import BinNat BinNatDef.
+Require Import String Ascii.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -44,46 +45,91 @@ by constructor 1; apply/N.ltb_lt.
 by constructor 3; apply/N.ltb_lt.
 Qed.
 
-Canonical N_ordMixin := Eval hnf in OrdMixin irr_ltbN trans_ltbN total_ltbN.
-Canonical N_ordType := Eval hnf in OrdType N N_ordMixin.
+(* Definition N_ordMixin := Eval hnf in OrdMixin irr_ltbN trans_ltbN total_ltbN. *)
+(* Canonical N_ordType := Eval hnf in OrdType N N_ordMixin. *)
 End NOrd.
 
+Section StringEq.
+
+(* Define so we can reuse proofs from above *)
+Definition ascii_eqb (a b : ascii) : bool :=
+ match a, b with
+ | Ascii a0 a1 a2 a3 a4 a5 a6 a7,
+   Ascii b0 b1 b2 b3 b4 b5 b6 b7 =>
+   (a0 == b0) && (a1 == b1) && (a2 == b2) && (a3 == b3)
+   && (a4 == b4) && (a5 == b5) && (a6 == b6) && (a7 == b7)
+ end.
+
+Lemma ascii_eqP : Equality.axiom ascii_eqb.
+Proof.
+case=>a0 a1 a2 a3 a4 a5 a6 a7; case=>b0 b1 b2 b3 b4 b5 b6 b7.
+rewrite/ascii_eqb.
+(case:a0;case:b0=>/=; do? by constructor);
+(case:a1;case:b1=>/=; do? by constructor);
+(case:a2;case:b2=>/=; do? by constructor);
+(case:a3;case:b3=>/=; do? by constructor);
+(case:a4;case:b4=>/=; do? by constructor);
+(case:a5;case:b5=>/=; do? by constructor);
+(case:a6;case:b6=>/=; do? by constructor);
+(case:a7;case:b7=>/=; do? by constructor).
+Qed.
+
+Definition ascii_eqMixin := EqMixin ascii_eqP.
+Canonical ascii_eqType := Eval hnf in EqType ascii ascii_eqMixin.
+
+Fixpoint string_eqb (s1 s2 : string): bool :=
+ match s1, s2 with
+ | EmptyString, EmptyString => true
+ | String c1 s1', String c2 s2' => ascii_eqb c1 c2 && string_eqb s1' s2'
+ | _,_ => false
+end.
+
+
+Lemma string_eqP : Equality.axiom string_eqb.
+Proof.
+rewrite/Equality.axiom=>s1; elim: s1; first by case; constructor.
+move=>x xs Hi; case; first by constructor.
+move=>y ys; case E: (x == y).
+move/eqP in E; rewrite -E.
+Admitted.
+
+Definition ascii_ltb (a b : ascii) : bool := N.ltb (N_of_ascii a) (N_of_ascii b).
+
+Fixpoint string_ltb (s1 s2 : string): bool :=
+ match s1, s2 with
+ | EmptyString, EmptyString => false
+ | EmptyString, _ => true
+ | _, EmptyString => false
+ | String c1 s1', String c2 s2' => ascii_ltb c1 c2 || (ascii_eqb c1 c2 && string_ltb s1' s2')
+end.
+
+End StringEq.
+
 Definition Timestamp := N.
-Definition Hash := N.
-Definition VProof := N.
+Definition Hash := string.
+Definition VProof := unit.
 Definition Transaction := N.
 
-
-(* XXX Having to do this is immensely annoying. Is there a better way? *)
-Definition Hl (a b : Hash) := N.ltb a b.
-Lemma irr_Hl : irreflexive Hl. Proof. by apply irr_ltbN. Qed.
-Lemma trans_Hl : transitive Hl. Proof. by apply trans_ltbN. Qed.
-Lemma total_Hl x y : [|| Hl x y, x == y | Hl y x]. Proof. by apply total_ltbN. Qed.
-
-Canonical Hash_eqMixin := Eval hnf in EqMixin eq_NP.
-Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
-Canonical Hash_ordMixin := Eval hnf in OrdMixin irr_Hl trans_Hl total_Hl.
-Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin.
-
-Definition Vl (a b : VProof) := N.ltb a b.
-Lemma irr_Vl : irreflexive Vl. Proof. by apply irr_ltbN. Qed.
-Lemma trans_Vl : transitive Vl. Proof. by apply trans_ltbN. Qed.
-Lemma total_Vl x y : [|| Vl x y, x == y | Vl y x]. Proof. by apply total_ltbN. Qed.
-
-Canonical VProof_eqMixin := Eval hnf in EqMixin eq_NP.
+(* Having to do this is annoying; is there a better way? *)
+Lemma VProof_eqP : Equality.axiom (fun _ _ : VProof => true). Proof. by case=>//=; case; constructor. Qed.
+Definition VProof_eqMixin := EqMixin VProof_eqP.
 Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
-Canonical VProof_ordMixin := Eval hnf in OrdMixin irr_Vl trans_Vl total_Vl.
-Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
+Let ordtt (x y : VProof ) := false.
+Lemma irr_tt : irreflexive ordtt. Proof. by []. Qed.
+Lemma trans_tt : transitive ordtt. Proof. by []. Qed.
+Lemma total_tt x y : [|| ordtt x y, x == y | ordtt y x ]. Proof. by []. Qed.
+Let VProof_ordMixin := OrdMixin irr_tt trans_tt total_tt.
+Canonical Structure VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
 
-Definition Tl (a b : Transaction) := N.ltb a b.
-Lemma irr_Tl : irreflexive Tl. Proof. by apply irr_ltbN. Qed.
-Lemma trans_Tl : transitive Tl. Proof. by apply trans_ltbN. Qed.
-Lemma total_Tl x y : [|| Tl x y, x == y | Tl y x]. Proof. by apply total_ltbN. Qed.
+(* Definition Vl (a b : VProof) := N.ltb a b. *)
+(* Lemma irr_Vl : irreflexive Vl. Proof. by apply irr_ltbN. Qed. *)
+(* Lemma trans_Vl : transitive Vl. Proof. by apply trans_ltbN. Qed. *)
+(* Lemma total_Vl x y : [|| Vl x y, x == y | Vl y x]. Proof. by apply total_ltbN. Qed. *)
 
-Canonical Transaction_eqMixin := Eval hnf in EqMixin eq_NP.
-Canonical Transaction_eqType := Eval hnf in EqType Transaction Transaction_eqMixin.
-Canonical Transaction_ordMixin := Eval hnf in OrdMixin irr_Tl trans_Tl total_Tl.
-Canonical Transaction_ordType := Eval hnf in OrdType Transaction Transaction_ordMixin.
+(* Canonical VProof_eqMixin := Eval hnf in EqMixin eq_NP. *)
+(* Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin. *)
+(* Canonical VProof_ordMixin := Eval hnf in OrdMixin irr_Vl trans_Vl total_Vl. *)
+(* Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin. *)
 
 Record Block  :=
   mkB {
