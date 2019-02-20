@@ -6,7 +6,7 @@
 
 Structures/SeqFacts.v
 Structures/Chains.v
-Structures/Blocks.v
+Structures/Types.v
 Structures/Parameters.v
 Structures/Forests.v
 Systems/Address.v

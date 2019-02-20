@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Parameters.
+Require Import SeqFacts Chains Types Parameters.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -12,8 +12,8 @@ Unset Printing Implicit Defensive.
 (* A formalization of a block forests *)
 (* TODO: Go through this file and put the lemmas in a sensible order. *)
 
-Module Type Forest (Params : ConsensusParams).
-Import Params.
+Module Type Forest (T : Types) (Params : ConsensusParams T).
+Import T Params.
 Definition btExtend (bt : BlockTree) (b : block) :=
   if #b \in dom bt then
     if find (# b) bt == Some b then bt
@@ -209,8 +209,8 @@ Axiom FCR_dual : forall (A B : Blockchain), (A > B = false) <-> (B >= A).
 End Forest.
 
 
-Module Forests (Params : ConsensusParams) <: (Forest Params).
-Import Params.
+Module Forests (T : Types) (Params : ConsensusParams T) <: (Forest T Params).
+Import T Params.
 
 Lemma FCR_trans_eq (A B C : Blockchain):
     A >= B -> B >= C -> A >= C.

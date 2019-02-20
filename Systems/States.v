@@ -4,14 +4,14 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Parameters Forests Protocol Address.
+Require Import SeqFacts Chains Types Parameters Forests Protocol Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Type NetState (P : ConsensusParams) (F : Forest P)
-       (A : NetAddr) (Pr : ConsensusProtocol P F A).
-Import P A Pr.
+Module Type NetState (T : Types) (P : ConsensusParams T) (F : Forest T P)
+       (A : NetAddr) (Pr : ConsensusProtocol T P F A).
+Import T P A Pr.
 Definition StateMap := union_map [ordType of Address] State.
 Definition initState' s : StateMap := foldr (fun a m => (a \\-> Init a) \+ m) Unit s.
 Definition initState := initState' (enum [finType of Address]).
@@ -20,9 +20,9 @@ Axiom valid_initState' : forall s,  uniq s -> valid (initState' s).
 Axiom dom_initState' : forall s, uniq s -> dom (initState' s) =i s.
 End NetState.
 
-Module States (P : ConsensusParams) (F : Forest P)
-            (A : NetAddr) (Pr : ConsensusProtocol P F A) <: NetState P F A Pr.
-Import P A Pr.
+Module States (T : Types) (P : ConsensusParams T) (F : Forest T P)
+            (A : NetAddr) (Pr : ConsensusProtocol T P F A) <: NetState T P F A Pr.
+Import T P A Pr.
 
 Definition StateMap := union_map [ordType of Address] State.
 

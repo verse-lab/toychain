@@ -4,13 +4,13 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Parameters Forests Address.
+Require Import SeqFacts Chains Types Parameters Forests Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module Type ConsensusProtocol (P : ConsensusParams) (F : Forest P) (A : NetAddr).
-Import P F A.
+Module Type ConsensusProtocol (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr).
+Import T P F A.
 
 Definition peers_t := seq Address.
 
@@ -463,6 +463,6 @@ case.
 Qed.
 End ConsensusProtocol.
 
-Module Protocol (P : ConsensusParams) (F : Forest P) (A : NetAddr) <: ConsensusProtocol P F A.
-Include (ConsensusProtocol P F A).
+Module Protocol (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr) <: ConsensusProtocol T P F A.
+Include (ConsensusProtocol T P F A).
 End Protocol.

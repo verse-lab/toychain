@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 From fcsl
 Require Import ordtype unionmap.
 From Toychain
-Require Import Blocks Parameters Address.
+Require Import Types Parameters Address.
 Require Import BinNat BinNatDef.
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -11,8 +11,7 @@ Unset Printing Implicit Defensive.
 
 (** Instantiate Toychain with a proof-of-work scheme **)
 
-Module ProofOfWork <: ConsensusParams.
-
+Module TypesImpl <: Types.
 Section NEq.
 Lemma eq_NP : Equality.axiom N.eqb.
 Proof.
@@ -49,15 +48,11 @@ Canonical N_ordMixin := Eval hnf in OrdMixin irr_ltbN trans_ltbN total_ltbN.
 Canonical N_ordType := Eval hnf in OrdType N N_ordMixin.
 End NOrd.
 
-
-(************************************************************)
-(******************* <parameters> ***************************)
-(************************************************************)
-
 Definition Timestamp := N.
 Definition Hash := N.
 Definition VProof := N.
 Definition Transaction := N.
+
 
 (* XXX Having to do this is immensely annoying. Is there a better way? *)
 Definition Hl (a b : Hash) := N.ltb a b.
@@ -90,19 +85,48 @@ Canonical Transaction_eqType := Eval hnf in EqType Transaction Transaction_eqMix
 Canonical Transaction_ordMixin := Eval hnf in OrdMixin irr_Tl trans_Tl total_Tl.
 Canonical Transaction_ordType := Eval hnf in OrdType Transaction Transaction_ordMixin.
 
+Record Block  :=
+  mkB {
+    prevBlockHash : Hash;
+    txs : seq Transaction;
+    proof : VProof;
+  }.
 
-Definition block := @Block [ordType of Hash] [ordType of Transaction] [ordType of VProof].
+Definition eq_block b b':=
+  match b, b' with
+  | mkB p t pf, mkB p' t' pf' =>
+    [&& p == p', t == t' & pf == pf']
+  end.
+
+Lemma eq_blockP : Equality.axiom eq_block.
+Proof.
+case=> p t pf; case=> p' t' pf'; rewrite /eq_block/=.
+case H2: (p == p'); [move/eqP: H2=>?; subst p'| constructor 2];
+  last by case=>?; subst p';rewrite eqxx in H2.
+case H3: (t == t'); [move/eqP: H3=>?; subst t'| constructor 2];
+  last by case=>?; subst t';rewrite eqxx in H3.
+case H4: (pf == pf'); [move/eqP: H4=>?; subst pf'| constructor 2];
+  last by case=>?; subst pf';rewrite eqxx in H4.
+by constructor 1.
+Qed.
+
+Canonical Block_eqMixin := Eval hnf in EqMixin eq_blockP.
+Canonical Block_eqType := Eval hnf in EqType Block Block_eqMixin.
+
+Definition block := Block.
 Definition Blockchain := seq block.
-Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 
 Definition TxPool := seq Transaction.
-(* In fact, it's a forest, as it also keeps orphan blocks *)
 Definition BlockTree := union_map [ordType of Hash] block.
+End TypesImpl.
+
+Module ProofOfWork <: (ConsensusParams TypesImpl).
+Import TypesImpl.
 
 Definition GenesisBlock : block := mkB ((N_of_nat 0) <: Hash) [::] ((N_of_nat 0) <: VProof).
+Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
-(* TODO: Implement this in the extraction *)
 Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 
@@ -168,7 +192,6 @@ Axiom VAF_GB_first :
 Axiom FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
-(* TODO: strengthen to only valid chains *)
 Axiom FCR_ext :
   forall (bc : Blockchain) (b : block) (ext : seq block),
     bc ++ (b :: ext) > bc.

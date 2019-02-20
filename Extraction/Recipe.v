@@ -4,8 +4,8 @@ Require Import Address Protocol Forests Parameters Impl.
 Require Import ExtrOcamlBasic ExtrOcamlString ExtrOcamlZInt.
 
 (* Instantiate modules *)
-Module ForestImpl := Forests ProofOfWork.
-Module ProtocolImpl := Protocol ProofOfWork ForestImpl Addr.
+Module ForestImpl := Forests TypesImpl ProofOfWork.
+Module ProtocolImpl := Protocol TypesImpl ProofOfWork ForestImpl Addr.
 
 (* This solves an error where the implementation of ssrbool.ml
    doesn't match the interface *)

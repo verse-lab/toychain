@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Protocol Blocks Chains Parameters Forests States Network Address.
+Require Import SeqFacts Protocol Types Chains Parameters Forests States Network Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -16,10 +16,10 @@ Unset Printing Implicit Defensive.
 (* Invariants of the execution regarding the blockchain *)
 (* Properties *)
 
-Module Type InvProps (P : ConsensusParams) (F : Forest P) (A : NetAddr)
-                     (Pr : ConsensusProtocol P F A) (Ns : NetState P F A Pr)
-                     (C : ConsensusNetwork P F A Pr Ns).
-Import P F A Pr Ns C.
+Module Type InvProps (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr)
+                     (Pr : ConsensusProtocol T P F A) (Ns : NetState T P F A Pr)
+                     (C : ConsensusNetwork T P F A Pr Ns).
+Import T P F A Pr Ns C.
 
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.
@@ -53,11 +53,11 @@ Definition GStable w :=
       holds n w (has_chain bc).
 End InvProps.
 
-Module InvMisc (P : ConsensusParams) (F : Forest P) (A : NetAddr)
-                     (Pr : ConsensusProtocol P F A) (Ns : NetState P F A Pr)
-                     (C : ConsensusNetwork P F A Pr Ns)
-                        <: InvProps P F A Pr Ns C.
-Import P F A Pr Ns C.
+Module InvMisc (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr)
+                     (Pr : ConsensusProtocol T P F A) (Ns : NetState T P F A Pr)
+                     (C : ConsensusNetwork T P F A Pr Ns)
+                        <: InvProps T P F A Pr Ns C.
+Import T P F A Pr Ns C.
 
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.

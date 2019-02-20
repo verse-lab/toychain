@@ -3,7 +3,7 @@ Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq fintype path.
 From fcsl
 Require Import ordtype unionmap.
 From Toychain
-Require Import Blocks.
+Require Import Types.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -12,41 +12,13 @@ Unset Printing Implicit Defensive.
 (************************************************************)
 (******************* <parameters> ***************************)
 (************************************************************)
-Module Type ConsensusParams.
-Parameter Timestamp : Set.
-Parameter Hash : Set.
-Parameter VProof : Set.
-Parameter Transaction : Set.
+Module Type ConsensusParams (T : Types).
+Import T.
 
-(* These need to be types that can be coerced into ordType *)
-Axiom Hash_eqMixin : Equality.mixin_of Hash.
-Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
-Axiom Hash_ordMixin : Ordered.mixin_of Hash_eqType.
-Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin.
-
-Axiom VProof_eqMixin : Equality.mixin_of VProof.
-Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
-Axiom VProof_ordMixin : Ordered.mixin_of VProof_eqType.
-Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
-
-Axiom Transaction_eqMixin : Equality.mixin_of Transaction.
-Canonical Transaction_eqType := Eval hnf in EqType Transaction Transaction_eqMixin.
-Axiom Transaction_ordMixin : Ordered.mixin_of Transaction_eqType.
-Canonical Transaction_ordType := Eval hnf in OrdType Transaction Transaction_ordMixin.
-
-
-Definition block := @Block [ordType of Hash] [ordType of Transaction] [ordType of VProof].
 Parameter GenesisBlock : block.
 
-Definition Blockchain := seq block.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
-
-Definition TxPool := seq Transaction.
-(* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map [ordType of Hash] block.
-
-
 Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 Notation "# b" := (hashB b) (at level 20).
