@@ -8,7 +8,8 @@ env:
   global:
     - THIS_REPO=toychain
   matrix:
-    - COQ_VERSION=coq8.9-32bit
+    - COQ_VERSION=coq8.7-32bit
+    - COQ_VERSION=coq8.8-32bit
 
 # The "docker run" command will pull if needed.
 # Running this first gives two tries in case of network lossage.
