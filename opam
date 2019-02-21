@@ -5,15 +5,14 @@ maintainer: "palmskog@gmail.com"
 homepage: "https://github.com/certichain/toychain"
 dev-repo: "https://github.com/certichain/toychain.git"
 bug-reports: "https://github.com/certichain/toychain/issues"
-license: "BSD"
+license: "BSD-2-Clause"
 
-build: [
-  [ make "-j%{jobs}%" ]
-]
+build: [ make "-j%{jobs}%" ]
 install: [ make "install" ]
+remove: [ "sh" "-c" "rm -rf '%{lib}%/coq/user-contrib/Toychain'" ]
 depends: [
-  "coq" {>= "8.7" & < "8.9~"}
-  "coq-mathcomp-ssreflect" {>= "1.6" & < "1.8~"}
+  "coq" {>= "8.7" & < "8.10~"}
+  "coq-mathcomp-ssreflect" {>= "1.6.4" & < "1.8~"}
   "coq-fcsl-pcm"
 ]
 
@@ -21,6 +20,7 @@ tags: [
   "category:Computer Science/Concurrent Systems and Protocols/Theory of concurrent systems"
   "keyword:program verification"
   "keyword:distributed algorithms"
+  "logpath:Toychain"
 ]
 authors: [
   "Ilya Sergey <>"
