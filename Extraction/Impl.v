@@ -45,8 +45,8 @@ by constructor 1; apply/N.ltb_lt.
 by constructor 3; apply/N.ltb_lt.
 Qed.
 
-(* Definition N_ordMixin := Eval hnf in OrdMixin irr_ltbN trans_ltbN total_ltbN. *)
-(* Canonical N_ordType := Eval hnf in OrdType N N_ordMixin. *)
+Definition N_ordMixin := Eval hnf in OrdMixin irr_ltbN trans_ltbN total_ltbN.
+Canonical N_ordType := Eval hnf in OrdType N N_ordMixin.
 End NOrd.
 
 Section StringEq.
@@ -140,7 +140,7 @@ rewrite -ascii_eqb_N; case X: (ascii_eqb x y)=>//=.
 by move: (ascii_eqP x y X); move/eqP: Q.
 Qed.
 
-Let ascii_ordMixin := OrdMixin irr_ascii trans_ascii total_ascii.
+Definition ascii_ordMixin := OrdMixin irr_ascii trans_ascii total_ascii.
 Canonical Structure ascii_ordType := Eval hnf in OrdType ascii ascii_ordMixin.
 
 Fixpoint string_ltb (s1 s2 : string): bool :=
@@ -151,44 +151,59 @@ Fixpoint string_ltb (s1 s2 : string): bool :=
  | String c1 s1', String c2 s2' => ascii_ltb c1 c2 || (ascii_eqb c1 c2 && string_ltb s1' s2')
 end.
 
-(*
-Let ordtt (x y : VProof ) := false.
-Lemma irr_tt : irreflexive ordtt. Proof. by []. Qed.
-Lemma trans_tt : transitive ordtt. Proof. by []. Qed.
-Lemma total_tt x y : [|| ordtt x y, x == y | ordtt y x ]. Proof. by []. Qed.
-Let VProof_ordMixin := OrdMixin irr_tt trans_tt total_tt.
-Canonical Structure VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
-*)
+Lemma irr_string : irreflexive string_ltb.
+Proof.
+move=>x; elim: x=>//=x xs.
+by move=>->; rewrite ascii_eqb_refl irr_ascii.
+Qed.
 
+(* Might be easier to define an embedding string -> seq ascii *)
+Lemma trans_string : transitive string_ltb.
+Proof. Admitted.
 
+Lemma total_string x y : [|| string_ltb x y, x == y | string_ltb y x].
+Proof. Admitted.
+
+Definition string_ordMixin := OrdMixin irr_string trans_string total_string.
+Canonical Structure string_ordType := Eval hnf in OrdType string string_ordMixin.
 
 End StringOrd.
 
 Definition Timestamp := N.
 Definition Hash := string.
 Definition VProof := unit.
-Definition Transaction := N.
+Definition Transaction := string.
 
-(* Having to do this is annoying; is there a better way? *)
+(* XXX Having to do this is immensely annoying. Is there a better way? *)
+Definition Hl (a b : Hash) := string_ltb a b.
+Lemma irr_Hl : irreflexive Hl. Proof. by apply irr_string. Qed.
+Lemma trans_Hl : transitive Hl. Proof. by apply trans_string. Qed.
+Lemma total_Hl x y : [|| Hl x y, x == y | Hl y x]. Proof. by apply total_string. Qed.
+
+Definition Hash_eqMixin := Eval hnf in EqMixin string_eqP.
+Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
+Definition Hash_ordMixin := Eval hnf in OrdMixin irr_Hl trans_Hl total_Hl.
+Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin.
+
 Lemma VProof_eqP : Equality.axiom (fun _ _ : VProof => true). Proof. by case=>//=; case; constructor. Qed.
 Definition VProof_eqMixin := EqMixin VProof_eqP.
 Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
-Let ordtt (x y : VProof ) := false.
+Definition ordtt (x y : VProof ) := false.
 Lemma irr_tt : irreflexive ordtt. Proof. by []. Qed.
 Lemma trans_tt : transitive ordtt. Proof. by []. Qed.
 Lemma total_tt x y : [|| ordtt x y, x == y | ordtt y x ]. Proof. by []. Qed.
-Let VProof_ordMixin := OrdMixin irr_tt trans_tt total_tt.
+Definition VProof_ordMixin := OrdMixin irr_tt trans_tt total_tt.
 Canonical Structure VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
 
-(* Definition Vl (a b : VProof) := N.ltb a b. *)
-(* Lemma irr_Vl : irreflexive Vl. Proof. by apply irr_ltbN. Qed. *)
-(* Lemma trans_Vl : transitive Vl. Proof. by apply trans_ltbN. Qed. *)
-(* Lemma total_Vl x y : [|| Vl x y, x == y | Vl y x]. Proof. by apply total_ltbN. Qed. *)
+Definition Tl (a b : Transaction) := string_ltb a b.
+Lemma irr_Tl : irreflexive Hl. Proof. by apply irr_string. Qed.
+Lemma trans_Tl : transitive Hl. Proof. by apply trans_string. Qed.
+Lemma total_Tl x y : [|| Tl x y, x == y | Tl y x]. Proof. by apply total_string. Qed.
 
-(* Canonical VProof_eqMixin := Eval hnf in EqMixin eq_NP. *)
-(* Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin. *)
-(* Canonical VProof_ordMixin := Eval hnf in OrdMixin irr_Vl trans_Vl total_Vl. *)
-(* Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin. *)
+Definition Transaction_eqMixin := Eval hnf in EqMixin string_eqP.
+Canonical Transaction_eqType := Eval hnf in EqType Transaction Transaction_eqMixin.
+Definition Transaction_ordMixin := Eval hnf in OrdMixin irr_Tl trans_Tl total_Tl.
+Canonical Transaction_ordType := Eval hnf in OrdType Transaction Transaction_ordMixin.
 
 Record Block  :=
   mkB {
@@ -228,7 +243,9 @@ End TypesImpl.
 Module ProofOfWork <: (ConsensusParams TypesImpl).
 Import TypesImpl.
 
-Definition GenesisBlock : block := mkB ((N_of_nat 0) <: Hash) [::] ((N_of_nat 0) <: VProof).
+Definition GenesisBlock : block :=
+  mkB (String (ascii_of_nat 0) EmptyString <: Hash) [::] (tt <: VProof).
+
 Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
