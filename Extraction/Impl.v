@@ -84,14 +84,24 @@ Fixpoint string_eqb (s1 s2 : string): bool :=
  | _,_ => false
 end.
 
+Lemma ascii_eqb_refl x : ascii_eqb x x.
+Proof. by case: x=>b0 b1 b2 b3 b4 b5 b6 b7//=; rewrite !eq_refl. Qed.
 
 Lemma string_eqP : Equality.axiom string_eqb.
 Proof.
 rewrite/Equality.axiom=>s1; elim: s1; first by case; constructor.
 move=>x xs Hi; case; first by constructor.
 move=>y ys; case E: (x == y).
-move/eqP in E; rewrite -E.
-Admitted.
+- move/eqP in E; rewrite -E//=.
+  rewrite ascii_eqb_refl//=; move: (Hi ys).
+  case; first by move=>->; constructor.
+  by move=>X; constructor; case.
+move/eqP in E; have X: (String x xs <> String y ys) by case.
+specialize (Hi ys); rewrite/string_eqb.
+case Q: (ascii_eqb x y)=>//=.
+by move: (ascii_eqP x y Q).
+by constructor.
+Qed.
 
 Definition ascii_ltb (a b : ascii) : bool := N.ltb (N_of_ascii a) (N_of_ascii b).
 
