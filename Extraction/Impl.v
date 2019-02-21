@@ -103,7 +103,45 @@ by move: (ascii_eqP x y Q).
 by constructor.
 Qed.
 
+Definition string_eqMixin := EqMixin string_eqP.
+Canonical string_eqType := Eval hnf in EqType string string_eqMixin.
+End StringEq.
+
+Section StringOrd.
+
+Lemma ascii_eqb_N x y :
+  ascii_eqb x y = (N_of_ascii x == N_of_ascii y).
+Proof.
+case E: (x == y); first by move/eqP: E=>->; rewrite ascii_eqb_refl eq_refl.
+have X: (ssrfun.cancel N_of_ascii ascii_of_N)
+  by move=>z; apply ascii_N_embedding.
+move: (can_eq X x y)=>->; rewrite E.
+case Z: (ascii_eqb x y)=>//.
+by move: (ascii_eqP x y Z); move/eqP: E.
+Qed.
+
 Definition ascii_ltb (a b : ascii) : bool := N.ltb (N_of_ascii a) (N_of_ascii b).
+
+Lemma irr_ascii : irreflexive ascii_ltb.
+by rewrite/irreflexive/ascii_ltb=>x; apply irr_ltbN.
+Qed.
+
+Lemma trans_ascii : transitive ascii_ltb.
+by rewrite/transitive/ascii_ltb=>x y z; apply trans_ltbN.
+Qed.
+
+Lemma total_ascii x y : [|| ascii_ltb x y, x == y | ascii_ltb y x].
+Proof.
+rewrite/ascii_ltb.
+suff X: ((x == y) = (N_of_ascii x == N_of_ascii y))
+  by rewrite X; apply total_ltbN.
+case Q: (x == y); first by move/eqP: Q=>->; rewrite eq_refl.
+rewrite -ascii_eqb_N; case X: (ascii_eqb x y)=>//=.
+by move: (ascii_eqP x y X); move/eqP: Q.
+Qed.
+
+Let ascii_ordMixin := OrdMixin irr_ascii trans_ascii total_ascii.
+Canonical Structure ascii_ordType := Eval hnf in OrdType ascii ascii_ordMixin.
 
 Fixpoint string_ltb (s1 s2 : string): bool :=
  match s1, s2 with
@@ -113,7 +151,18 @@ Fixpoint string_ltb (s1 s2 : string): bool :=
  | String c1 s1', String c2 s2' => ascii_ltb c1 c2 || (ascii_eqb c1 c2 && string_ltb s1' s2')
 end.
 
-End StringEq.
+(*
+Let ordtt (x y : VProof ) := false.
+Lemma irr_tt : irreflexive ordtt. Proof. by []. Qed.
+Lemma trans_tt : transitive ordtt. Proof. by []. Qed.
+Lemma total_tt x y : [|| ordtt x y, x == y | ordtt y x ]. Proof. by []. Qed.
+Let VProof_ordMixin := OrdMixin irr_tt trans_tt total_tt.
+Canonical Structure VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
+*)
+
+
+
+End StringOrd.
 
 Definition Timestamp := N.
 Definition Hash := string.
