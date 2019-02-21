@@ -19,6 +19,13 @@ Unset Printing Implicit Defensive.
 Definition has_chain (bc : Blockchain) (st : State) : Prop :=
   btChain (blockTree st) == bc.
 
+Definition has_bt (bt : BlockTree) (st : State) : Prop :=
+  (blockTree st) == bt.
+
+Definition valid_with_bc bt bc :=
+  [/\ valid bt, validH bt & has_init_block bt] /\
+   bc = btChain bt.
+
 Definition exists_and_holds (n : Address) (w : World) (cond : State -> Prop) :=
   exists (st : State),
     find n (localState w) = Some st /\ cond st.
