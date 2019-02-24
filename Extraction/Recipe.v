@@ -7,6 +7,9 @@ Require Import ExtrOcamlBasic ExtrOcamlString ExtrOcamlZInt.
 Module ForestImpl := Forests TypesImpl ProofOfWork.
 Module ProtocolImpl := Protocol TypesImpl ProofOfWork ForestImpl Addr.
 
+(* Avoid colliding with OCaml standard library names *)
+Extraction Blacklist String List.
+
 (* This solves an error where the implementation of ssrbool.ml
    doesn't match the interface *)
 Extraction Inline ssrbool.SimplPred.
@@ -15,10 +18,10 @@ Extraction Inline ssrbool.SimplPred.
 Extract Inductive nat => int [ "0" "succ" ] "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
 
 Extract Constant ProofOfWork.hashT =>
-  "(fun tx -> 0)".
+  "(fun tx -> ['0'; 'x'; '0'])".
 
 Extract Constant ProofOfWork.hashB =>
-  "(fun blk -> 0)".
+  "(fun blk -> ['0'; 'x'; '0'])".
 
 (* coq_Blockchain -> coq_TxPool -> coq_Timestamp -> *)
 (* (coq_TxPool * coq_VProof) option *)

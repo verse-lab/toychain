@@ -8,7 +8,7 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ### Requirements
 
-* [Coq 8.7 or 8.8](https://coq.inria.fr)
+* [Coq 8.9](https://coq.inria.fr)
 * [Mathematical Components 1.6.4 or 1.7.0](http://math-comp.github.io/math-comp/) (`ssreflect`)
 * [FCSL PCM library 1.0.0](https://github.com/imdea-software/fcsl-pcm)
 

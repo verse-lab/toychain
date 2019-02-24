@@ -5,14 +5,12 @@ Require Import ordtype unionmap.
 From Toychain
 Require Import Types Parameters Address.
 Require Import BinNat BinNatDef.
-Require Import String Ascii.
+Require Import HexString String Ascii.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(** Instantiate Toychain with a proof-of-work scheme **)
-
-Module TypesImpl <: Types.
+(* TODO: find a way to remove this stuff from the extraction! *)
 Section NEq.
 Lemma eq_NP : Equality.axiom N.eqb.
 Proof.
@@ -169,6 +167,9 @@ Canonical Structure string_ordType := Eval hnf in OrdType string string_ordMixin
 
 End StringOrd.
 
+
+(** Instantiate the types *)
+Module TypesImpl <: Types.
 Definition Timestamp := N.
 Definition Hash := string.
 Definition VProof := unit.
@@ -240,22 +241,25 @@ Definition TxPool := seq Transaction.
 Definition BlockTree := union_map [ordType of Hash] block.
 End TypesImpl.
 
+(** Instantiate Toychain with a proof-of-work scheme **)
 Module ProofOfWork <: (ConsensusParams TypesImpl).
 Import TypesImpl.
 
 Definition GenesisBlock : block :=
-  mkB (String (ascii_of_nat 0) EmptyString <: Hash) [::] (tt <: VProof).
+  mkB ((of_N 0) <: Hash) [::] (tt <: VProof).
 
 Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
 Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
 
+(* Hash should be HexStrings prefixed with 0x, e.g. '0x1c2139314aab35' *)
 Parameter hashT : Transaction -> Hash.
 Parameter hashB : block -> Hash.
 
 Definition WorkAmnt := N_ordType.
 
 (* TODO: don't hardcode the length of the hash *)
-Definition work (b : block) : WorkAmnt := (256 - N.log2 (hashB b))%N.
+Definition work (b : block) : WorkAmnt :=
+  (256 - N.log2 (to_N (hashB b)))%N.
 Fixpoint total_work (bc : Blockchain) : N_ordType :=
   match bc with
   | b::bc' => (work b + total_work bc')%N
@@ -269,8 +273,8 @@ Definition FCR bc bc' : bool :=
   if w > w' then true else
   if w < w' then false else
   (* If same amount of work, compare based on length. *)
-  if length bc > length bc' then true else
-  if length bc' > length bc then false else
+  if List.length bc > List.length bc' then true else
+  if List.length bc' > List.length bc then false else
   (* TODO: If same amount of work AND same length, compare based on actual value *)
   (* seq block is an ordType if block is ordType *)
   true.
