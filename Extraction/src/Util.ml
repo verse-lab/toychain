@@ -10,17 +10,17 @@ module Pr = Protocol (Types) (Consensus) (ForestImpl) (Addr)
 open Types
 open Consensus
 
-let clist_to_string cl = String.concat "" (List.map (String.make 1) cl)
-let string_to_clist s = List.init (String.length s) (String.get s)
+let string_of_clist cl = String.concat "" (List.map (String.make 1) cl)
+let clist_of_string s = List.init (String.length s) (String.get s)
 
-let string_of_tx tx = clist_to_string tx
-let string_of_hash h = clist_to_string h
+let string_of_tx tx = string_of_clist tx
+let string_of_hash h = string_of_clist h
 
 let string_of_block (b : coq_Block) =
   let fmt = format_of_string "%s = {prev = %s, txs = %s, nonce = %s}" in
   Printf.sprintf fmt
-    (string_of_hash (hashB b))
-    (String.sub (string_of_hash b.prevBlockHash) 0 8)
+    (String.sub (string_of_hash (hashB b)) 0 10)
+    (String.sub (string_of_hash b.prevBlockHash) 0 10)
     (String.concat " " (List.map string_of_tx b.txs))
     (string_of_int b.proof)
 
@@ -28,10 +28,11 @@ let string_of_blockchain (chain : coq_Blockchain) =
   String.concat "\n" (List.map string_of_block chain)
 
 let string_of_address addr = string_of_int addr
+let string_of_peers peers = (String.concat "; " (List.map string_of_address peers))
 
 let string_of_message (msg : Pr.coq_Message) =
   match msg with
-  | AddrMsg peers -> "AddrMsg [" ^ (String.concat "; " (List.map string_of_address peers)) ^ "]"
+  | AddrMsg peers -> "AddrMsg [" ^ (string_of_peers peers) ^ "]"
   | ConnectMsg -> "ConnectMsg"
   | BlockMsg block -> "BlockMsg (" ^ (string_of_block block) ^ ")"
   | TxMsg tx -> "TxMsg (" ^ (string_of_tx tx) ^ ")"

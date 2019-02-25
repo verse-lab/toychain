@@ -7,56 +7,142 @@ module Types = TypesImpl.TypesImpl
 module Consensus = Impl.ProofOfWork
 module ForestImpl = Forests (Types) (Consensus)
 module Pr = Protocol (Types) (Consensus) (ForestImpl) (Addr)
-
-let _ = Random.self_init ()
-
-let node_id = 0
-let st = ref (Pr.coq_Init node_id)
-
 open ForestImpl
+open Pr
+open Net
 
-let mine (_ : unit )= 
-  let ts = ref (int_of_float (Unix.time ())) in
-  let found_block = ref false in
-  let new_state = ref !st in
-  let hashes = ref 0 in
-  while not (!found_block) do
-    let (st' , msgs) = Pr.procInt !st Pr.MintT !ts in
-    hashes := !hashes + 1 ;
-    if List.length msgs > 0 then
+(** STATE **)
+let _ = Random.self_init ()
+let node_id = ref (-1)
+let nodes = ref []
+let st = ref (coq_Init 0)
+
+(* Command line arguments *)
+let usage msg =
+  print_endline msg;
+  Printf.printf "%s usage:\n" Sys.argv.(0);
+  Printf.printf "    %s [OPTIONS] <CLUSTER>\n" (Array.get Sys.argv 0);
+  print_endline "where:";
+  print_endline "    CLUSTER   is a list of triples of ID IP_ADDR PORT,";
+  print_endline "              giving all the nodes in the system";
+  print_endline "Options are as follows:";
+  print_endline "    -me <NAME>      the identity of this node (required)";
+  exit 1
+
+let rec parse_args = function
+  | [] -> ()
+  | "-me" :: name :: args ->
+     begin
+       node_id := (int_of_string name);
+       parse_args args
+     end
+  | name :: ip :: port :: args -> begin
+      nodes := (int_of_string name, (ip, int_of_string port)) :: !nodes;
+      parse_args args
+    end
+  | arg :: args -> usage ("Unknown argument " ^ arg)
+
+
+(* MESSAGE and TRANSITION LOGIC *)
+let rec get_pkt = function
+  | [] -> None
+  | fd :: fds ->
+      try
+        Some (recv_pkt fd)
+      with e ->
       begin
-        found_block := true ;
-        new_state := st' ;
+        get_pkt fds
       end
-  done;
-  Printf.printf "Found block after %s hashes!\n" (string_of_int !hashes) ;
-  !new_state
+
+let send_all (pkts : coq_Packet list) =
+  List.iter (fun pkt -> send_pkt pkt.dst pkt) pkts
+
+(* TODO: will need special logic for ConnectMsg (i.e. update Net) *)
+let procMsg_wrapper () =
+  let () = check_for_new_connections () in
+  let fds = get_all_read_fds () in
+  let (ready_fds, _, _) = Unix.select fds [] [] 0.0 in
+  begin
+    match get_pkt ready_fds with
+    | None -> (* nothing available *) None
+    | Some pkt ->
+        begin
+          Printf.printf "Received packet %s" (string_of_packet pkt);
+          print_newline ();
+          if pkt.dst != !node_id then
+          begin
+            Printf.printf " - packet sent in error? (we're not the destination!)";
+            print_newline ();
+            None
+          end
+          else
+          begin
+            let (st', pkts) = Pr.procMsg !st pkt.src pkt.msg 0 in
+            st := st';
+            send_all pkts;
+            Some (st, pkts)
+          end
+        end
+  end
+
+let procInt_wrapper () =
+  (* Randomly decide what to do *)
+  let shouldIssueTx = (Random.int 1000 == 0) in
+  match shouldIssueTx with
+  | true ->
+      let tx = clist_of_string ("TX " ^ (string_of_int (Random.int 65536))) in
+      let (st', pkts) = Pr.procInt !st (TxT tx) 0 in
+      Printf.printf "Created %s" (string_of_clist tx);
+      print_newline ();
+      st := st';
+      send_all pkts;
+      Some (st, pkts)
+  | false ->
+      let (st', pkts) = Pr.procInt !st (MintT) 0 in
+      (* Bit of a hack to figure out whether a block was mined *)
+      if List.length pkts > 0 then
+        begin
+            Printf.printf "Mined a block!" ;
+            print_newline ();
+            st := st';
+            send_all pkts;
+            Some (st, pkts)
+        end
+      else None
 
 
-let main () =
-  Printf.printf "You are node %s\n" (string_of_int !st.id) ;
+(* NODE LOGIC *)
+let main () = 
+  let args = (List.tl (Array.to_list Sys.argv)) in
+  if List.length args == 0 then usage "" else
+  begin
+    parse_args args ;
+    let peer_ids = (List.map (fun (x, _) -> x) !nodes) in
+    if not (List.mem !node_id peer_ids) then 
+        failwith (Printf.sprintf "You (node %s) must feature in the list of nodes.\n" (string_of_address !node_id))
+    else
+    begin
+      st := {(coq_Init !node_id) with peers = peer_ids} ;
+      Printf.printf "You are node %s" (string_of_address !st.id);
+      print_newline ();
+      
+      setup { nodes = !nodes; me = !node_id };
+      Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
 
-  let blocks = all_blocks !st.blockTree in
-  Printf.printf "Your blocktree has %s block(s)!\n"
-    (string_of_int (List.length blocks)) ;
-
-  let chain = btChain !st.blockTree in
-  Printf.printf "Chain:\n %s\n" (string_of_blockchain chain) ;
-
-
-  st := (mine ()) ;
-  Printf.printf "Chain:\n %s\n" (string_of_blockchain (btChain !st.blockTree)) ;
-  Printf.printf "Work of last block: %s\n"
-    (string_of_int
-      (Obj.magic (Consensus.work (List.nth (btChain !st.blockTree) 1)))
-    ) ;
-
-  let pkt : Pr.coq_Packet =
-    {src = 0; dst = 1; msg = Pr.BlockMsg (List.nth (btChain !st.blockTree) 1)} in
-  let ser = Net.serialize_packet pkt in
-  let deser =  Net.deserialize_packet ser in
-  Printf.printf "packet: %s\n" ser ;
-  Printf.printf "deserialized: %s \n" (string_of_packet deser)
+      while true do
+        procInt_wrapper ();
+        procMsg_wrapper (); 
+        (* Every 10 seconds, print your chain. *)
+        let ts = (int_of_float (Unix.time ())) in
+        if ts mod 10 == 0 then 
+          begin
+            Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
+            Unix.sleep 1 ;
+            ()
+          end
+        else ()
+      done;
+    end
+  end
 
 let () = main ()
-

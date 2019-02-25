@@ -89,7 +89,7 @@ let setup cfg =
   Printexc.record_backtrace true;
   the_cfg := Some cfg;
   let (_, port) = get_addr_port cfg cfg.me in
-  (* Printf.printf "listening on port %d" port; print_newline (); *)
+  Printf.printf "listening on port %d" port; print_newline ();
   setsockopt listen_fd SO_REUSEADDR true;
   bind listen_fd (ADDR_INET (inet_addr_any, port));
   listen listen_fd 8
@@ -116,19 +116,14 @@ let get_all_read_fds () =
 let serialize_packet pkt = Marshal.to_string pkt []
 let deserialize_packet s = Marshal.from_string s 0
 
-(* 
+let recv_pkt fd =
   let chunk = receive_chunk fd in
-  let (l, tag, msg) = deserialize_msg (Bytes.to_string chunk) in
-  let src = get_name_for_read_fd fd in
-  Printf.printf "got msg in protocol %a with tag = %a, contents = %a from %s" print_nat l print_nat tag (print_list print_nat) msg (string_of_nat src);
-  print_newline ();
-  (l, src, tag, msg)
+  let pkt = deserialize_packet (Bytes.to_string chunk) in
+  (* let src = get_name_for_read_fd fd in *)
+  pkt
 
-let send_msg l dst tag msg =
-  Printf.printf "sending msg in protocol %a with tag = %a, contents = %a to %s" print_nat l print_nat tag (print_list print_nat) msg (string_of_nat dst);
-  print_newline ();
+let send_pkt dst pkt =
   let fd = get_write_fd dst in
-  let s = serialize_msg l tag msg in
+  let s = serialize_packet pkt in
   let chunk = Bytes.of_string s in
   send_chunk fd chunk
-   *)

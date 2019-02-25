@@ -17,6 +17,7 @@ clean: Makefile.coq
 	rm -rf Extraction/src/toychain
 	rm -rf _build/
 	rm -rf *.byte *.native
+	rm -rf *.log
 
 Makefile.coq: _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
