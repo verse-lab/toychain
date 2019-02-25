@@ -21,11 +21,15 @@ Extract Constant ProofOfWork.hashT => "Core.hash_of_tx".
 
 Extract Constant ProofOfWork.hashB => "Core.hash_of_block".
 
-(* coq_Blockchain -> coq_TxPool -> coq_Timestamp -> *)
-(* (coq_TxPool * coq_VProof) option *)
-
 Extract Constant ProofOfWork.genProof =>
-  "(fun bc txp ts -> None)".
+"
+  fun bc tp ts ->
+  if List.length bc == 0 then None else
+  let template = Core.get_block_template bc in
+  let acc_txs = Core.get_acceptable_txs bc tp in
+  let block = {template with txs = acc_txs} in
+  if coq_VAF block bc (block.txs) then Some (acc_txs, (block.proof)) else None
+".
 
 Cd "Extraction/src/toychain".
 Separate Extraction

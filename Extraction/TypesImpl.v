@@ -171,7 +171,7 @@ End StringOrd.
 Module TypesImpl <: Types.
 Definition Timestamp := N.
 Definition Hash := string.
-Definition VProof := unit.
+Definition VProof := N.
 Definition Transaction := string.
 
 (* XXX Having to do this is immensely annoying. Is there a better way? *)
@@ -185,15 +185,15 @@ Canonical Hash_eqType := Eval hnf in EqType Hash Hash_eqMixin.
 Definition Hash_ordMixin := Eval hnf in OrdMixin irr_Hl trans_Hl total_Hl.
 Canonical Hash_ordType := Eval hnf in OrdType Hash Hash_ordMixin.
 
-Lemma VProof_eqP : Equality.axiom (fun _ _ : VProof => true). Proof. by case=>//=; case; constructor. Qed.
-Definition VProof_eqMixin := EqMixin VProof_eqP.
+Definition Vl (a b : VProof) := N.ltb a b.
+Lemma irr_Vl : irreflexive Vl. Proof. by apply irr_ltbN. Qed.
+Lemma trans_Vl : transitive Vl. Proof. by apply trans_ltbN. Qed.
+Lemma total_Vl x y : [|| Vl x y, x == y | Vl y x]. Proof. by apply total_ltbN. Qed.
+
+Canonical VProof_eqMixin := Eval hnf in EqMixin eq_NP.
 Canonical VProof_eqType := Eval hnf in EqType VProof VProof_eqMixin.
-Definition ordtt (x y : VProof ) := false.
-Lemma irr_tt : irreflexive ordtt. Proof. by []. Qed.
-Lemma trans_tt : transitive ordtt. Proof. by []. Qed.
-Lemma total_tt x y : [|| ordtt x y, x == y | ordtt y x ]. Proof. by []. Qed.
-Definition VProof_ordMixin := OrdMixin irr_tt trans_tt total_tt.
-Canonical Structure VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
+Canonical VProof_ordMixin := Eval hnf in OrdMixin irr_Vl trans_Vl total_Vl.
+Canonical VProof_ordType := Eval hnf in OrdType VProof VProof_ordMixin.
 
 Definition Tl (a b : Transaction) := string_ltb a b.
 Lemma irr_Tl : irreflexive Hl. Proof. by apply irr_string. Qed.
