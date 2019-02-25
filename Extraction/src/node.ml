@@ -3,7 +3,7 @@ open Protocol
 open Util
 
 module Addr = Address.Addr
-module Types = Impl.TypesImpl
+module Types = TypesImpl.TypesImpl
 module ConsensusParams = Impl.ProofOfWork
 module ForestImpl = Forests (Types) (ConsensusParams)
 module ProtocolImpl = Protocol (Types) (ConsensusParams) (ForestImpl) (Addr)

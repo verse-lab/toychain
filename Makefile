@@ -3,7 +3,7 @@ all: default
 default: Makefile.coq
 	mkdir -p Extraction/src/toychain
 	$(MAKE) -f Makefile.coq
-	ocamlbuild node.byte -r -I Extraction/src -I Extraction/src/toychain
+	ocamlbuild -use-ocamlfind node.byte -r -I Extraction/src -I Extraction/src/toychain
 
 quick: Makefile.coq
 	$(MAKE) -f Makefile.coq quick
