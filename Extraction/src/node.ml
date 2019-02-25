@@ -6,12 +6,12 @@ module Addr = Address.Addr
 module Types = TypesImpl.TypesImpl
 module Consensus = Impl.ProofOfWork
 module ForestImpl = Forests (Types) (Consensus)
-module Protocol = Protocol (Types) (Consensus) (ForestImpl) (Addr)
+module Pr = Protocol (Types) (Consensus) (ForestImpl) (Addr)
 
 let _ = Random.self_init ()
 
 let node_id = 0
-let st = ref (Protocol.coq_Init node_id)
+let st = ref (Pr.coq_Init node_id)
 
 open ForestImpl
 
@@ -21,7 +21,7 @@ let mine (_ : unit )=
   let new_state = ref !st in
   let hashes = ref 0 in
   while not (!found_block) do
-    let (st' , msgs) = Protocol.procInt !st Protocol.MintT !ts in
+    let (st' , msgs) = Pr.procInt !st Pr.MintT !ts in
     hashes := !hashes + 1 ;
     if List.length msgs > 0 then
       begin
@@ -49,7 +49,14 @@ let main () =
   Printf.printf "Work of last block: %s\n"
     (string_of_int
       (Obj.magic (Consensus.work (List.nth (btChain !st.blockTree) 1)))
-    ) ;;
+    ) ;
+
+  let pkt : Pr.coq_Packet =
+    {src = 0; dst = 1; msg = Pr.BlockMsg (List.nth (btChain !st.blockTree) 1)} in
+  let ser = Net.serialize_packet pkt in
+  let deser =  Net.deserialize_packet ser in
+  Printf.printf "packet: %s\n" ser ;
+  Printf.printf "deserialized: %s \n" (string_of_packet deser)
 
 let () = main ()
 
