@@ -14,13 +14,15 @@ let string_of_clist cl = String.concat "" (List.map (String.make 1) cl)
 let clist_of_string s = List.init (String.length s) (String.get s)
 
 let string_of_tx tx = string_of_clist tx
-let string_of_hash h = string_of_clist h
+(* For pretty printing, limit hashes to 10 characters *)
+let string_of_hash h =
+  (String.sub (string_of_clist h) 0 10)
 
 let string_of_block (b : coq_Block) =
   let fmt = format_of_string "%s = {prev = %s, txs = %s, nonce = %s}" in
   Printf.sprintf fmt
-    (String.sub (string_of_hash (hashB b)) 0 10)
-    (String.sub (string_of_hash b.prevBlockHash) 0 10)
+    (string_of_hash (hashB b))
+    (string_of_hash b.prevBlockHash)
     (String.concat " " (List.map string_of_tx b.txs))
     (string_of_int b.proof)
 
