@@ -17,6 +17,10 @@ let node_id = ref (-1)
 let nodes = ref []
 let st = ref (coq_Init 0)
 
+let hashes = ref 0
+let last_measurement = ref 0
+let last_time = ref (Unix.time ())
+
 (* Command line arguments *)
 let usage msg =
   print_endline msg;
@@ -100,6 +104,7 @@ let procInt_wrapper () =
   | false ->
       let (st', pkts) = Pr.procInt !st (MintT) 0 in
       (* Bit of a hack to figure out whether a block was mined *)
+      hashes := !hashes + 1;
       if List.length pkts > 0 then
         begin
             Printf.printf "Mined a block!" ;
@@ -137,6 +142,11 @@ let main () =
         if ts mod 10 == 0 then 
           begin
             Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
+            Printf.printf "%0.2f hashes per second\n"
+              ((float_of_int (!hashes - !last_measurement)) /. (Unix.time () -. !last_time));
+            print_newline ();
+            last_measurement := !hashes;
+            last_time := Unix.time ();
             Unix.sleep 1 ;
             ()
           end
