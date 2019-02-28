@@ -91,3 +91,7 @@ Extraction/src/toychain
 _build
 *.byte
 *.native
+# Profiling
+gmon.out
+perf.data*
+perf.hist*

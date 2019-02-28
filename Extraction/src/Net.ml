@@ -18,6 +18,11 @@ let int_of_raw_bytes (buf : bytes) : int =
 
 (* END utility functions *)
 
+(* Interrupt-resistant versions of system calls  *)
+let rec retry_until_no_eintr f =
+  try f ()
+  with Unix.Unix_error (EINTR, _, _) -> retry_until_no_eintr f
+
 let num_nodes = 32
 let read_fds : (Unix.file_descr, int) Hashtbl.t = Hashtbl.create num_nodes
 let write_fds : (int, Unix.file_descr) Hashtbl.t = Hashtbl.create num_nodes
@@ -39,15 +44,15 @@ let get_name_for_read_fd fd =
 let send_chunk (fd : file_descr) (buf : bytes) : unit =
   let len = Bytes.length buf in
   (* Printf.printf "sending chunk of length %d" len; print_newline (); *)
-  let n = Unix.send fd (raw_bytes_of_int len) 0 4 [] in
+  let n = retry_until_no_eintr (fun () -> send fd (raw_bytes_of_int len) 0 4 []) in
   if n < 4 then
     failwith "send_chunk: message header failed to send all at once.";
-  let n = Unix.send fd buf 0 len [] in
+  let n = retry_until_no_eintr (fun () -> send fd buf 0 len []) in
   if n < len then
     failwith (Printf.sprintf "send_chunk: message of length %d failed to send all at once." len)
 
 let recv_or_close fd buf offs len flags =
-  let n = recv fd buf offs len flags in
+  let n = retry_until_no_eintr (fun () -> recv fd buf offs len flags) in
   if n = 0 then
     failwith "recv_or_close: other side closed connection.";
   n
@@ -80,7 +85,7 @@ let get_write_fd name =
     let entry = gethostbyname ip in
     let node_addr = ADDR_INET (Array.get entry.h_addr_list 0, port) in
     let chunk = Bytes.of_string (string_of_int cfg.me) in
-    connect write_fd node_addr;
+    retry_until_no_eintr (fun () -> connect write_fd node_addr);
     send_chunk write_fd chunk;
     Hashtbl.add write_fds name write_fd;
     write_fd
@@ -96,7 +101,7 @@ let setup cfg =
 
 let new_conn () =
   print_endline "new connection!";
-  let (node_fd, node_addr) = accept listen_fd in
+  let (node_fd, node_addr) = retry_until_no_eintr (fun () -> accept listen_fd) in
   let chunk = receive_chunk node_fd in
   let node = Bytes.to_string chunk in
   let name = int_of_string node in
@@ -107,7 +112,7 @@ let new_conn () =
 
 let check_for_new_connections () =
   let fds = [listen_fd] in
-  let (ready_fds, _, _) = select fds [] [] 0.0 in
+  let (ready_fds, _, _) = retry_until_no_eintr (fun () -> select fds [] [] 0.0) in
   List.iter (fun _ -> new_conn ()) ready_fds
 
 let get_all_read_fds () =

@@ -65,7 +65,7 @@ let send_all (pkts : coq_Packet list) =
 let procMsg_wrapper () =
   let () = check_for_new_connections () in
   let fds = get_all_read_fds () in
-  let (ready_fds, _, _) = Unix.select fds [] [] 0.0 in
+  let (ready_fds, _, _) = retry_until_no_eintr (fun () -> Unix.select fds [] [] 0.0) in
   begin
     match get_pkt ready_fds with
     | None -> (* nothing available *) None
@@ -91,7 +91,7 @@ let procMsg_wrapper () =
 
 let procInt_wrapper () =
   (* Randomly decide what to do *)
-  let shouldIssueTx = (Random.int 1000 == 0) in
+  let shouldIssueTx = (Random.int 10000 == 0) in
   match shouldIssueTx with
   | true ->
       let tx = clist_of_string ("TX " ^ (string_of_int (Random.int 65536))) in
@@ -135,8 +135,8 @@ let main () =
       Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
 
       while true do
-        procInt_wrapper ();
-        procMsg_wrapper (); 
+        ignore (procInt_wrapper ());
+        ignore (procMsg_wrapper ()); 
         (* Every 10 seconds, print your chain. *)
         let ts = (int_of_float (Unix.time ())) in
         if ts mod 10 == 0 then 
