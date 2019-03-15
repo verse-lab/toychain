@@ -29,11 +29,6 @@ Parameter hashB : block -> Hash.
 
 Definition WorkAmnt := N_ordType.
 
-(* TODO: don't hardcode the length of the hash *)
-(* Keep in mind that N extracts to int. Make sure to not overflow!
-    e.g. (to_N (hashB b)) will immediately overflow
- *)
-
 (* Lookup table; lz[i] = how many leading 0s does i have as a 4-bit binary number ? *)
 Let leading_zeroes : seq N :=
   [:: 4; 3; 2; 2; 1; 1; 1; 1;
@@ -83,9 +78,9 @@ Definition FCR bc bc' : bool :=
   (* If same amount of work, compare based on length. *)
   if List.length bc > List.length bc' then true else
   if List.length bc' > List.length bc then false else
-  (* TODO: If same amount of work AND same length, compare based on actual value *)
-  (* seq block is an ordType if block is ordType *)
-  true.
+  (* If same amount of work AND same length, compare based on actual value *)
+  (* seq block is an ordType since block is ordType *)
+  ord bc bc'.
 
 Notation "A > B" := (FCR A B).
 Notation "A >= B" := (A = B \/ A > B).

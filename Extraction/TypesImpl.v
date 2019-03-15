@@ -140,26 +140,47 @@ Qed.
 Definition ascii_ordMixin := OrdMixin irr_ascii trans_ascii total_ascii.
 Canonical Structure ascii_ordType := Eval hnf in OrdType ascii ascii_ordMixin.
 
-Fixpoint string_ltb (s1 s2 : string): bool :=
- match s1, s2 with
- | EmptyString, EmptyString => false
- | EmptyString, _ => true
- | _, EmptyString => false
- | String c1 s1', String c2 s2' => ascii_ltb c1 c2 || (ascii_eqb c1 c2 && string_ltb s1' s2')
+
+(* Make use of embedding string -> seq ascii;
+   This way, we can reuse the proofs from above.
+   For some reason, Strings.v doesn't export this; so have to copy/paste.
+*)
+Fixpoint string_of_list_ascii (s : list ascii) : string
+  := match s with
+     | nil => EmptyString
+     | cons ch s => String ch (string_of_list_ascii s)
+     end.
+
+Fixpoint list_ascii_of_string (s : string) : list ascii
+  := match s with
+     | EmptyString => nil
+     | String ch s => cons ch (list_ascii_of_string s)
 end.
 
-Lemma irr_string : irreflexive string_ltb.
+Lemma embedding_list_ascii s : string_of_list_ascii (list_ascii_of_string s) = s.
 Proof.
-move=>x; elim: x=>//=x xs.
-by move=>->; rewrite ascii_eqb_refl irr_ascii.
+  induction s as [|? ? IHs]; [ reflexivity | cbn; apply f_equal, IHs ].
+Defined.
+
+Definition string_ltb (s1 s2 : string): bool :=
+  ords (list_ascii_of_string s1) (list_ascii_of_string s2).
+
+Lemma irr_string : irreflexive string_ltb.
+Proof. by elim=>[|c s x]; apply irr_ords. Qed.
+
+Lemma trans_string : transitive string_ltb.
+Proof.
+by rewrite/transitive=>x y z; rewrite/string_ltb; apply trans_ords.
 Qed.
 
-(* Might be easier to define an embedding string -> seq ascii *)
-Lemma trans_string : transitive string_ltb.
-Proof. Admitted.
-
 Lemma total_string x y : [|| string_ltb x y, x == y | string_ltb y x].
-Proof. Admitted.
+Proof.
+case X: ((x == y) == (list_ascii_of_string x == list_ascii_of_string y)).
+by move/eqP in X; rewrite X; rewrite/string_ltb; apply total_ords.
+have E: ssrfun.cancel list_ascii_of_string string_of_list_ascii .
+  by move=>z; apply embedding_list_ascii.
+by move: (can_eq E x y)=>X'; move: X; rewrite X' eq_refl.
+Qed.
 
 Definition string_ordMixin := OrdMixin irr_string trans_string total_string.
 Canonical Structure string_ordType := Eval hnf in OrdType string string_ordMixin.
@@ -230,10 +251,111 @@ case H4: (pf == pf'); [move/eqP: H4=>?; subst pf'| constructor 2];
 by constructor 1.
 Qed.
 
-Canonical Block_eqMixin := Eval hnf in EqMixin eq_blockP.
+Definition Block_eqMixin := Eval hnf in EqMixin eq_blockP.
 Canonical Block_eqType := Eval hnf in EqType Block Block_eqMixin.
 
+Lemma eq_block_fields b b':
+  prevBlockHash b == prevBlockHash b' ->
+  txs b == txs b' ->
+  proof b == proof b' ->
+  b == b'.
+Proof.
+by case: b=>b0 b1 b2; case: b'=> b0' b1' b2'=>//=; move=>/eqP -> /eqP -> /eqP ->.
+Qed.
+
+(* Do not confuse with FCR, which is what the protocol actually uses.
+   This is a tie-breaker in case two blockchains have the same total work. *)
+Definition block_ltb b b' :=
+  let eA := txs b == txs b' in
+  let eB := prevBlockHash b == prevBlockHash b' in
+  let eC := proof b == proof b' in
+  let A := ords (txs b) (txs b') in
+  let B := Hl (prevBlockHash b) (prevBlockHash b') in
+  let C := Vl (proof b) (proof b') in
+
+  match eA, eB, eC with
+  | true, true, true => false
+  | true, true, false => C
+  | true, _, _ => B
+  | false, _, _ => A
+  end.
+
+  (* The definition above seems like overkill, but is actually minimal
+      wrt. being provably both transitive and total. The one below is
+      total, but not transitive:
+
+        [|| ords (txs b) (txs b'), Hl (prevBlockHash b) (prevBlockHash b') |
+                Vl (proof b) (proof b')].
+   *)
+
+Lemma irr_bl : irreflexive block_ltb.
+Proof. by move=>x; rewrite/block_ltb !eq_refl. Qed.
+
+Lemma trans_bl : transitive block_ltb.
+Proof.
+move=>x y z; rewrite/block_ltb; case: ifP; case: ifP; case: ifP=>//=;
+move=> A B C D; (do? rewrite A; do? rewrite B; do? rewrite C; do? rewrite D).
+- case: ifP; case: ifP=>//=.
+  case: ifP; case: ifP=>//=.
+  case: ifP. case: ifP.
+    by move/eqP=><- _ _ _ _ _ D'; move: (trans_Vl D D') (irr_Vl (proof y))=>->.
+    by move=>_ _ _ _ _ _ D'; move: (trans_Vl D D').
+    by move/eqP: B=>-> ->.
+    by move/eqP: C=>-> ->.
+    by move/eqP in C; move/eqP in B; rewrite B C=>-> ->.
+    by move/eqP: C=>-> /eqP -> /eqP.
+    by move/eqP: C=>->.
+- case: ifP; case: ifP=>//=.
+  case: ifP. case: ifP. case: ifP;
+    by move=>_ /eqP <- _ _ /eqP B'; rewrite B' in B; move/eqP: B.
+    by move=>_ _ _ /eqP X; move: X D=>->.
+    by move/eqP: A; move/eqP: C=>->->/eqP.
+  case: ifP. case: ifP;
+    by move=>_/eqP <- _ _ D'; move: (trans_Hl D' D) (irr_Hl (prevBlockHash x))=>->.
+    by move=>_ _ _ D'; move: (trans_Hl D D').
+    by move/eqP: A; move/eqP: C=>->-> /eqP.
+- case: ifP. case: ifP. case: ifP;
+    by move=>_ _ /eqP; move/eqP: C=>-> A'; rewrite A' eq_refl in A.
+    by move=>_ /eqP; move/eqP: C=>-> A'; rewrite A' eq_refl in A.
+    by move/eqP: C=>->.
+- case: ifP=>//=. case: ifP.
+  by move/eqP in B; rewrite B in C; rewrite C.
+  by move/eqP: B=><-.
+- by move/eqP  in B; rewrite B in C; rewrite C; rewrite B in D.
+- by move: D; move/eqP: A=>-> X Y; move: (trans_ords X Y) (irr_ords (txs z))=>->.
+by apply trans_ords.
+Qed.
+
+Lemma total_bl x y : [|| block_ltb x y, x == y | block_ltb y x].
+Proof.
+rewrite/block_ltb.
+case: ifP; case: ifP.
+- case: ifP; case: ifP.
+  by move=>_ B C A; move: (eq_block_fields C A B)=>/eqP ->; rewrite !eq_refl.
+  by move=>A _ _ /eqP A'; rewrite A' in A; move/eqP: A.
+  move=>_ B /eqP C A; rewrite C eq_refl (eq_sym (proof _)) B;
+  case/or3P: (total_Vl (proof x) (proof y)); first by move=>->.
+    by move/eqP=>B'; rewrite B' in B; move/eqP: B.
+    by move=>->; apply/or3P; constructor 3.
+  by move=>A _ _ /eqP A'; rewrite A' in A; move/eqP: A.
+- case: ifP. case: ifP. case: ifP;
+  by move=>_ /eqP ->; rewrite eq_refl.
+  case/or3P: (total_Hl (prevBlockHash x) (prevBlockHash y)).
+    by move=>->.
+    by move/eqP=>->; rewrite eq_refl.
+    by move=>-> _ _ _ _; apply/or3P; constructor 3.
+  by move=>A _ /eqP A'; rewrite A' in A; move/eqP: A.
+- by move/eqP=>->; rewrite eq_refl.
+- move=>_ X; case/or3P: (total_ords (txs x) (txs y)).
+  by move=>->.
+  by move/eqP=>X'; rewrite X' in X; move/eqP: X.
+  by move=>->; apply/or3P; constructor 3.
+Qed.
+
 Definition block := Block.
+Definition block_ordMixin := Eval hnf in OrdMixin irr_bl trans_bl total_bl.
+Canonical block_ordType := Eval hnf in OrdType block block_ordMixin.
+
 Definition Blockchain := seq block.
 
 Definition TxPool := seq Transaction.
