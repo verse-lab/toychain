@@ -10,6 +10,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+
 (* TODO: find a way to remove this stuff from the extraction! *)
 (** Instantiate Toychain with a proof-of-work scheme **)
 Module ProofOfWork <: (ConsensusParams TypesImpl).
@@ -63,21 +64,32 @@ Definition count_binary_zeroes (s : string) : N :=
 Definition work (b : block) : WorkAmnt :=
   count_binary_zeroes (hashB b).
 
-Fixpoint total_work (bc : Blockchain) : N_ordType :=
+Fixpoint total_work (bc : Blockchain) : N :=
   match bc with
   | b::bc' => (work b + total_work bc')%N
   | [::] => N_of_nat 0
   end.
 
+
+(* (* For some reason, only ltb is defined in BinNatDef *) *)
+(* Definition gtb x y := *)
+(*  match (x ?= y)%N with Gt => true | _ => false end. *)
+
+(* Infix ">?" := gtb (at level 70, no associativity) : N_scope. *)
+
 Definition FCR bc bc' : bool :=
   let w := total_work bc in
   let w' := total_work bc' in
+  let l := (List.length bc) in
+  let l' := (List.length bc') in
 
-  if w > w' then true else
-  if w < w' then false else
+  (* w > w' *)
+  if ~~(w <=? w')%N then true else
+  if (w <? w')%N then false else
   (* If same amount of work, compare based on length. *)
-  if List.length bc > List.length bc' then true else
-  if List.length bc' > List.length bc then false else
+  (* l > l' *)
+  if ~~(Nat.leb l l') then true else
+  if Nat.ltb l l then false else
   (* If same amount of work AND same length, compare based on actual value *)
   (* seq block is an ordType since block is ordType *)
   ord bc bc'.
@@ -125,19 +137,46 @@ Lemma VAF_GB_first :
 Proof. by rewrite/VAF eq_refl=>bc; case: ifP=>//=; move/andP; case=>/eqP. Qed.
 
 (** FCR **)
-Axiom FCR_subchain :
-  forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
-
-Axiom FCR_ext :
+(* It's a bit of a pain to prove these, since we have different types of numbers. *)
+Lemma FCR_ext :
   forall (bc : Blockchain) (b : block) (ext : seq block),
     bc ++ (b :: ext) > bc.
+Proof.
+move=>bc b ext; rewrite/FCR.
+case: ifP=>//=; case: ifP=>//=.
+(* When total work is different, LHS will have more work *)
++ move=>A _; elim: bc A=>//=.
+  by move: (N.nlt_0_r (work b + total_work ext)); move/N.ltb_spec0=>A B; rewrite B in A.
+  by move=>x xs Hi X;
+     case: (N.add_lt_mono_l (total_work (xs ++ b :: ext)) (total_work xs) (work x))=>_ P;
+     move/N.ltb_spec0 in X; specialize (P X); move/N.ltb_spec0 in P;
+     specialize (Hi P).
+(* When total work is equal, LHS is longer *)
++ move=>_ _ ; case: ifP=>//=;
+  rewrite List.app_length Bool.negb_false_iff.
+  move/PeanoNat.Nat.leb_spec0.
+  have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
+  rewrite -{2}X=>Q.
+  move: (Plus.plus_le_reg_l (Datatypes.length (b::ext)) 0 (Datatypes.length bc) Q).
+  by move/Le.le_n_0_eq; move/esym; move/List.length_zero_iff_nil.
+Qed.
+
+Lemma FCR_nrefl :
+  forall (bc : Blockchain), bc > bc -> False.
+Proof.
+move=>bc; rewrite/FCR; move: (N.le_refl (total_work bc))=>W.
+rewrite N.ltb_antisym N.leb_refl //=.
+rewrite PeanoNat.Nat.leb_refl PeanoNat.Nat.ltb_irrefl //=.
+move=>Q; have Q': (ord bc bc) by [].
+by move: (nsym Q Q').
+Qed.
+
+Axiom FCR_subchain :
+  forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
 Axiom FCR_rel :
   forall (A B : Blockchain),
     A = B \/ A > B \/ B > A.
-
-Axiom FCR_nrefl :
-  forall (bc : Blockchain), bc > bc -> False.
 
 Axiom FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
