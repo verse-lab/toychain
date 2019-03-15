@@ -77,22 +77,24 @@ Fixpoint total_work (bc : Blockchain) : N :=
 
 (* Infix ">?" := gtb (at level 70, no associativity) : N_scope. *)
 
+(* This is supposed to behave as >, not < *)
 Definition FCR bc bc' : bool :=
   let w := total_work bc in
   let w' := total_work bc' in
   let l := (List.length bc) in
   let l' := (List.length bc') in
+  let eW := w == w' in
+  let eL := l == l' in
+  let eO := bc == bc' in
 
-  (* w > w' *)
-  if ~~(w <=? w')%N then true else
-  if (w <? w')%N then false else
-  (* If same amount of work, compare based on length. *)
-  (* l > l' *)
-  if ~~(Nat.leb l l') then true else
-  if Nat.ltb l l then false else
-  (* If same amount of work AND same length, compare based on actual value *)
-  (* seq block is an ordType since block is ordType *)
-  ord bc bc'.
+  (* This is written in this weird fashion to be able to prove both
+     transitivity and totality. *)
+  match eW, eL, eO with
+  | true, true, true => false
+  | true, true, false => ords bc bc'
+  | true, _, _ => ~~ (Nat.leb l l')
+  | false, _, _ => ~~ (w <=? w')%N
+  end.
 
 Notation "A > B" := (FCR A B).
 Notation "A >= B" := (A = B \/ A > B).
@@ -143,61 +145,66 @@ Lemma FCR_ext :
     bc ++ (b :: ext) > bc.
 Proof.
 move=>bc b ext; rewrite/FCR.
-case: ifP=>//=; case: ifP=>//=.
 (* When total work is different, LHS will have more work *)
-+ move=>A _; elim: bc A=>//=.
-  by move: (N.nlt_0_r (work b + total_work ext)); move/N.ltb_spec0=>A B; rewrite B in A.
-  by move=>x xs Hi X;
-     case: (N.add_lt_mono_l (total_work (xs ++ b :: ext)) (total_work xs) (work x))=>_ P;
-     move/N.ltb_spec0 in X; specialize (P X); move/N.ltb_spec0 in P;
-     specialize (Hi P).
+case: ifP; last first.
+- move=>A; rewrite -N.ltb_antisym; elim: bc A=>//=.
+  + move/negbT=>A; apply/N.ltb_lt.
+    Search _ (~~ (?a  == 0)).
+    (* lt0n is the nat version of this *)
+    admit.
+  + move=>x xs Hi X.
+    case Q: (total_work (xs ++ b :: ext) == total_work xs).
+    by move/eqP in Q; rewrite Q eq_refl in X.
+    by specialize (Hi Q); move/N.ltb_lt in Hi;
+       case: (N.add_lt_mono_l (total_work xs) (total_work (xs ++ b :: ext))  (work x))=>P _ ;
+       specialize (P Hi); apply/N.ltb_lt.
+
 (* When total work is equal, LHS is longer *)
-+ move=>_ _ ; case: ifP=>//=;
-  rewrite List.app_length Bool.negb_false_iff.
-  move/PeanoNat.Nat.leb_spec0.
+- case: ifP;
   have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
-  rewrite -{2}X=>Q.
-  move: (Plus.plus_le_reg_l (Datatypes.length (b::ext)) 0 (Datatypes.length bc) Q).
-  by move/Le.le_n_0_eq; move/esym; move/List.length_zero_iff_nil.
-Qed.
+  by rewrite List.app_length -{2}X eqn_add2l.
+  by move=>_ _; rewrite -PeanoNat.Nat.ltb_antisym List.app_length -{1}X;
+     apply/PeanoNat.Nat.ltb_lt/ltP; rewrite ltn_add2l.
+Admitted.
 
 Lemma FCR_nrefl :
   forall (bc : Blockchain), bc > bc -> False.
-Proof.
-move=>bc; rewrite/FCR; move: (N.le_refl (total_work bc))=>W.
-rewrite N.ltb_antisym N.leb_refl //=.
-rewrite PeanoNat.Nat.leb_refl PeanoNat.Nat.ltb_irrefl //=.
-move=>Q; have Q': (ord bc bc) by [].
-by move: (nsym Q Q').
-Qed.
+Proof. by move=>bc; rewrite/FCR !eq_refl. Qed.
 
 Lemma FCR_trans :
   forall (A B C : Blockchain), A > B -> B > C -> A > C.
 Proof.
 move=>x y z; rewrite/FCR.
-case: ifP; case: ifP; case: ifP=>//=; rewrite -!N.ltb_antisym=>A B C.
-by move=>_ _;
-   move/N.ltb_lt in B; move/N.ltb_lt in C;
-   move/N.ltb_nlt: A; move: (N.lt_trans _ _ _ B C).
-- move=>_; case: ifP; case: ifP=>//=;
-  by move/N.ltb_nlt: A; move/N.ltb_nlt: B;
-     move/N.nlt_ge=>A /N.nlt_ge B; move: (N.le_antisymm _ _ A B)=>E; rewrite -E C.
-- move=>_; case: ifP; case: ifP=>//=;
-  move/N.ltb_nlt: B; move/N.ltb_nlt: C;
-  move/N.nlt_ge=>B /N.nlt_ge C; move: (N.le_antisymm _ _ B C)=>E; rewrite -E=>->//=.
-  + move=>D; rewrite D !PeanoNat.Nat.ltb_irrefl; clear B C D E.
-    case: ifP; case: ifP=>//=; move: A;
-    rewrite -!PeanoNat.Nat.ltb_antisym !PeanoNat.Nat.ltb_ge.
-    by move/PeanoNat.Nat.ltb_lt /ltP=>A /leP B /PeanoNat.Nat.ltb_lt /ltP C _;
-       move: (leq_ltn_trans B C)=>/ltP A'; move/ltP in A;
-       move: (PeanoNat.Nat.lt_trans (Datatypes.length x) (Datatypes.length y)
-                                 (Datatypes.length x) A' A);
-       move/PeanoNat.Nat.lt_irrefl.
-
-
+case: ifP; case: ifP; case: ifP=>//=.
+- case: ifP; case: ifP=>//=.
+  + case: ifP=>//=;
+    move=>A /eqP -> /eqP -> B /eqP -> /eqP -> C D;
+    rewrite !eq_refl; case: ifP.
+    by move/eqP=>X; subst z; move: (trans_ords C D) (irr_ords x)=>->.
+    by move: (trans_ords C D).
+  + by move=>A /eqP -> B /eqP -> /eqP ->; rewrite !eq_refl A.
+  + by move=>/eqP -> A B /eqP -> /eqP A'; rewrite A' eq_refl in A.
+  + by move=>_ _ _ _ /eqP ->.
+- move=>/eqP -> A /eqP -> B; rewrite !eq_refl; case: ifP; case: ifP=>//=.
+  + case: ifP.
+    by move=>/eqP <- _ /eqP A'; rewrite A' eq_refl in A.
+    by move=>_ _ /eqP B'; rewrite B' in B.
+  + move=>/eqP <- _; move: B; rewrite -!PeanoNat.Nat.ltb_antisym;
+    move/PeanoNat.Nat.ltb_lt/ltP=>B; move/PeanoNat.Nat.ltb_lt/ltP=>B'.
+      by move: (ltn_trans B B') (ltnn (Datatypes.length y))=>->.
+    move=>_ _; move: B; rewrite -!PeanoNat.Nat.ltb_antisym.
+    move/PeanoNat.Nat.ltb_lt/ltP=>B; move/PeanoNat.Nat.ltb_lt/ltP=>B'.
+      by move/ltP/PeanoNat.Nat.ltb_lt: (ltn_trans B' B).
+- by move=>A B /eqP ->; rewrite A.
+- by move=>/eqP <- /eqP <- A; rewrite A.
+- by move=>A /eqP <- B; rewrite B.
+- by move=>/eqP-> A _; rewrite -!N.ltb_antisym;
+     move/N.ltb_lt=>B; move/N.ltb_lt=>B';
+     move: (N.lt_trans _ _ _ B B') (N.lt_irrefl (total_work y)).
+by move=>_ _ _; rewrite -!N.ltb_antisym;
+   move/N.ltb_lt=>A; move/N.ltb_lt=>B; apply/N.ltb_lt;
+   move: (N.lt_trans _ _ _ B A).
 Qed.
-
-
 
 
 Axiom FCR_subchain :
