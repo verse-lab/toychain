@@ -171,14 +171,40 @@ move=>Q; have Q': (ord bc bc) by [].
 by move: (nsym Q Q').
 Qed.
 
+Lemma FCR_trans :
+  forall (A B C : Blockchain), A > B -> B > C -> A > C.
+Proof.
+move=>x y z; rewrite/FCR.
+case: ifP; case: ifP; case: ifP=>//=; rewrite -!N.ltb_antisym=>A B C.
+by move=>_ _;
+   move/N.ltb_lt in B; move/N.ltb_lt in C;
+   move/N.ltb_nlt: A; move: (N.lt_trans _ _ _ B C).
+- move=>_; case: ifP; case: ifP=>//=;
+  by move/N.ltb_nlt: A; move/N.ltb_nlt: B;
+     move/N.nlt_ge=>A /N.nlt_ge B; move: (N.le_antisymm _ _ A B)=>E; rewrite -E C.
+- move=>_; case: ifP; case: ifP=>//=;
+  move/N.ltb_nlt: B; move/N.ltb_nlt: C;
+  move/N.nlt_ge=>B /N.nlt_ge C; move: (N.le_antisymm _ _ B C)=>E; rewrite -E=>->//=.
+  + move=>D; rewrite D !PeanoNat.Nat.ltb_irrefl; clear B C D E.
+    case: ifP; case: ifP=>//=; move: A;
+    rewrite -!PeanoNat.Nat.ltb_antisym !PeanoNat.Nat.ltb_ge.
+    by move/PeanoNat.Nat.ltb_lt /ltP=>A /leP B /PeanoNat.Nat.ltb_lt /ltP C _;
+       move: (leq_ltn_trans B C)=>/ltP A'; move/ltP in A;
+       move: (PeanoNat.Nat.lt_trans (Datatypes.length x) (Datatypes.length y)
+                                 (Datatypes.length x) A' A);
+       move/PeanoNat.Nat.lt_irrefl.
+
+
+Qed.
+
+
+
+
 Axiom FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
 Axiom FCR_rel :
   forall (A B : Blockchain),
     A = B \/ A > B \/ B > A.
-
-Axiom FCR_trans :
-  forall (A B C : Blockchain), A > B -> B > C -> A > C.
 
 End ProofOfWork.
