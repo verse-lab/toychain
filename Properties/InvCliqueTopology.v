@@ -91,7 +91,10 @@ case (msg p); rewrite /procMsg/=; case: st=>id ps bt tp GD/=.
   case filter => //= s l; rewrite inE;move/orP.
   case; first by move/eqP => H_eq; rewrite H_eq; move/eqP.
   by rewrite mem_cat=>/orP[]/=; move/mapP=>[y]_->->/=; rewrite eqxx.
-- by apply/allP=>b; case: ifP=>//_; rewrite inE=>/eqP->/=;rewrite eqxx.
+(* - by apply/allP=>b; case: ifP=>//_; rewrite inE=>/eqP->/=;rewrite eqxx. *)
+- case: ifP=>//=; case: ifP=>_ -> //=; (do? rewrite eq_refl //=);
+  apply/allP=>b/mapP[z]; rewrite mem_filter=>/andP[_];
+  by move/mapP=>[n]_->->/=; rewrite eqxx.
 - move=>c; apply/allP=>b/mapP[z]; rewrite mem_filter=>/andP[_].
   by move/mapP=>[n]_->->/=; rewrite eqxx.
 - move=>t; apply/allP=>z/mapP[y]; rewrite mem_filter=>/andP[_].
@@ -362,8 +365,8 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       do? rewrite /peers in H1.
       case filter => //= s l.
       by rewrite mem_undup mem_cat; apply/orP; left.
-      by case: ifP=>_;
-         [rewrite mem_undup|rewrite -cat1s mem_cat mem_undup; apply/orP; right].
+      case: ifP=>//=; case: ifP=>//= _;
+      by [rewrite mem_undup|move=>_; rewrite -cat1s mem_cat mem_undup; apply/orP; right].
     * case: ifP=>//_; first by case: ifP; move/eqP => //= H_eq; case ohead.
       move/eqP => H_neq.
       move => F'; clear H1; move: (HCliq n' _ F')=>H1.
@@ -475,8 +478,8 @@ case: GSyncW=>can_bc [can_bt] [can_n] []
       do? rewrite /peers in H1.
       case filter => //= s l.
       by rewrite mem_undup mem_cat; apply/orP; left.
-      by case: ifP=>_;
-         [rewrite mem_undup|rewrite -cat1s mem_cat mem_undup; apply/orP; right].
+      case: ifP=>//=; case: ifP=>//= _;
+      by [rewrite mem_undup|move=>_; rewrite -cat1s mem_cat mem_undup; apply/orP; right].
     * case: ifP=>//_; first by case: ifP; move/eqP => //= H_eq; case ohead.
       move/eqP => H_neq.
       move => F'; clear H1; move: (HCliq n' _ F')=>H1.

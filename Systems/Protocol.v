@@ -172,9 +172,10 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
     let: Node n prs bt pool := st in
     match msg with
     | ConnectMsg =>
-      let: ownHashes := dom bt ++ [seq hashT t | t <- pool] in
-      pair (Node n (undup (from :: prs)) bt pool)
-           (emitOne (mkP n from (InvMsg ownHashes)))
+      if from \in prs then pair st emitZero else
+      let: updP := undup (from :: prs) in
+      pair (Node n updP bt pool)
+           (emitOne (mkP n from ConnectMsg) ++ emitBroadcast n prs (AddrMsg updP))
 
     | AddrMsg knownPeers =>
       let: newP := [seq x <- knownPeers | x \notin prs] in
@@ -245,8 +246,9 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
 Lemma procMsg_id_constant (s1 : State) from (m : Message) (ts : Timestamp) :
     id s1 = id (procMsg s1 from m ts).1.
 Proof.
-case: s1 from m ts=>n1 p1 b1 t1 from []=>//=??; last case:ifP => //=.
+case: s1 from m ts=>n1 p1 b1 t1 from []=>//=?; last case: ifP=>//=.
 - by case filter.
+- by case: ifP=>//=.
 - move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
   by case ohead.
 Qed.
@@ -266,6 +268,7 @@ Proof.
 move=> s1 from  m ts.
 case Msg: m=>[||b|||]; destruct s1; rewrite/procMsg//=.
 by case filter=>//=.
+by case: ifP=>//=; apply (btExtendV V).
 by move=>V; apply (btExtendV V).
 by case: ifP=>//= /eqP H_neq; case: ifP=>//= /eqP H_eq;
    case filter=>//=.
@@ -345,7 +348,7 @@ Proof.
 case=> n1 p1 b1 t1 from; case; do? by []; simpl.
 - move=>? _ ?; case filter => //.
   by move => ? ?; rewrite undup_uniq.
-- move=>_ U; case: ifP=>X; rewrite //= ?undup_uniq//=.
+- move=>_ U; case: ifP=>X; rewrite //= X //= ?undup_uniq.
   rewrite andbC/=; apply/negbT/negP; rewrite mem_undup=>Z.
   by rewrite Z in X.
 - move=>s _ U; case: ifP => //=.
@@ -367,6 +370,7 @@ move=>s1 from m ts neq.
 case: m neq=>[prs||b|t|sh|h] neq;
   do? by[rewrite/procMsg; destruct s1=>/=].
 - by rewrite /procMsg; destruct s1 => /=; case filter.
+- by rewrite/procMsg; destruct s1; case: ifP.
 - by specialize (neq b); contradict neq; rewrite eqxx.
 - rewrite/procMsg/=; case: s1=>????/=; case:ifP => //=.
   move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.

@@ -62,7 +62,6 @@ let rec get_pkt = function
 let send_all (pkts : coq_Packet list) =
   List.iter (fun pkt -> send_pkt pkt.dst pkt) pkts
 
-(* TODO: will need special logic for ConnectMsg (i.e. update Net) *)
 let procMsg_wrapper () =
   let () = check_for_new_connections () in
   let fds = get_all_read_fds () in
@@ -82,7 +81,25 @@ let procMsg_wrapper () =
           end
           else
           begin
+            (* A new peer wants to connect to us! *)
+            (if pkt.msg == ConnectMsg then
+              begin
+                let cfg = get_cfg "new peer" in
+                let peer = (pkt.src, ip_port_of_int pkt.src) in
+                if not (List.mem peer cfg.nodes) then
+                begin
+                  let (ip, port) = snd peer in
+                    Printf.printf "New peer %s:%d connected to us!" ip port ;
+                    print_newline ();
+                    the_cfg := Some {cfg with nodes = peer :: cfg.nodes} ;
+                end
+              end
+            );
+            Printf.printf "Started processing packet %s" (string_of_packet pkt) ;
+            print_newline ();
             let (st', pkts) = Pr.procMsg !st pkt.src pkt.msg 0 in
+            Printf.printf "Finished processing packet %s" (string_of_packet pkt) ;
+            print_newline ();
             st := st';
             send_all pkts;
             Some (st, pkts)
@@ -129,17 +146,22 @@ let main () =
   begin
     parse_args args ;
 
+    (* Setup networking *)
     let _cluster = (List.map (fun (ip, port) -> int_of_ip_port ip port) !cluster) in
     let peer_ids = if not (List.mem !node_id _cluster) then !node_id :: _cluster else _cluster in
     nodes := List.map (fun nid -> (nid, ip_port_of_int nid)) peer_ids ;
+    setup { nodes = !nodes; me = !node_id };
+    Unix.sleep 1 ;
 
     begin
       st := {(coq_Init !node_id) with peers = peer_ids} ;
       let (ip, port) = ip_port_of_int !node_id in
       Printf.printf "You are node %s (%s:%d)" (string_of_address !st.id) ip port;
       print_newline ();
+      (* Send a ConnectMsg to all peers *)
+      let connects = List.map (fun pr -> {src = !node_id; dst = pr; msg = ConnectMsg }) peer_ids in
+      send_all connects ;
       
-      setup { nodes = !nodes; me = !node_id };
       Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
 
       while true do
