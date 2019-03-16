@@ -18,7 +18,7 @@ We recommend installing the requirements via [OPAM](https://opam.ocaml.org/doc/I
 ```
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install coq-mathcomp-ssreflect coq-fcsl-pcm
-opam install cryptokit
+opam install cryptokit ipaddr
 ```
 
 Then, run `make clean; make` from the root folder. This will build all

@@ -3,7 +3,7 @@ all: default
 default: Makefile.coq
 	mkdir -p Extraction/src/toychain
 	$(MAKE) -f Makefile.coq
-	ocamlbuild -use-ocamlfind -package cryptokit -lib cryptokit node.native -r -I Extraction/src -I Extraction/src/toychain
+	ocamlbuild -use-ocamlfind -package cryptokit -lib cryptokit -package ipaddr -lib ipaddr node.native -r -I Extraction/src -I Extraction/src/toychain
 
 quick: Makefile.coq
 	$(MAKE) -f Makefile.coq quick

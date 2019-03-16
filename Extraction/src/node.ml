@@ -14,6 +14,7 @@ open Net
 (** STATE **)
 let _ = Random.self_init ()
 let node_id = ref (-1)
+let cluster = ref []
 let nodes = ref []
 let st = ref (coq_Init 0)
 
@@ -25,23 +26,23 @@ let last_time = ref (Unix.time ())
 let usage msg =
   print_endline msg;
   Printf.printf "%s usage:\n" Sys.argv.(0);
-  Printf.printf "    %s [OPTIONS] <CLUSTER>\n" (Array.get Sys.argv 0);
+  Printf.printf "    %s -me IP_ADDR PORT -cluster <CLUSTER>\n" (Array.get Sys.argv 0);
   print_endline "where:";
-  print_endline "    CLUSTER   is a list of triples of ID IP_ADDR PORT,";
-  print_endline "              giving all the nodes in the system";
-  print_endline "Options are as follows:";
-  print_endline "    -me <NAME>      the identity of this node (required)";
+  print_endline "    CLUSTER   is a list of tuples of IP_ADDR PORT,";
+  print_endline "              giving OTHER known nodes in the system";
   exit 1
 
 let rec parse_args = function
   | [] -> ()
-  | "-me" :: name :: args ->
-     begin
-       node_id := (int_of_string name);
-       parse_args args
-     end
-  | name :: ip :: port :: args -> begin
-      nodes := (int_of_string name, (ip, int_of_string port)) :: !nodes;
+  | "-me" :: ip :: port :: args ->
+    begin
+      node_id := int_of_ip_port ip (int_of_string port);
+      parse_args args
+    end
+  | "-cluster" :: args -> parse_args args
+  | ip :: port :: args ->
+    begin
+      cluster := (ip, int_of_string port) :: !cluster;
       parse_args args
     end
   | arg :: args -> usage ("Unknown argument " ^ arg)
@@ -103,8 +104,8 @@ let procInt_wrapper () =
       Some (st, pkts)
   | false ->
       let (st', pkts) = Pr.procInt !st (MintT) 0 in
-      (* Bit of a hack to figure out whether a block was mined *)
       hashes := !hashes + 1;
+      (* Bit of a hack to figure out whether a block was mined *)
       if List.length pkts > 0 then
         begin
             Printf.printf "Mined a block!" ;
@@ -118,17 +119,24 @@ let procInt_wrapper () =
 
 (* NODE LOGIC *)
 let main () = 
+  (* XXX: our hack of packing IPv4:port into ints only works on 64 bit;
+          see Net.ml `int_of_ip_port` and `ip_port_of_int`
+  *)
+  assert (Sys.word_size >= 64);;
+
   let args = (List.tl (Array.to_list Sys.argv)) in
   if List.length args == 0 then usage "" else
   begin
     parse_args args ;
-    let peer_ids = (List.map (fun (x, _) -> x) !nodes) in
-    if not (List.mem !node_id peer_ids) then 
-        failwith (Printf.sprintf "You (node %s) must feature in the list of nodes.\n" (string_of_address !node_id))
-    else
+
+    let _cluster = (List.map (fun (ip, port) -> int_of_ip_port ip port) !cluster) in
+    let peer_ids = if not (List.mem !node_id _cluster) then !node_id :: _cluster else _cluster in
+    nodes := List.map (fun nid -> (nid, ip_port_of_int nid)) peer_ids ;
+
     begin
       st := {(coq_Init !node_id) with peers = peer_ids} ;
-      Printf.printf "You are node %s" (string_of_address !st.id);
+      let (ip, port) = ip_port_of_int !node_id in
+      Printf.printf "You are node %s (%s:%d)" (string_of_address !st.id) ip port;
       print_newline ();
       
       setup { nodes = !nodes; me = !node_id };

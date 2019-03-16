@@ -16,6 +16,17 @@ let int_of_raw_bytes (buf : bytes) : int =
   ((int_of_char (Bytes.get buf 2)) lsl 16) lor
   ((int_of_char (Bytes.get buf 3)) lsl 24)
 
+let int_of_ip_port (ip : string) (port : int) : int =
+  let _x = Ipaddr.V4.to_int32 (Ipaddr.V4.of_string_exn ip) in
+  let x = Int32.to_int _x in
+  (x lsl 16) lor port
+
+let ip_port_of_int (x : int) : (string * int) =
+  let _ip = Int32.of_int ((x land (lnot 0xffff)) lsr 16) in
+  let ip = Ipaddr.V4.to_string (Ipaddr.V4.of_int32 _ip) in
+  let port = x land 0xffff in
+  (ip, port)
+
 (* END utility functions *)
 
 (* Interrupt-resistant versions of system calls  *)
@@ -41,6 +52,7 @@ let get_addr_port cfg name =
 let get_name_for_read_fd fd =
   Hashtbl.find read_fds fd
 
+ (* TODO FIXME: receive all at once is one of the issues with Verdi *)
 let send_chunk (fd : file_descr) (buf : bytes) : unit =
   let len = Bytes.length buf in
   (* Printf.printf "sending chunk of length %d" len; print_newline (); *)

@@ -13,7 +13,7 @@ Module Type NetAddr.
    State and _all_ addresses (i.e. need to be able to enumerate them)
    should start with the initial state. *)
 
-Definition Address := 'I_1.
+Definition Address := 'I_2.
 Definition Address_ordMixin := fin_ordMixin [finType of Address].
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 
