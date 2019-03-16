@@ -156,9 +156,8 @@ move=>bc b ext; rewrite/FCR.
 case: ifP; last first.
 - move=>A; rewrite -N.ltb_antisym; elim: bc A=>//=.
   + move/negbT=>A; apply/N.ltb_lt.
-    Search _ (~~ (?a  == 0)).
-    (* lt0n is the nat version of this *)
-    admit.
+    case: (N.neq_0_lt_0 (work b + total_work ext)%N)=>P _.
+    by move/eqP in A; specialize (P A).
   + move=>x xs Hi X.
     case Q: (total_work (xs ++ b :: ext) == total_work xs).
     by move/eqP in Q; rewrite Q eq_refl in X.
@@ -172,7 +171,7 @@ case: ifP; last first.
   by rewrite List.app_length -{2}X eqn_add2l.
   by move=>_ _; rewrite -PeanoNat.Nat.ltb_antisym List.app_length -{1}X;
      apply/PeanoNat.Nat.ltb_lt/ltP; rewrite ltn_add2l.
-Admitted.
+Qed.
 
 Lemma FCR_nrefl :
   forall (bc : Blockchain), bc > bc -> False.
