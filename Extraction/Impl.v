@@ -70,6 +70,13 @@ Fixpoint total_work (bc : Blockchain) : N :=
   | [::] => N_of_nat 0
   end.
 
+Lemma total_work_sum xs ys :
+  total_work (xs ++ ys) = (total_work xs + total_work ys)%N.
+Proof.
+elim: xs=>//=[x xs H].
+case: (N.add_cancel_l (total_work (xs ++ ys)) (total_work xs + total_work ys)%N (work x))=>_ P.
+by specialize (P H); rewrite P N.add_assoc.
+Qed.
 
 (* (* For some reason, only ltb is defined in BinNatDef *) *)
 (* Definition gtb x y := *)
@@ -233,8 +240,39 @@ move=>x y; rewrite/FCR; case: ifP.
   by right; left.
 Qed.
 
-Axiom FCR_subchain :
+Lemma FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
-
+Proof.
+move=>bc bc'; rewrite/subchain/FCR; move=>[fs][ls]=>->; case: ifP.
+- case: ifP.
+  + case: ifP; first by move/eqP=>->; left.
+    move=>A; rewrite !List.app_length.
+    rewrite PeanoNat.Nat.add_comm Plus.plus_assoc_reverse.
+    have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
+    rewrite -{2}X.
+    move/eqP/(Plus.plus_reg_l (Datatypes.length ls + Datatypes.length fs)%coq_nat
+                              0 (Datatypes.length bc)).
+    move/PeanoNat.Nat.eq_add_0=>[].
+    move/List.length_zero_iff_nil=>->; move/List.length_zero_iff_nil=>->.
+    by left; rewrite cats0.
+  + move=>A B; right; move: A;
+    rewrite -!PeanoNat.Nat.ltb_antisym !List.app_length;
+    rewrite {1 2}PeanoNat.Nat.add_comm !Plus.plus_assoc_reverse=>A.
+    apply/PeanoNat.Nat.ltb_spec0; apply: PeanoNat.Nat.lt_add_pos_r.
+    have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
+    move: A; rewrite -{2}X; clear X.
+    case Z: ((Datatypes.length ls + Datatypes.length fs)%coq_nat == 0).
+    by move/eqP: Z=>->; rewrite eq_refl.
+    by move=>_; apply Lt.neq_0_lt; move: Z; rewrite eq_sym=>/eqP.
+(* Basically the same proof as above, but with BinNat *)
+- move=>A; right; rewrite -N.ltb_antisym.
+  rewrite catA !total_work_sum in A *.
+  rewrite N.add_comm (N.add_comm (total_work fs) _) N.add_comm -N.add_assoc in A *.
+  apply/N.ltb_spec0; apply N.lt_add_pos_r.
+  case Z: ((total_work fs + total_work ls) == 0)%N.
+  by move: A; move/eqP: Z=>->; rewrite N.add_0_r eq_refl.
+  by case: (N.neq_0_lt_0 (total_work fs + total_work ls)%N)=>P _;
+     move/eqP in Z; specialize (P Z).
+Qed.
 
 End ProofOfWork.
