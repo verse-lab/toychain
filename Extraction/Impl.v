@@ -206,12 +206,35 @@ by move=>_ _ _; rewrite -!N.ltb_antisym;
    move: (N.lt_trans _ _ _ B A).
 Qed.
 
+Lemma FCR_rel :
+  forall (A B : Blockchain),
+    A = B \/ A > B \/ B > A.
+Proof.
+move=>x y; rewrite/FCR; case: ifP.
+(* Same total work *)
+- move/eqP=>A; case: ifP=>/eqP B; rewrite A eq_refl.
+  + rewrite B; case: ifP; first by move=>/eqP->; left.
+    rewrite eq_refl eq_sym=>->.
+    case/or3P: (total_ords x y).
+    by right; left.
+    by move/eqP; left.
+    by right;right.
+  + rewrite eq_sym; case: ifP; first by move/eqP.
+    move=>_; rewrite -!PeanoNat.Nat.ltb_antisym.
+    case/or3P: (total_ltn_nat (Datatypes.length x) (Datatypes.length y)).
+    by right; right; apply/PeanoNat.Nat.ltb_lt/ltP.
+    by move/eqP.
+    by right; left; apply/PeanoNat.Nat.ltb_lt/ltP.
+(* Different total work *)
+- rewrite eq_sym=>X; rewrite X -!N.ltb_antisym.
+  case/or3P: (total_ltbN (total_work x) (total_work y)).
+  by right; right.
+  by move/eqP=>E; rewrite E eq_refl in X.
+  by right; left.
+Qed.
 
 Axiom FCR_subchain :
   forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
 
-Axiom FCR_rel :
-  forall (A B : Blockchain),
-    A = B \/ A > B \/ B > A.
 
 End ProofOfWork.
