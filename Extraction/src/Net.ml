@@ -27,6 +27,34 @@ let ip_port_of_int (x : int) : (string * int) =
   let port = x land 0xffff in
   (ip, port)
 
+let addr_of_ip_port (ip : string) (port : int) : ((int * int) * (int * int)) * (int * int) =
+  let _x = int_of_ip_port ip port in
+  let _port = _x land 0xffff in
+  let (p0, p1) = ((_port land 0xff00) lsr 8, _port land 0x00ff) in
+  let _ip = ((_x land (lnot 0xffff)) lsr 16) in
+  let _right_quad = _ip land 0xffff in
+  let _left_quad = (_ip land 0xffff0000) lsr 16 in
+  let (a0, a1) = ((_left_quad land 0xff00) lsr 8, _left_quad land 0x00ff) in
+  let (a2, a3) = ((_right_quad land 0xff00) lsr 8, _right_quad land 0x00ff) in
+  (((a0, a1), (a2, a3)), (p0, p1))
+
+let ip_port_of_addr addr : (string * int) =
+  let (_ip, _port) = addr in
+  let ((a0, a1), (a2, a3)) = _ip in
+  let (p0, p1) = _port in
+  let _i = (a0 lsl 24) lor (a1 lsl 16) lor (a2 lsl 8) lor a3 in
+  let _p = (p0 lsl 8) lor p1 in
+  let x = (_i lsl 16) lor _p in
+  ip_port_of_int x
+
+let int_of_addr addr =
+  let ip, port = (ip_port_of_addr addr) in
+  int_of_ip_port ip port
+
+let addr_of_int x =
+  let ip, port = ip_port_of_int x in
+  addr_of_ip_port ip port
+
 (* END utility functions *)
 
 (* Interrupt-resistant versions of system calls  *)

@@ -204,10 +204,14 @@ Lemma step_nodes w w' q :
 Proof.
 case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
 - move=>p st1 C iq pf F; case: (procMsg st1 (src p) (msg p))=>st2 ms[]->{sm'}Z1 Z2.
-  subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+  subst f' c'=>z.
+  rewrite (domU (dst p) st2 sm).
+  rewrite inE/=; case: ifP=>///eqP->{z}.
   by move/find_some: F->; case: C.
 move=>p t st1 C iq F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
-subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+subst f' c'=>z.
+rewrite (domU p st2 sm).
+rewrite inE/=; case: ifP=>///eqP->{z}.
 by move/find_some: F->; case: C.
 Qed.
 

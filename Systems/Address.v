@@ -13,7 +13,11 @@ Module Type NetAddr.
    State and _all_ addresses (i.e. need to be able to enumerate them)
    should start with the initial state. *)
 
-Definition Address := 'I_2.
+Definition half := prod 'I_1 'I_1.
+Definition ip := prod half half.
+Definition port := half.
+
+Definition Address := prod ip port.
 Definition Address_ordMixin := fin_ordMixin [finType of Address].
 Canonical Address_ordType := Eval hnf in OrdType Address Address_ordMixin.
 

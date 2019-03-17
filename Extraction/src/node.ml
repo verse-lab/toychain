@@ -13,10 +13,12 @@ open Net
 
 (** STATE **)
 let _ = Random.self_init ()
-let node_id = ref (-1)
 let cluster = ref []
 let nodes = ref []
-let st = ref (coq_Init 0)
+let _empty_addr = (((0, 0), (0, 0)), (0, 0))
+let node_id = ref (-1)
+let node_addr = ref (_empty_addr)
+let st = ref (coq_Init  _empty_addr)
 
 let hashes = ref 0
 let last_measurement = ref 0
@@ -37,6 +39,7 @@ let rec parse_args = function
   | "-me" :: ip :: port :: args ->
     begin
       node_id := int_of_ip_port ip (int_of_string port);
+      node_addr := addr_of_int !node_id;
       parse_args args
     end
   | "-cluster" :: args -> parse_args args
@@ -60,7 +63,7 @@ let rec get_pkt = function
       end
 
 let send_all (pkts : coq_Packet list) =
-  List.iter (fun pkt -> send_pkt pkt.dst pkt) pkts
+  List.iter (fun pkt -> send_pkt (int_of_addr pkt.dst) pkt) pkts
 
 let procMsg_wrapper () =
   let () = check_for_new_connections () in
@@ -73,7 +76,7 @@ let procMsg_wrapper () =
         begin
           Printf.printf "Received packet %s" (string_of_packet pkt);
           print_newline ();
-          if pkt.dst != !node_id then
+          if pkt.dst != !node_addr then
           begin
             Printf.printf " - packet sent in error? (we're not the destination!)";
             print_newline ();
@@ -85,7 +88,7 @@ let procMsg_wrapper () =
             (if pkt.msg == ConnectMsg then
               begin
                 let cfg = get_cfg "new peer" in
-                let peer = (pkt.src, ip_port_of_int pkt.src) in
+                let peer = (int_of_addr pkt.src, ip_port_of_addr pkt.src) in
                 if not (List.mem peer cfg.nodes) then
                 begin
                   let (ip, port) = snd peer in
@@ -95,11 +98,7 @@ let procMsg_wrapper () =
                 end
               end
             );
-            Printf.printf "Started processing packet %s" (string_of_packet pkt) ;
-            print_newline ();
             let (st', pkts) = Pr.procMsg !st pkt.src pkt.msg 0 in
-            Printf.printf "Finished processing packet %s" (string_of_packet pkt) ;
-            print_newline ();
             st := st';
             send_all pkts;
             Some (st, pkts)
@@ -137,7 +136,7 @@ let procInt_wrapper () =
 (* NODE LOGIC *)
 let main () = 
   (* XXX: our hack of packing IPv4:port into ints only works on 64 bit;
-          see Net.ml `int_of_ip_port` and `ip_port_of_int`
+            see Net.ml `int_of_ip_port` and `ip_port_of_int`
   *)
   assert (Sys.word_size >= 64);;
 
@@ -149,17 +148,17 @@ let main () =
     (* Setup networking *)
     let _cluster = (List.map (fun (ip, port) -> int_of_ip_port ip port) !cluster) in
     let peer_ids = if not (List.mem !node_id _cluster) then !node_id :: _cluster else _cluster in
+    let peer_addrs = List.map addr_of_int peer_ids in
     nodes := List.map (fun nid -> (nid, ip_port_of_int nid)) peer_ids ;
     setup { nodes = !nodes; me = !node_id };
     Unix.sleep 1 ;
 
     begin
-      st := {(coq_Init !node_id) with peers = peer_ids} ;
-      let (ip, port) = ip_port_of_int !node_id in
-      Printf.printf "You are node %s (%s:%d)" (string_of_address !st.id) ip port;
+      st := {(coq_Init (addr_of_int !node_id)) with peers = peer_addrs} ;
+      Printf.printf "You are node %s" (string_of_address !st.id);
       print_newline ();
       (* Send a ConnectMsg to all peers *)
-      let connects = List.map (fun pr -> {src = !node_id; dst = pr; msg = ConnectMsg }) peer_ids in
+      let connects = List.map (fun pr -> {src = !node_addr; dst = pr; msg = ConnectMsg }) peer_addrs in
       send_all connects ;
       
       Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));

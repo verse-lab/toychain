@@ -40,7 +40,9 @@ split; last first.
 - case: validUn; rewrite ?validPt ?H2//.
   move=>k. rewrite domPt inE. move=>/eqP Z. subst k.
   by rewrite H1; move/negP: H_ni.
-- move=>z; rewrite domUn !inE !domPt !inE.
+- move=>z;
+  rewrite (domUn (a \\-> Init a) (initState' s')).
+  rewrite !inE !domPt !inE.
   rewrite H1.
   case validUn.
   * by move/negP => H_v; case: H_v; rewrite validPt.

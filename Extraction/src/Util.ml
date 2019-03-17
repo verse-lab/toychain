@@ -29,7 +29,10 @@ let string_of_block (b : coq_Block) =
 let string_of_blockchain (chain : coq_Blockchain) =
   String.concat "\n" (List.map string_of_block chain)
 
-let string_of_address addr = string_of_int addr
+let string_of_address addr =
+  let ip, port = Net.ip_port_of_addr addr in
+  ip ^ ":" ^ (string_of_int port)
+
 let string_of_peers peers = (String.concat "; " (List.map string_of_address peers))
 
 let string_of_message (msg : Pr.coq_Message) =
