@@ -14,6 +14,17 @@ Extraction Blacklist String List.
    doesn't match the interface *)
 Extraction Inline ssrbool.SimplPred.
 
+(* This works around what seems to be a bug in Coq's extraction
+   mechanism. The normal extraction gives this code, but with "assert
+   false" instead of "assert true". *)
+Extract Constant fintype.Finite.base2 =>
+"
+  fun c ->
+    { Choice.Countable.base = c.base; Choice.Countable.mixin =
+      (Obj.magic mixin_base (assert true (* Proj Args *)) c.mixin) }
+".
+
+
 (* ordinals are nat, and we want to extract nat to int *)
 Extract Inductive nat => int [ "0" "succ" ] "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
 
