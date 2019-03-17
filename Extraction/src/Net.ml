@@ -111,16 +111,28 @@ let receive_chunk (fd : file_descr) : bytes =
         (Printf.sprintf "receive_chunk: message of length %d did not arrive all at once." len);
   buf
 
-let get_cfg err_msg =
+let get_cfg err_msg () =
   match !the_cfg with
   | None -> failwith (err_msg ^ " called before the_cfg was set")
   | Some cfg -> cfg
+
+let str_cfg () =
+  match !the_cfg with
+  | None -> "No peers configured!"
+  | Some cfg ->
+    begin
+      String.concat "; "
+      (List.map
+        (fun (nid, (ip, port)) -> (string_of_int nid) ^ " -> " ^ ip ^ ":" ^ (string_of_int port))
+        cfg.nodes
+      )
+    end
 
 let get_write_fd name =
   try Hashtbl.find write_fds name
   with Not_found ->
     let write_fd = socket PF_INET SOCK_STREAM 0 in
-    let cfg = get_cfg "get_write_fd" in
+    let cfg = get_cfg "get_write_fd" () in
     let (ip, port) = get_addr_port cfg name in
     let entry = gethostbyname ip in
     let node_addr = ADDR_INET (Array.get entry.h_addr_list 0, port) in

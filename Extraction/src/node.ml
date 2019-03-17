@@ -65,6 +65,17 @@ let rec get_pkt = function
 let send_all (pkts : coq_Packet list) =
   List.iter (fun pkt -> send_pkt (int_of_addr pkt.dst) pkt) pkts
 
+let add_peer_if_new p_addr =
+  let cfg = get_cfg "new peer" () in
+  let peer = (int_of_addr p_addr, ip_port_of_addr p_addr) in
+  if not (List.mem peer cfg.nodes) then
+  begin
+    let (ip, port) = snd peer in
+      Printf.printf "New peer %s:%d connected to us!" ip port ;
+      print_newline ();
+      the_cfg := Some {cfg with nodes = (peer :: cfg.nodes)} ;
+  end
+
 let procMsg_wrapper () =
   let () = check_for_new_connections () in
   let fds = get_all_read_fds () in
@@ -84,19 +95,15 @@ let procMsg_wrapper () =
           end
           else
           begin
-            (* A new peer wants to connect to us! *)
-            (if pkt.msg = ConnectMsg then
-              begin
-                let cfg = get_cfg "new peer" in
-                let peer = (int_of_addr pkt.src, ip_port_of_addr pkt.src) in
-                if not (List.mem peer cfg.nodes) then
-                begin
-                  let (ip, port) = snd peer in
-                    Printf.printf "New peer %s:%d connected to us!" ip port ;
-                    print_newline ();
-                    the_cfg := Some {cfg with nodes = peer :: cfg.nodes} ;
-                end
-              end
+            (* For ConnectMsg and AddrMsg, update peer table in Net.the_cfg
+                before actually processing the message. This ensures the
+                appropriate sockets can be created when send_all is called
+                later.
+             *)
+            ( match pkt.msg with
+              | ConnectMsg -> ignore (add_peer_if_new pkt.src);
+              | AddrMsg peers -> ignore (List.map (fun pr -> add_peer_if_new pr) peers);
+              | _ -> ();
             );
             let (st', pkts) = Pr.procMsg !st pkt.src pkt.msg 0 in
             st := st';
@@ -138,7 +145,7 @@ let main () =
   (* XXX: our hack of packing IPv4:port into ints only works on 64 bit;
             see Net.ml `int_of_ip_port` and `ip_port_of_int`
   *)
-  assert (Sys.word_size >= 64);;
+  assert (Sys.word_size >= 64);
 
   let args = (List.tl (Array.to_list Sys.argv)) in
   if List.length args = 0 then usage "" else
@@ -151,16 +158,21 @@ let main () =
     let peer_addrs = List.map addr_of_int peer_ids in
     nodes := List.map (fun nid -> (nid, ip_port_of_int nid)) peer_ids ;
     setup { nodes = !nodes; me = !node_id };
-    Unix.sleep 1 ;
+    Printf.printf "%s" (str_cfg ());
+    print_newline ();
+
+    (* Wait so other nodes in the cluster have time to start listening *)
+    Unix.sleep 1;
 
     begin
       st := {(coq_Init (addr_of_int !node_id)) with peers = peer_addrs} ;
-      Printf.printf "You are node %s" (string_of_address !st.id);
+      Printf.printf "You are node %d (%s)" (int_of_addr !st.id) (string_of_address !st.id);
       print_newline ();
       (* Send a ConnectMsg to all peers *)
       let connects = List.map (fun pr -> {src = !node_addr; dst = pr; msg = ConnectMsg }) peer_addrs in
       send_all connects ;
-      
+
+
       Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
 
       while true do
