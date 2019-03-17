@@ -76,7 +76,7 @@ let procMsg_wrapper () =
         begin
           Printf.printf "Received packet %s" (string_of_packet pkt);
           print_newline ();
-          if pkt.dst != !node_addr then
+          if pkt.dst <> !node_addr then
           begin
             Printf.printf " - packet sent in error? (we're not the destination!)";
             print_newline ();
@@ -85,7 +85,7 @@ let procMsg_wrapper () =
           else
           begin
             (* A new peer wants to connect to us! *)
-            (if pkt.msg == ConnectMsg then
+            (if pkt.msg = ConnectMsg then
               begin
                 let cfg = get_cfg "new peer" in
                 let peer = (int_of_addr pkt.src, ip_port_of_addr pkt.src) in
@@ -108,7 +108,7 @@ let procMsg_wrapper () =
 
 let procInt_wrapper () =
   (* Randomly decide what to do *)
-  let shouldIssueTx = (Random.int 10000 == 0) in
+  let shouldIssueTx = (Random.int 10000 = 0) in
   match shouldIssueTx with
   | true ->
       let tx = clist_of_string ("TX " ^ (string_of_int (Random.int 65536))) in
@@ -141,7 +141,7 @@ let main () =
   assert (Sys.word_size >= 64);;
 
   let args = (List.tl (Array.to_list Sys.argv)) in
-  if List.length args == 0 then usage "" else
+  if List.length args = 0 then usage "" else
   begin
     parse_args args ;
 
@@ -168,7 +168,7 @@ let main () =
         ignore (procMsg_wrapper ()); 
         (* Every 10 seconds, print your chain. *)
         let ts = (int_of_float (Unix.time ())) in
-        if ts mod 10 == 0 then 
+        if ts mod 10 = 0 then
           begin
             Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
             Printf.printf "%0.2f hashes per second\n"
