@@ -1,0 +1,30 @@
+opam-version: "2.0"
+version: "dev"
+maintainer: "palmskog@gmail.com"
+
+homepage: "https://github.com/certichain/toychain"
+dev-repo: "git+https://github.com/certichain/toychain.git"
+bug-reports: "https://github.com/certichain/toychain/issues"
+license: "BSD-2-Clause"
+synopsis: "Coq formalization of a minimalistic blockchain-based consensus protocol"
+
+build: [ make "-j%{jobs}%" ]
+install: [ make "install" ]
+depends: [
+  "ocaml"
+  "coq" {(>= "8.9" & < "8.10~") | (= "dev")}
+  "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.9~") | (= "dev")}
+  "coq-fcsl-pcm"
+]
+
+tags: [
+  "category:Computer Science/Concurrent Systems and Protocols/Theory of concurrent systems"
+  "keyword:program verification"
+  "keyword:distributed algorithms"
+  "logpath:Toychain"
+]
+authors: [
+  "Ilya Sergey"
+  "George Pirlea"
+  "Karl Palmskog"
+]
