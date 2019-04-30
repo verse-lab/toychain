@@ -87,7 +87,6 @@ awk.Makefile
 
 
 # Toychain-specific
-Extraction/src/toychain
 _build
 *.byte
 *.native
