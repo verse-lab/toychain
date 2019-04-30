@@ -17,9 +17,9 @@ case=>[x|p x]//=; case: x.
 by constructor 1; apply N.Private_Tac.eq_refl.
 by constructor 2.
 by constructor 2.
-move=>p'; case X: (BinPos.Pos.eqb p p').
-by constructor 1; move/BinPos.Peqb_true_eq: X=>->.
-by constructor 2; case; move/BinPos.Pos.eqb_neq: X.
+move=> p' /=; case X: (BinPos.Pos.eqb p p'); constructor.
+  by move/BinPos.Peqb_true_eq: X =>->.
+by move/BinPos.Pos.eqb_neq: X => X; case.
 Qed.
 End NEq.
 
