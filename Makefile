@@ -23,4 +23,4 @@ clean: Makefile.coq
 Makefile.coq: _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
 
-.PHONY: all default quick install clean
+.PHONY: all default quick install clean node
