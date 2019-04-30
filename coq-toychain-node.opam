@@ -6,23 +6,19 @@ homepage: "https://github.com/certichain/toychain"
 dev-repo: "git+https://github.com/certichain/toychain.git"
 bug-reports: "https://github.com/certichain/toychain/issues"
 license: "BSD-2-Clause"
-synopsis: "Coq formalization of a minimalistic blockchain-based consensus protocol"
+synopsis: "Blockchain node extracted from verified minimalistic protocol"
 
-build: [ make "-j%{jobs}%" ]
-install: [ make "install" ]
+build: [ make "-j%{jobs}%" "node" ]
 depends: [
   "ocaml"
   "coq" {(>= "8.9" & < "8.10~") | (= "dev")}
   "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.9~") | (= "dev")}
   "coq-fcsl-pcm"
+  "ocamlbuild" {build}
+  "cryptokit"
+  "ipaddr"
 ]
 
-tags: [
-  "category:Computer Science/Concurrent Systems and Protocols/Theory of concurrent systems"
-  "keyword:program verification"
-  "keyword:distributed algorithms"
-  "logpath:Toychain"
-]
 authors: [
   "Ilya Sergey"
   "George Pirlea"
