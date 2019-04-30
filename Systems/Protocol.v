@@ -4,31 +4,35 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks Forests.
+Require Import SeqFacts Chains Types Parameters Forests Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Implementation of PoS protocol as a STS *)
+Module Type ConsensusProtocol (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr).
+Import T P F A.
+
 Definition peers_t := seq Address.
 
-Inductive Message :=
+Inductive _Message :=
   | AddrMsg of peers_t
-  | ConnectMsg 
+  | ConnectMsg
   | BlockMsg of block
   | TxMsg of Transaction
   | InvMsg of seq Hash
   | GetDataMsg of Hash.
+Definition Message := _Message.
 
-Inductive MessageType :=
+Inductive _MessageType :=
   | MAddr
   | MConnect
   | MBlock
   | MTx
   | MInv
   | MGetData.
+Definition MessageType := _MessageType.
 
-Module MsgTypeEq.
+Section MsgTypeEq.
 Definition eq_msg_type a b :=
   match a, b with
   | MAddr, MAddr => true
@@ -49,7 +53,6 @@ Qed.
 Canonical MsgType_eqMixin := Eval hnf in EqMixin eq_msg_typeP.
 Canonical MsgType_eqType := Eval hnf in EqType MessageType MsgType_eqMixin.
 End MsgTypeEq.
-Export MsgTypeEq.
 
 Definition msg_type (msg : Message) : MessageType :=
   match msg with
@@ -74,9 +77,10 @@ Definition msg_hashes (msg : Message) : seq Hash :=
   | _ => [::]
   end.
 
-Inductive InternalTransition :=
+Inductive _InternalTransition :=
   | TxT of Transaction
   | MintT.
+Definition InternalTransition := _InternalTransition.
 
 Module MsgEq.
 Definition eq_msg a b :=
@@ -94,11 +98,6 @@ Definition eq_msg a b :=
   | GetDataMsg hA, GetDataMsg hB => (hA == hB)
   | GetDataMsg _, _ => false
  end.
-
-Ltac simple_tactic mb n n' B :=
-  (case: mb=>//[|n' p'|n'|b'|t'|p' h'|p' h']; do? [by constructor 2];
-   case B: (n == n'); [by case/eqP:B=><-; constructor 1|constructor 2];
-   case=>E; subst n'; rewrite eqxx in B).
 
 (* A lot of duplication in this proof; what can be done about it? *)
 Lemma eq_msgP : Equality.axiom eq_msg.
@@ -123,7 +122,7 @@ case: ma=>[p||b|t|h|h].
   case B: (h == h'); [by case/eqP:B=><-; constructor 1|constructor 2].
   by case=>Z; subst h'; rewrite eqxx in B.
 Qed.
-  
+
 Canonical Msg_eqMixin := Eval hnf in EqMixin eq_msgP.
 Canonical Msg_eqType := Eval hnf in EqType Message Msg_eqMixin.
 End MsgEq.
@@ -131,7 +130,7 @@ Export MsgEq.
 
 Record Packet := mkP {src: Address; dst: Address; msg: Message}.
 
-Module PacketEq.
+Section PacketEq.
 Definition eq_pkt a b :=
   ((src a) == (src b)) && ((dst a) == (dst b)) && ((msg a) == (msg b)).
 
@@ -147,7 +146,6 @@ Qed.
 Canonical Packet_eqMixin := Eval hnf in EqMixin eq_pktP.
 Canonical Packet_eqType := Eval hnf in EqType Packet Packet_eqMixin.
 End PacketEq.
-Export PacketEq.
 
 
 Definition ToSend := seq Packet.
@@ -174,9 +172,10 @@ Definition procMsg (st: State) (from : Address) (msg: Message) (ts: Timestamp) :
     let: Node n prs bt pool := st in
     match msg with
     | ConnectMsg =>
-      let: ownHashes := dom bt ++ [seq hashT t | t <- pool] in
-      pair (Node n (undup (from :: prs)) bt pool)
-           (emitOne (mkP n from (InvMsg ownHashes)))
+      if from \in prs then pair st emitZero else
+      let: updP := undup (from :: prs) in
+      pair (Node n updP bt pool)
+           (emitOne (mkP n from ConnectMsg) ++ emitBroadcast n prs (AddrMsg updP))
 
     | AddrMsg knownPeers =>
       let: newP := [seq x <- knownPeers | x \notin prs] in
@@ -227,7 +226,7 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
     | MintT =>
       let: bc := btChain bt in
       let: allowedTxs := [seq t <- pool | txValid t bc] in
-      match genProof n bc allowedTxs ts with
+      match genProof bc allowedTxs ts with
       | Some (txs, pf) =>
         let: prevBlock := last GenesisBlock bc in
         let: b := mkB (hashB prevBlock) txs pf in
@@ -242,12 +241,14 @@ Definition procInt (st : State) (tr : InternalTransition) (ts : Timestamp) :=
       end
     end.
 
+
 (* Proofs *)
 Lemma procMsg_id_constant (s1 : State) from (m : Message) (ts : Timestamp) :
     id s1 = id (procMsg s1 from m ts).1.
 Proof.
-case: s1 from m ts=>n1 p1 b1 t1 from []=>//=??; last case:ifP => //=.
+case: s1 from m ts=>n1 p1 b1 t1 from []=>//=?; last case: ifP=>//=.
 - by case filter.
+- by case: ifP=>//=.
 - move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
   by case ohead.
 Qed.
@@ -262,20 +263,21 @@ Qed.
 
 Lemma procMsg_valid :
    forall (s1 : State) from (m : Message) (ts : Timestamp),
-    valid (blockTree s1) -> valid (blockTree (procMsg s1 from  m ts).1).
+    valid (blockTree (procMsg s1 from  m ts).1) -> valid (blockTree s1).
 Proof.
 move=> s1 from  m ts.
-case Msg: m=>[||b|||];
-destruct s1; rewrite/procMsg/=; do?by [|move: (btExtendV blockTree0 b)=><-].
-- by case filter.
-- case:ifP => //=.
-  move/eqP => H_neq; case: ifP; move/eqP => //= H_eq H_v.
-  by case ohead.
+case Msg: m=>[||b|||]; destruct s1; rewrite/procMsg//=.
+by case filter=>//=.
+by case: ifP=>//=; apply (btExtendV V).
+by move=>V; apply (btExtendV V).
+by case: ifP=>//= /eqP H_neq; case: ifP=>//= /eqP H_eq;
+   case filter=>//=.
 Qed.
 
 Lemma procInt_valid :
   forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
-    valid (blockTree s1) = valid (blockTree (procInt s1 t ts).1).
+    valid (blockTree (procInt s1 t ts).1) ->
+    valid (blockTree s1).
 Proof.
 move=>s1 t ts.
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
@@ -312,7 +314,7 @@ Qed.
 
 Lemma procMsg_has_init_block:
    forall (s1 : State) from (m : Message) (ts : Timestamp),
-     valid (blockTree s1) -> validH (blockTree s1) ->
+     valid (blockTree (procMsg s1 from m ts).1) -> validH (blockTree s1) ->
      has_init_block (blockTree s1) ->
      has_init_block (blockTree (procMsg s1 from m ts).1).
 Proof.
@@ -320,22 +322,22 @@ move=> s1 from  m ts.
 case Msg: m=>[||b|||];
 destruct s1; rewrite/procMsg/=; do? by []; do? by case:ifP.
 - by case filter.
-- by apply btExtendIB.
+- move=>V Vh Ib; apply btExtendIB=>//=.
 - move=>v vh; case: ifP => //=; move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
   by case ohead.
 Qed.
 
 Lemma procInt_has_init_block :
    forall (s1 : State) (t : InternalTransition) (ts : Timestamp),
-     valid (blockTree s1) -> validH (blockTree s1) ->
+     valid (blockTree (procInt s1 t ts).1) -> validH (blockTree s1) ->
      has_init_block (blockTree s1) ->
      has_init_block (blockTree (procInt s1 t ts).1).
 Proof.
-move=>s1 t ts v vh.
+move=>s1 t ts v vh ib; move: v;
 case Int: t; destruct s1; rewrite/procInt/=; first by [].
 case: genProof => [[txs pf]|]; last by [].
 case tV: (valid_chain_block _ _)=>//.
-by apply btExtendIB.
+move=>Ib; apply btExtendIB=>//=.
 Qed.
 
 Lemma procMsg_peers_uniq :
@@ -346,7 +348,7 @@ Proof.
 case=> n1 p1 b1 t1 from; case; do? by []; simpl.
 - move=>? _ ?; case filter => //.
   by move => ? ?; rewrite undup_uniq.
-- move=>_ U; case: ifP=>X; rewrite //= ?undup_uniq//=. 
+- move=>_ U; case: ifP=>X; rewrite //= X //= ?undup_uniq.
   rewrite andbC/=; apply/negbT/negP; rewrite mem_undup=>Z.
   by rewrite Z in X.
 - move=>s _ U; case: ifP => //=.
@@ -368,6 +370,7 @@ move=>s1 from m ts neq.
 case: m neq=>[prs||b|t|sh|h] neq;
   do? by[rewrite/procMsg; destruct s1=>/=].
 - by rewrite /procMsg; destruct s1 => /=; case filter.
+- by rewrite/procMsg; destruct s1; case: ifP.
 - by specialize (neq b); contradict neq; rewrite eqxx.
 - rewrite/procMsg/=; case: s1=>????/=; case:ifP => //=.
   move/eqP => H_neq; case: ifP; move/eqP => //= H_eq.
@@ -443,13 +446,13 @@ Qed.
 
 Lemma bt_valid :
   forall (s1 s2 : State),
-    local_step s1 s2 -> valid (blockTree s1) -> valid (blockTree s2).
+    local_step s1 s2 -> valid (blockTree s2) -> valid (blockTree s1).
 Proof.
 move=> s1 s2.
 case.
 - by move=> ->.
 - by move=> f m ts ->; apply procMsg_valid.
-- by move=> t ts ->; move: (procInt_valid s1 t ts)=><-.
+- by move=>t ts -> V; apply (procInt_valid V).
 Qed.
 
 Lemma peers_uniq :
@@ -462,3 +465,8 @@ case.
 - by move=> f m ts ->; apply procMsg_peers_uniq.
 - by move=> t ts ->; apply procInt_peers_uniq.
 Qed.
+End ConsensusProtocol.
+
+Module Protocol (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr) <: ConsensusProtocol T P F A.
+Include (ConsensusProtocol T P F A).
+End Protocol.

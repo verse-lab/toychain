@@ -4,10 +4,18 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import Protocol Chains Forests States.
+Require Import Protocol Types Chains Parameters Forests States Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+
+Module Type ConsensusNetwork
+       (T : Types)
+       (P : ConsensusParams T) (F : Forest T P) (A : NetAddr)
+       (Pr : ConsensusProtocol T P F A) (Ns : NetState T P F A Pr).
+Import T P A Pr Ns F.
+
 
 Definition PacketSoup := seq Packet.
 
@@ -27,12 +35,12 @@ Definition Coh (w : World) :=
   [/\ valid (localState w),
      forall (n : Address),
        holds n w (fun st => id st == n),
+     (* forall (n : Address), *)
+     (*   holds n w (fun st => valid (blockTree st)), *)
      forall (n : Address),
-       holds n w (fun st => valid (blockTree st)),
+       holds n w (fun st => valid (blockTree st) -> validH (blockTree st)),
      forall (n : Address),
-       holds n w (fun st => validH (blockTree st)),
-     forall (n : Address),
-       holds n w (fun st => has_init_block (blockTree st)) &
+       holds n w (fun st => valid (blockTree st) -> has_init_block (blockTree st)) &
      forall (n : Address),
        holds n w (fun st => uniq (peers st))
   ].
@@ -89,9 +97,9 @@ Lemma holds_Init_state : forall (P : State -> Prop) n, P (Init n) ->
   holds n {| localState := initState; inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
 Proof.
 move => P n H_P; rewrite /initState.
-have H_in: n \in enum Address by rewrite mem_enum.
-have H_un: uniq (enum Address) by apply enum_uniq.
-move: H_in H_un; elim: (enum Address) => //=.
+have H_in: n \in enum [finType of Address] by rewrite mem_enum.
+have H_un: uniq (enum [finType of Address]) by apply enum_uniq.
+move: H_in H_un; elim: (enum [finType of Address]) => //=.
 move => a s IH; rewrite inE; move/orP; case.
 * move/eqP => H_eq /=.
   rewrite H_eq; move/andP => [H_in H_u].
@@ -118,10 +126,10 @@ rewrite /initWorld/localState/=; split.
 - apply: valid_initState'.
   exact: enum_uniq.
 - by move => n; exact: holds_Init_state.
+(* - move => n; apply: holds_Init_state. *)
+(*   by rewrite /blockTree /= validPt. *)
 - move => n; apply: holds_Init_state.
-  by rewrite /blockTree /= validPt.
-- move => n; apply: holds_Init_state.
-  rewrite/validH/blockTree /= => h b H.
+  rewrite/validH/blockTree /= => h b b' H.
   by move: (findPt_inv H); elim=>->->.
 - move => n; apply: holds_Init_state.
   by rewrite/has_init_block/blockTree findPt.
@@ -136,48 +144,55 @@ case: S'.
 (* Idle *)
 by case=>Cw <-.
 (* Deliver *)
-- move=> p st [H1 H2 H3 H4 H5 H6] _ iF sF; case P: (procMsg _ _ _)=>[st' ms].
+- move=> p st [H1 H2 (* H3 *) H4 H5 H6] _ iF sF;
+  case P: (procMsg _ _ _)=>[st' ms].
   move=>->; split;
     do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
   + rewrite /localState validU=>/=; apply H1.
   + Coh_step_case n (dst p) H2 F; move/eqP: (H2 (dst p) _ sF)=>Id.
     move: (procMsg_id_constant st (src p) (msg p) (ts q)).
     by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
-  + Coh_step_case n (dst p) H3 F; move: (H3 (dst p) _ sF)=>V.
-    by move: (procMsg_valid (src p) (msg p) (ts q) V); rewrite P.
-  + Coh_step_case n (dst p) H4 F;
-    move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
-    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
+  (* + Coh_step_case n (dst p) H3 F; move: (H3 (dst p) _ sF)=>V. *)
+  (*   by move: (procMsg_valid (src p) (msg p) (ts q) V); rewrite P. *)
+  + Coh_step_case n (dst p) H4 F.
+    move: (H4 (dst p) _ sF)=>VH;
+    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _.
+    move=>V; move: (procMsg_valid V)=>v; specialize (VH v).
     by apply procMsg_validH.
   + Coh_step_case n (dst p) H5 F.
-    move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
-    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _;
-    by move: (H5 (dst p) _ sF); apply procMsg_has_init_block.
+    move=>V; move: (H4 (dst p) _ sF)=>VH;
+    rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=>Eq _.
+    rewrite -Eq in V *; move: (procMsg_valid V)=>v.
+    move: (H5 (dst p) _ sF v); move: (VH v).
+    by apply procMsg_has_init_block=>//=.
   + Coh_step_case n (dst p) H6 F.
-    move: (H3 (dst p) _ sF)=>V; move: (H4 (dst p) _ sF)=>VH;
+    move: (H4 (dst p) _ sF)=>VH;
     rewrite [procMsg _ _ _ _] surjective_pairing in P; case: P=><- _.
     by move: (H6 (dst p) _ sF); apply procMsg_peers_uniq.
 
 (* Intern *)
-- move=> proc t st [H1 H2 H3 H4 H5 H6] _ sF. case P: (procInt _ _ _)=>[st' ms].
+- move=> proc t st [H1 H2 (* H3 *) H4 H5 H6] _ sF.
+  case P: (procInt _ _ _)=>[st' ms].
   move=>->; split;
     do? [rewrite /holds/localState; move=> n stN; rewrite findU=>/=].
   + rewrite /localState validU=>/=; apply H1.
   + Coh_step_case n proc H2 F; move/eqP: (H2 proc _ sF)=>Id.
     move: (procInt_id_constant st t (ts q)).
     by move/eqP in B; subst n; rewrite Id=>->; rewrite P.
-  + Coh_step_case n proc H3 F; move: (H3 proc _ sF)=>V.
-    by move: (procInt_valid st t (ts q)); rewrite P/==><-.
+  (* + Coh_step_case n proc H3 F; move: (H3 proc _ sF)=>V. *)
+  (*   by move: (procInt_valid st t (ts q)); rewrite P/==><-. *)
   + Coh_step_case n proc H4 F;
-    move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
-    rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _;
+    move=>V; move: (H4 proc _ sF)=>VH;
+    rewrite [procInt _ _ _] surjective_pairing in P; case: P=>Eq _.
+    rewrite -Eq in V *; move: (procInt_valid V)=>v; move: (VH v).
     by apply procInt_validH.
   + Coh_step_case n proc H5 F.
-    move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
-    rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _;
-    by move: (H5 proc _ sF); apply procInt_has_init_block.
+    move=>V; move: (H4 proc _ sF)=>VH;
+    rewrite [procInt _ _ _] surjective_pairing in P; case: P=>Eq _;
+    rewrite -Eq in V *; move: (procInt_valid V)=>v; move: (VH v)=>vh.
+    by move: (H5 proc _ sF v); apply procInt_has_init_block.
   + Coh_step_case n proc H6 F.
-    move: (H3 proc _ sF)=>V; move: (H4 proc _ sF)=>VH;
+    move: (H4 proc _ sF)=>VH;
     rewrite [procInt _ _ _] surjective_pairing in P; case: P=><- _.
     by move: (H6 proc _ sF); apply procInt_peers_uniq.
 Qed.
@@ -189,10 +204,14 @@ Lemma step_nodes w w' q :
 Proof.
 case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
 - move=>p st1 C iq pf F; case: (procMsg st1 (src p) (msg p))=>st2 ms[]->{sm'}Z1 Z2.
-  subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+  subst f' c'=>z.
+  rewrite (domU (dst p) st2 sm).
+  rewrite inE/=; case: ifP=>///eqP->{z}.
   by move/find_some: F->; case: C.
 move=>p t st1 C iq F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
-subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+subst f' c'=>z.
+rewrite (domU p st2 sm).
+rewrite inE/=; case: ifP=>///eqP->{z}.
 by move/find_some: F->; case: C.
 Qed.
 
@@ -266,3 +285,12 @@ Proof.
 move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
+
+End ConsensusNetwork.
+
+Module Network (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr)
+       (Pr : ConsensusProtocol T P F A) (Ns : NetState T P F A Pr)
+        <: ConsensusNetwork T P F A Pr Ns.
+
+Include ConsensusNetwork T P F A Pr Ns.
+End Network.
