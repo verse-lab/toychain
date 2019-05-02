@@ -84,3 +84,13 @@ CoqMakefile.conf
 Makefile.coq.conf
 .coqdeps.d
 awk.Makefile
+
+
+# Toychain-specific
+_build
+*.byte
+*.native
+# Profiling
+gmon.out
+perf.data*
+perf.hist*

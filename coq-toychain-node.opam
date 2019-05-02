@@ -1,0 +1,26 @@
+opam-version: "2.0"
+version: "dev"
+maintainer: "palmskog@gmail.com"
+
+homepage: "https://github.com/certichain/toychain"
+dev-repo: "git+https://github.com/certichain/toychain.git"
+bug-reports: "https://github.com/certichain/toychain/issues"
+license: "BSD-2-Clause"
+synopsis: "Blockchain node extracted from verified minimalistic protocol"
+
+build: [ make "-j%{jobs}%" "node" ]
+depends: [
+  "ocaml"
+  "coq" {(>= "8.9" & < "8.10~") | (= "dev")}
+  "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.9~") | (= "dev")}
+  "coq-fcsl-pcm"
+  "ocamlbuild" {build}
+  "cryptokit"
+  "ipaddr"
+]
+
+authors: [
+  "Ilya Sergey"
+  "George Pirlea"
+  "Karl Palmskog"
+]

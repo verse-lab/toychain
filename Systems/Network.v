@@ -4,10 +4,18 @@ Require Import Eqdep Relations.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import Protocol Chains Forests States.
+Require Import Protocol Types Chains Parameters Forests States Address.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+
+Module Type ConsensusNetwork
+       (T : Types)
+       (P : ConsensusParams T) (F : Forest T P) (A : NetAddr)
+       (Pr : ConsensusProtocol T P F A) (Ns : NetState T P F A Pr).
+Import T P A Pr Ns F.
+
 
 Definition PacketSoup := seq Packet.
 
@@ -89,9 +97,9 @@ Lemma holds_Init_state : forall (P : State -> Prop) n, P (Init n) ->
   holds n {| localState := initState; inFlightMsgs := [::]; consumedMsgs := [::] |} (fun st : State => P st).
 Proof.
 move => P n H_P; rewrite /initState.
-have H_in: n \in enum Address by rewrite mem_enum.
-have H_un: uniq (enum Address) by apply enum_uniq.
-move: H_in H_un; elim: (enum Address) => //=.
+have H_in: n \in enum [finType of Address] by rewrite mem_enum.
+have H_un: uniq (enum [finType of Address]) by apply enum_uniq.
+move: H_in H_un; elim: (enum [finType of Address]) => //=.
 move => a s IH; rewrite inE; move/orP; case.
 * move/eqP => H_eq /=.
   rewrite H_eq; move/andP => [H_in H_u].
@@ -196,10 +204,14 @@ Lemma step_nodes w w' q :
 Proof.
 case: w w'=>sm f c [sm'] f' c'; case=>/=; first by case=>C; case=>->/=.
 - move=>p st1 C iq pf F; case: (procMsg st1 (src p) (msg p))=>st2 ms[]->{sm'}Z1 Z2.
-  subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+  subst f' c'=>z.
+  rewrite (domU (dst p) st2 sm).
+  rewrite inE/=; case: ifP=>///eqP->{z}.
   by move/find_some: F->; case: C.
 move=>p t st1 C iq F; case: (procInt st1 t)=>st2 ms[]->{sm'}Z1 Z2.
-subst f' c'=>z; rewrite domU inE/=; case: ifP=>///eqP->{z}.
+subst f' c'=>z.
+rewrite (domU p st2 sm).
+rewrite inE/=; case: ifP=>///eqP->{z}.
 by move/find_some: F->; case: C.
 Qed.
 
@@ -273,3 +285,12 @@ Proof.
 move=> f S h sF st' s'F.
 by rewrite f in s'F; case: s'F=><-; move: (h st sF).
 Qed.
+
+End ConsensusNetwork.
+
+Module Network (T : Types) (P : ConsensusParams T) (F : Forest T P) (A : NetAddr)
+       (Pr : ConsensusProtocol T P F A) (Ns : NetState T P F A Pr)
+        <: ConsensusNetwork T P F A Pr Ns.
+
+Include ConsensusNetwork T P F A Pr Ns.
+End Network.
