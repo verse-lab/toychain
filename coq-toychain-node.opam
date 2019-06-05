@@ -11,8 +11,8 @@ synopsis: "Blockchain node extracted from verified minimalistic protocol"
 build: [ make "-j%{jobs}%" "node" ]
 depends: [
   "ocaml"
-  "coq" {(>= "8.9" & < "8.10~") | (= "dev")}
-  "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.9~") | (= "dev")}
+  "coq" {(>= "8.9" & < "8.11~") | (= "dev")}
+  "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.10~") | (= "dev")}
   "coq-fcsl-pcm"
   "ocamlbuild" {build}
   "cryptokit"
