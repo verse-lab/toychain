@@ -167,7 +167,7 @@ case: ifP; last first.
 
 (* When total work is equal, LHS is longer *)
 - case: ifP;
-  have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
+  have X: (Datatypes.length bc + 0 = Datatypes.length bc) by rewrite ?addn0.
   by rewrite List.app_length -{2}X eqn_add2l.
   by move=>_ _; rewrite -PeanoNat.Nat.ltb_antisym List.app_length -{1}X;
      apply/PeanoNat.Nat.ltb_lt/ltP; rewrite ltn_add2l.
@@ -247,7 +247,7 @@ move=>bc bc'; rewrite/subchain/FCR; move=>[fs][ls]=>->; case: ifP.
   + case: ifP; first by move/eqP=>->; left.
     move=>A; rewrite !List.app_length.
     rewrite PeanoNat.Nat.add_comm Plus.plus_assoc_reverse.
-    have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
+    have X: (Datatypes.length bc + 0 = Datatypes.length bc) by rewrite ?addn0.
     rewrite -{2}X.
     move/eqP/(Plus.plus_reg_l (Datatypes.length ls + Datatypes.length fs)%coq_nat
                               0 (Datatypes.length bc)).
@@ -258,7 +258,7 @@ move=>bc bc'; rewrite/subchain/FCR; move=>[fs][ls]=>->; case: ifP.
     rewrite -!PeanoNat.Nat.ltb_antisym !List.app_length;
     rewrite {1 2}PeanoNat.Nat.add_comm !Plus.plus_assoc_reverse=>A.
     apply/PeanoNat.Nat.ltb_spec0; apply: PeanoNat.Nat.lt_add_pos_r.
-    have X: (Datatypes.length bc + 0 = Datatypes.length bc) by [].
+    have X: (Datatypes.length bc + 0 = Datatypes.length bc) by rewrite ?addn0.
     move: A; rewrite -{2}X; clear X.
     case Z: ((Datatypes.length ls + Datatypes.length fs)%coq_nat == 0).
     by move/eqP: Z=>->; rewrite eq_refl.
