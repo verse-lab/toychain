@@ -1,5 +1,4 @@
 opam-version: "2.0"
-version: "dev"
 maintainer: "palmskog@gmail.com"
 
 homepage: "https://github.com/certichain/toychain"
@@ -12,8 +11,8 @@ build: [ make "-j%{jobs}%" ]
 install: [ make "install" ]
 depends: [
   "ocaml"
-  "coq" {(>= "8.9" & < "8.10~") | (= "dev")}
-  "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.9~") | (= "dev")}
+  "coq" {(>= "8.9" & < "8.11~") | (= "dev")}
+  "coq-mathcomp-ssreflect" {(>= "1.7" & < "1.10~") | (= "dev")}
   "coq-fcsl-pcm"
 ]
 
