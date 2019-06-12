@@ -11,6 +11,9 @@ opam: &OPAM
       echo \"Build triggered by ${TRAVIS_EVENT_TYPE}\"
       export PS4='+ \e[33;1m(\$0 @ line \$LINENO) \$\e[0m '
       set -ex  # -e = exit on failure; -x = trace for debug
+      sudo apt-get update -y -q
+      DEBIAN_FRONTEND=noninteractive sudo apt-get install -y -q --no-install-recommends zlib1g-dev libgmp-dev
+      opam switch ${SWITCH} ; eval $(opam env)
       opam update -y
       opam pin add ${CONTRIB_NAME} . -y -n -k path
       opam install ${CONTRIB_NAME} -y -j ${NJOBS} --deps-only
@@ -36,16 +39,19 @@ matrix:
   # Test supported versions of Coq via OPAM
   - env:
     - COQ_IMAGE=coqorg/coq:8.9
-    - CONTRIB_NAME=coq-toychain
+    - CONTRIB_NAME=coq-toychain-node
     - NJOBS=2
+    - SWITCH=4.07.1+flambda
     <<: *OPAM
   - env:
     - COQ_IMAGE=coqorg/coq:8.10
     - CONTRIB_NAME=coq-toychain
     - NJOBS=2
+    - SWITCH=4.05.0
     <<: *OPAM
   - env:
     - COQ_IMAGE=coqorg/coq:dev
     - CONTRIB_NAME=coq-toychain
     - NJOBS=2
+    - SWITCH=4.05.0
     <<: *OPAM

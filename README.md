@@ -8,13 +8,22 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ### Requirements
 
+Coq definitions and proofs:
+
 * [Coq 8.9 or later](https://coq.inria.fr)
 * [Mathematical Components](http://math-comp.github.io/math-comp/) (`ssreflect`)
 * [FCSL PCM library](https://github.com/imdea-software/fcsl-pcm)
 
+Executable node:
+
+* [OCaml 4.06.0 or later](https://ocaml.org)
+* [OCamlbuild](https://github.com/ocaml/ocamlbuild)
+* [cryptokit](https://github.com/xavierleroy/cryptokit)
+* [ipaddr](https://github.com/mirage/ocaml-ipaddr)
+
 ### Building Definitions and Proofs
 
-We recommend installing the requirements via [OPAM](https://opam.ocaml.org/doc/Install.html):
+We recommend installing the Coq requirements via [OPAM](https://opam.ocaml.org/doc/Install.html):
 ```
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install coq-mathcomp-ssreflect coq-fcsl-pcm
@@ -25,10 +34,10 @@ the libraries and check all the proofs.
 
 ### Building an Executable Node
 
-The following additional dependencies need to be installed to build
-an executable blockchain node:
+The additional OCaml dependencies for the executable node can also
+be installed via OPAM:
 ```
-opam install cryptokit ipaddr
+opam install ocamlbuild cryptokit ipaddr
 ```
 
 Then, run `make node` from the root folder. This will produce an
