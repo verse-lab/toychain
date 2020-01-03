@@ -90,7 +90,7 @@ rewrite -joinCA in V; move: (Hi (validR V))=>{Hi}Hi.
 have A: antisymmetric ord by move=>???/andP[]H1 H2; move: (nsym H1 H2).  
 apply: (eq_sorted (@trans K) (A K))=>//=.
 rewrite joinCA in V.
-apply: uniq_perm_eq=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
+apply: uniq_perm=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
 - case: validUn V=>//_ _/(_ j).
   by rewrite domPtK inE eqxx uniq_dom=>/(_ is_true_true) ? ?; apply/andP.
 move=>z; rewrite !inE !domUn !inE V domPtK inE (eq_sym z k).
@@ -116,11 +116,11 @@ Proof.
 have A: antisymmetric ord by move=>???/andP[]H1 H2; move: (nsym H1 H2).
 case: ifP=>X V P; rewrite joinCA in V.
 - apply: (eq_sorted (@trans K) (A K))=>//=.
-  + rewrite path_min_sorted//.
-    move=>z; rewrite domUn inE (validR V) domPtK inE /=.
+  + rewrite path_min_sorted //=; apply/allP=>z.    
+    rewrite domUn inE (validR V) domPtK inE /=.
     case/orP; first by move/eqP=>->.
     by move/(path_ord_sorted (sorted_dom m) P).
-  apply: uniq_perm_eq=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
+  apply: uniq_perm=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
   + by case: validUn V=>//_ _/(_ j);
        rewrite domPtK inE eqxx=>/(_ is_true_true) ? ?; apply/andP.
   move=>z; rewrite !inE !domUn !inE V domPtK inE /=.
@@ -130,7 +130,7 @@ apply: (eq_sorted (@trans K) (A K))=>//=.
   move/eqP=>Z; subst j.
   case: validUn (V)=>//_ _/(_ k); rewrite domPtK inE eqxx=>/(_ is_true_true).
   by rewrite domUn inE domPtK inE eqxx/= andbC(validR V).
-apply: uniq_perm_eq=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
+apply: uniq_perm=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
 - rewrite joinCA in V; case: validUn (V)=>//_ _/(_ k).
   rewrite domPtK inE eqxx=>/(_ is_true_true)=>/negP N _.
   apply/andP; split; last first.
