@@ -2,7 +2,7 @@ From mathcomp.ssreflect
 Require Import ssreflect ssrbool ssrnat eqtype ssrfun seq path.
 Require Import Eqdep.
 From fcsl
-Require Import pred prelude ordtype pcm finmap unionmap heap.
+Require Import pred prelude ordtype pcm finmap unionmap automap heap.
 
 Set Implicit Arguments.
 
@@ -113,34 +113,14 @@ Lemma dom_ord2 {K: ordType} {T} (j k : K) (w v : T) m:
   dom (pts j w \+ (k \\-> v \+ m)) =
   if ord j k then j :: dom (k \\-> v \+ m) else k :: j :: (dom m).
 Proof.
-have A: antisymmetric ord by move=>???/andP[]H1 H2; move: (nsym H1 H2).
-case: ifP=>X V P; rewrite joinCA in V.
-- apply: (eq_sorted (@trans K) (A K))=>//=.
-  + rewrite path_min_sorted //=; apply/allP=>z.    
-    rewrite domUn inE (validR V) domPtK inE /=.
-    case/orP; first by move/eqP=>->.
-    by move/(path_ord_sorted (sorted_dom m) P).
-  apply: uniq_perm=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
-  + by case: validUn V=>//_ _/(_ j);
-       rewrite domPtK inE eqxx=>/(_ is_true_true) ? ?; apply/andP.
-  move=>z; rewrite !inE !domUn !inE V domPtK inE /=.
-  by rewrite (validR V)/= domPtUn /= domPtK !inE (validR V) (eq_sym z k).
-apply: (eq_sorted (@trans K) (A K))=>//=.
-- rewrite P andbC/=; case/orP: (total k j) X=>///orP[]; last by move=>->.
-  move/eqP=>Z; subst j.
-  case: validUn (V)=>//_ _/(_ k); rewrite domPtK inE eqxx=>/(_ is_true_true).
-  by rewrite domUn inE domPtK inE eqxx/= andbC(validR V).
-apply: uniq_perm=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
-- rewrite joinCA in V; case: validUn (V)=>//_ _/(_ k).
-  rewrite domPtK inE eqxx=>/(_ is_true_true)=>/negP N _.
-  apply/andP; split; last first.
-  + case: validUn (validR V)=>//_ _/(_ j).
-    by rewrite domPtK inE eqxx=>/(_ is_true_true) ? ?; apply/andP.
-  rewrite inE; apply/negP=>M; apply: N.
-  by rewrite domUn inE (validR V) domPtK inE.
-move=>z; rewrite !inE !domUn !inE V domPtK inE eq_sym/=.
-rewrite domUn inE (validR V)/= domPtK inE.
-by case: (j == z)=>//; case: (z == k).
+case: totalP=> [k_lt_j V P | /eqP-> | j_lt_k V P].
+- by rewrite joinCA !dom_ord1 ?(validX V) //= k_lt_j P.
+- by rewrite validPtUn /= domPtUn inE eqxx /= andbT andbN.
+rewrite -[pts j w]/(j \\-> w) dom_ord1 ?(validX V) //.
+rewrite path_min_sorted //; apply/allP=> z.
+rewrite domUn inE; case/andP=>[_]/orP[].
+- by rewrite domPtK inE => /eqP->.
+by move=> F; rewrite (path_ord_sorted (sorted_dom m)).
 Qed.
 
 Lemma dom_insert {K: ordType} {T} (k : K) (v : T) m :
