@@ -16,7 +16,7 @@ Coq definitions and proofs:
 
 Executable node:
 
-* [OCaml 4.07.1 or later](https://ocaml.org)
+* [OCaml 4.06.0 or later](https://ocaml.org)
 * [OCamlbuild](https://github.com/ocaml/ocamlbuild)
 * [cryptokit](https://github.com/xavierleroy/cryptokit)
 * [ipaddr](https://github.com/mirage/ocaml-ipaddr)
