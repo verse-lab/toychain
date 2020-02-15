@@ -11,9 +11,9 @@ build: [ make "-j%{jobs}%" ]
 install: [ make "install" ]
 remove: [ "sh" "-c" "rm -rf '%{lib}%/coq/user-contrib/Toychain'" ]
 depends: [
-  "coq" {>= "8.7" & < "8.10~"}
-  "coq-mathcomp-ssreflect" {>= "1.6.4" & < "1.8~"}
-  "coq-fcsl-pcm"
+  "coq" {>= "8.11" & < "8.12~"}
+  "coq-mathcomp-ssreflect" {>= "1.10.0" & < "1.11~"}
+  "coq-fcsl-pcm" {>= "1.2.0" & < "1.3~"}
 ]
 
 tags: [

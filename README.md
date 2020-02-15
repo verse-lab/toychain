@@ -8,16 +8,17 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 ### Requirements
 
-* [Coq](https://coq.inria.fr) (8.7, 8.8, or 8.9)
-* [Mathematical Components](http://math-comp.github.io/math-comp/) (`ssreflect` suffices)
-* [FCSL PCM library](https://github.com/imdea-software/fcsl-pcm)
+* [Coq](https://coq.inria.fr) (8.11)
+* [Mathematical Components](http://math-comp.github.io/math-comp/)
+  (`ssreflect` suffices) (1.10)
+* [FCSL PCM library](https://github.com/imdea-software/fcsl-pcm) (1.2.0)
 
 ### Building
 
 We recommend installing the requirements via [OPAM](https://opam.ocaml.org/doc/Install.html):
 ```
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam install coq-mathcomp-ssreflect coq-fcsl-pcm
+opam install coq coq-mathcomp-ssreflect coq-fcsl-pcm
 ```
 
 Then, run `make clean; make` from the root folder. This will build all

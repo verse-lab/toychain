@@ -117,7 +117,8 @@ have A: antisymmetric ord by move=>???/andP[]H1 H2; move: (nsym H1 H2).
 case: ifP=>X V P; rewrite joinCA in V.
 - apply: (eq_sorted (@trans K) (A K))=>//=.
   + rewrite path_min_sorted//.
-    move=>z; rewrite domUn inE (validR V) domPtK inE /=.
+    apply/allP=>z.
+    rewrite domUn inE (validR V) domPtK inE /=.
     case/orP; first by move/eqP=>->.
     by move/(path_ord_sorted (sorted_dom m) P).
   apply: uniq_perm_eq=>/=; rewrite ?dom_uniq ?[_&&true]andbC//=.
