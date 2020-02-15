@@ -4,7 +4,7 @@ Require Import Eqdep.
 From fcsl
 Require Import pred prelude ordtype pcm finmap unionmap heap.
 From Toychain
-Require Import SeqFacts Chains Blocks.
+Require Import SeqFacts Chains Types Parameters.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -12,92 +12,205 @@ Unset Printing Implicit Defensive.
 (* A formalization of a block forests *)
 (* TODO: Go through this file and put the lemmas in a sensible order. *)
 
-(************************************************************)
-(******************* <parameters> ***************************)
-(************************************************************)
+Module Type Forest (T : Types) (Params : ConsensusParams T).
+Import T Params.
+Definition btExtend (bt : BlockTree) (b : block) :=
+  if #b \in dom bt then
+    if find (# b) bt == Some b then bt
+    else um_undef
+  else (#b \\-> b \+ bt).
 
-Parameter Timestamp : Type.
-Parameter Hash : ordType.
-Parameter VProof : eqType.
-Parameter Transaction : eqType.
-Parameter Address : finType.
+Definition get_block (bt : BlockTree) k : Block :=
+  if find k bt is Some b then b else GenesisBlock.
+Definition all_blocks (bt : BlockTree) := [seq get_block bt k | k <- dom bt].
+Definition valid_chain_block bc (b : block) :=
+  [&& VAF b bc (txs b) & all [pred t | txValid t bc] (txs b)].
 
-Definition block := @Block Hash Transaction VProof.
+Definition btHasBlock (bt : BlockTree) (b : block) :=
+  (#b \in dom bt) && (find (# b) bt == Some b).
+Notation "b ∈ bt" := (btHasBlock bt b) (at level 70).
+Notation "b ∉ bt" := (~~ btHasBlock bt b) (at level 70).
 
-Parameter GenesisBlock : block.
+Definition validH (bt : BlockTree) :=
+  forall h b, find h bt = Some b -> h = hashB b.
+Definition has_init_block (bt : BlockTree) :=
+  find (# GenesisBlock) bt = Some GenesisBlock.
+Definition good_chain (bc : Blockchain) :=
+  if bc is h :: _ then h == GenesisBlock else false.
+Fixpoint valid_chain' (bc prefix : seq block) :=
+  if bc is b :: bc'
+  then [&& VAF b prefix (txs b) && all [pred t | txValid t prefix] (txs b) & valid_chain' bc' (rcons prefix b)]
+  else true.
+Definition valid_chain bc := valid_chain' bc [::].
 
-Definition Blockchain := seq block.
+Fixpoint compute_chain' (bt : BlockTree) b remaining n : Blockchain :=
+  if (# b) \in remaining
+  then
+    if b ∈ bt then
+        let rest := seq.rem (hashB b) remaining in
+        if n is n'.+1 then
+            match find (prevBlockHash b) bt with
+            | None => [:: b]
+            | Some prev =>
+                if b == GenesisBlock then [:: b] else
+                rcons (nosimpl (compute_chain' (free (# b) bt) prev rest n')) b
+            end
+        else [::]
+      else [::]
+  else [::].
+Definition compute_chain bt b :=
+  compute_chain' bt b (dom bt) (size (dom bt)).
 
-(* In fact, it's a forest, as it also keeps orphan blocks *)
-Definition BlockTree := union_map Hash block.
+Definition good_bt bt :=
+  forall b, b \in all_blocks bt ->
+            good_chain (compute_chain bt b) && valid_chain (compute_chain bt b).
 
-(* Transaction pools *)
-Definition TxPool := seq Transaction.
+Definition all_chains bt := [seq compute_chain bt b | b <- all_blocks bt].
+Definition good_chains bt := [seq c <- all_chains bt | good_chain c && valid_chain c].
+Definition take_better_bc bc2 bc1 :=
+  if (good_chain bc2 && valid_chain bc2) && (bc2 > bc1) then bc2 else bc1.
 
-Parameter hashT : Transaction -> Hash.
-Parameter hashB : block -> Hash.
-Parameter genProof : Address -> Blockchain -> TxPool -> Timestamp -> option (TxPool * VProof).
-Parameter VAF : VProof -> Blockchain -> TxPool -> bool.
-Parameter FCR : Blockchain -> Blockchain -> bool.
+Definition btChain bt : Blockchain :=
+  foldr take_better_bc [:: GenesisBlock] (all_chains bt).
 
-(* Transaction is valid and consistent with the given chain *)
-Parameter txValid : Transaction -> Blockchain -> bool.
-Parameter tpExtend : TxPool -> BlockTree -> Transaction -> TxPool.
+Axiom btExtendV : forall bt b, valid (btExtend bt b) -> valid bt.
+Axiom btExtendH : forall bt b, valid bt -> validH bt -> validH (btExtend bt b).
+Axiom btExtendIB : forall bt b,
+  validH bt -> valid (btExtend bt b) -> has_init_block bt ->
+  has_init_block (btExtend bt b).
+Axiom btExtend_withDup_noEffect : forall bt b,
+  b ∈ bt -> bt = (btExtend bt b).
+Axiom btChain_mem2 : forall bt b,
+  valid bt -> has_init_block bt ->
+  b \in btChain bt -> b ∈ bt.
+Axiom geq_genesis : forall bt, btChain bt >= [:: GenesisBlock].
 
-(************************************************************)
-(********************* </parameters> ************************)
-(************************************************************)
+Axiom btExtendIB_fold : forall bt bs,
+  validH bt -> valid (foldl btExtend bt bs) -> has_init_block bt ->
+  has_init_block (foldl btExtend bt bs).
 
-Notation "A > B" := (FCR A B).
-Notation "A >= B" := (A = B \/ A > B).
-Notation "# b" := (hashB b) (at level 20).
+Axiom btExtendV_fold1 : forall bt bs b,
+  valid (foldl btExtend bt (rcons bs b)) -> valid (foldl btExtend bt bs).
 
-Definition bcLast (bc : Blockchain) := last GenesisBlock bc.
+Axiom btExtendV_fold_xs : forall bt xs,
+  valid (foldl btExtend bt xs) -> valid bt.
 
-Definition subchain (bc1 bc2 : Blockchain) := exists p q, bc2 = p ++ bc1 ++ q.
+Axiom btExtendV_fold : forall bt xs ys,
+  valid (foldl btExtend bt (xs ++ ys)) -> valid (foldl btExtend bt xs).
 
-(************************************************************)
-(*********************** <axioms> ***************************)
-(************************************************************)
+Axiom btExtendV_comm : forall bt a b,
+  valid (btExtend (btExtend bt a) b) =
+  valid (btExtend (btExtend bt b) a).
 
-(* 2.  Transaction validation *)
+Axiom btExtendV_fold_comm : forall bt xs ys,
+  validH bt ->
+  valid (foldl btExtend (foldl btExtend bt xs) ys) =
+  valid (foldl btExtend (foldl btExtend bt ys) xs).
 
-Axiom txValid_nil : forall t, txValid t [::].
+Axiom btExtend_fold_comm : forall (bt : BlockTree) (bs bs' : seq block),
+  validH bt ->
+  foldl btExtend (foldl btExtend bt bs) bs' =
+  foldl btExtend (foldl btExtend bt bs') bs.
 
-(* 3.  Hashes *)
+Axiom btExtend_comm : forall bt b1 b2,
+  valid (btExtend (btExtend bt b1) b2) ->
+  btExtend (btExtend bt b1) b2 = btExtend (btExtend bt b2) b1.
 
-(* Axiom hashB_inj : injective hashB. *)
+Axiom btExtend_seq_same : forall bt b bs,
+  valid (foldl btExtend bt bs) -> validH bt -> has_init_block bt ->
+  b \in bs -> btChain bt = btChain (foldl btExtend bt bs) ->
+  btChain bt = btChain (btExtend bt b).
 
-(* 4.  VAF *)
+Axiom btExtend_seq_sameOrBetter_fref' :
+  forall (bc : Blockchain) (bt : BlockTree) (b : block) (bs : seq block),
+    valid (foldl btExtend bt bs) -> validH bt -> has_init_block bt ->
+    b \in bs -> bc >= btChain bt ->
+    bc = btChain (foldl btExtend bt bs) ->
+    bc >= btChain (btExtend bt b).
 
-Axiom VAF_init : VAF (proof GenesisBlock) [::] (txs GenesisBlock).
+Axiom btExtend_fold_preserve : forall ob bt bs,
+    valid (foldl btExtend bt bs) -> ob ∈ bt ->
+    ob ∈ foldl btExtend bt bs.
 
-Axiom VAF_GB_first :
-  forall bc, VAF (proof GenesisBlock) bc (txs GenesisBlock) -> bc = [::].
+Axiom btExtendV_within : forall bt bs b,
+  validH bt ->
+  valid (foldl btExtend bt bs) ->
+  b \in bs ->
+  valid (btExtend bt b).
 
-(* 2. FCR *)
+Axiom btExtend_compute_chain : forall bt a b,
+  valid (btExtend bt a) -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  (compute_chain (btExtend bt a) b) = compute_chain bt b.
 
-Axiom FCR_subchain :
-  forall bc1 bc2, subchain bc1 bc2 -> bc2 >= bc1.
+Axiom btChain_in_bt : forall bt, has_init_block bt -> btChain bt \in all_chains bt.
 
-(* TODO: strengthen to only valid chains *)
-Axiom FCR_ext :
-  forall (bc : Blockchain) (b : block) (ext : seq block),
-    bc ++ (b :: ext) > bc.
+Axiom btChain_good : forall bt, good_chain (btChain bt).
 
-Axiom FCR_rel :
-  forall (A B : Blockchain),
-    A = B \/ A > B \/ B > A.
+Axiom btExtend_mint_good_valid : forall bt b,
+  let bc := btChain bt in
+  let pb := last GenesisBlock bc in
+  valid (btExtend bt b) -> validH bt -> has_init_block bt ->
+  valid_chain_block bc b ->
+  good_chain bc ->
+  prevBlockHash b = #pb ->
+  good_chain (compute_chain (btExtend bt b) b) /\
+  valid_chain (compute_chain (btExtend bt b) b).
 
-Axiom FCR_nrefl :
-  forall (bc : Blockchain), bc > bc -> False.
+Axiom btExtend_with_new : forall cbt bt bs b,
+  valid (btExtend cbt b) -> validH cbt -> has_init_block cbt ->
+  valid (btExtend bt b) -> validH bt -> has_init_block bt ->
+  good_bt cbt -> good_bt (btExtend cbt b) ->
+  btChain (btExtend bt b) > btChain cbt ->
+  cbt = foldl btExtend bt bs ->
+  btChain (btExtend bt b) = btChain (btExtend cbt b).
 
-Axiom FCR_trans :
-  forall (A B C : Blockchain), A > B -> B > C -> A > C.
+Axiom btExtend_mint : forall bt b,
+  let pb := last GenesisBlock (btChain bt) in
+  valid (btExtend bt b) -> validH bt -> has_init_block bt ->
+  valid_chain_block (btChain bt) b ->
+  prevBlockHash b = # pb ->
+  btChain (btExtend bt b) > btChain bt.
 
-(************************************************************)
-(*********************** </axioms> **************************)
-(************************************************************)
+Axiom btExtend_within : forall cbt bt b bs,
+  valid (btExtend cbt b) -> validH cbt -> has_init_block cbt ->
+  valid (btExtend bt b) -> validH bt -> has_init_block bt ->
+  good_bt cbt -> good_bt (btExtend cbt b) ->
+  valid_chain_block (btChain bt) b ->
+  btChain cbt >= btChain (btExtend bt b) ->
+  prevBlockHash b = # last GenesisBlock (btChain bt) ->
+  cbt = foldl btExtend bt bs ->
+  btChain (btExtend cbt b) > btChain cbt -> False.
+
+Axiom btExtend_sameOrBetter : forall bt b,
+  valid (btExtend bt b) -> validH bt -> has_init_block bt ->
+  btChain (btExtend bt b) >= btChain bt.
+
+Axiom btExtend_compute_chain_fold : forall bt bs b,
+  valid (foldl btExtend bt bs) -> validH bt -> has_init_block bt ->
+  good_chain (compute_chain bt b) ->
+  (compute_chain (foldl btExtend bt bs) b) = compute_chain bt b.
+
+Axiom all_blocksP' : forall bt b, validH bt -> reflect (b ∈ bt) (b \in all_blocks bt).
+
+Axiom btExtend_in_either : forall bt b b', b ∈ btExtend bt b' -> b ∈ bt \/ b == b'.
+
+Axiom btExtend_idemp : forall bt b,
+  valid (btExtend bt b) -> btExtend bt b = btExtend (btExtend bt b) b.
+
+
+
+(* TODO: Arguably, this should go in ConsensusParams *)
+Axiom FCR_trans_eq2 : forall (A B C : Blockchain), A > B -> B >= C -> A > C.
+Axiom Geq_trans : forall (A B C : Blockchain), A >= B -> B >= C -> A >= C.
+Axiom FCR_dual : forall (A B : Blockchain), (A > B = false) <-> (B >= A).
+
+
+End Forest.
+
+
+Module Forests (T : Types) (Params : ConsensusParams T) <: (Forest T Params).
+Import T Params.
 
 Lemma FCR_trans_eq (A B C : Blockchain):
     A >= B -> B >= C -> A >= C.
@@ -1005,7 +1118,7 @@ Qed.
 (* Transaction validity *)
 Fixpoint valid_chain' (bc prefix : seq block) :=
   if bc is b :: bc'
-  then [&& VAF (proof b) prefix (txs b) && all [pred t | txValid t prefix] (txs b) & valid_chain' bc' (rcons prefix b)]
+  then [&& VAF b prefix (txs b) && all [pred t | txValid t prefix] (txs b) & valid_chain' bc' (rcons prefix b)]
   else true.
 
 Definition valid_chain bc := valid_chain' bc [::].
@@ -1385,7 +1498,6 @@ Lemma btExtend_compute_chain bt a b :
 Proof.
 move=>V' Vh Ib G; move: (btExtendV V')=>V.
 move: (@btExtendH _ a V Vh)=>Vh'.
-Check btExtendIB.
 move: (btExtendIB Vh V' Ib)=>Ib'.
 case: (btExtend_chain_prefix b V' Vh)
       (compute_chain_gb_not_within b V' Vh')=>p <- H.
@@ -1420,7 +1532,7 @@ elim: n bt hs Es En=>[|n Hi] bt hs Es En Ib=>/=;
 subst hs; move/find_some: (Ib).
 - by move/esym/size0nil:En=>->.
 move=>->; case: ifP.
-by case (find (prevBlockHash GenesisBlock) bt)=>// b; case: ifP=>// /eqP.
+by case: (find (prevBlockHash GenesisBlock) bt)=>// b; case: ifP=>// /eqP.
 by move: Ib (find_some Ib); rewrite/has_init_block/btHasBlock=>-> ->; rewrite eq_refl.
 Qed.
 
@@ -1466,7 +1578,6 @@ Proof.
 move=>V H.
 move: (btChain_in_bt H); move: (btChain bt)=>bc H2 H1.
 case/mapP:H2=>b0 _ Z; subst bc.
-Check block_in_chain.
 by move: (block_in_chain V H H1).
 Qed.
 
@@ -1546,7 +1657,7 @@ Qed.
 
 Lemma tx_valid_init : all [pred t | txValid t [::]] (txs GenesisBlock).
 Proof.
-elim: (txs GenesisBlock) => //= tx txs IH.
+elim: (txs GenesisBlock)=> //= tx txs IH.
 apply/andP; split => //.
 exact: txValid_nil.
 Qed.
@@ -2272,7 +2383,7 @@ Lemma btExtend_mint_ext bt bc b :
   bc = compute_chain bt pb ->
   good_chain bc ->
   prevBlockHash b = #pb ->
-  VAF (proof b) bc (txs b) ->
+  VAF b bc (txs b) ->
   compute_chain (btExtend bt b) b = rcons bc b.
 Proof.
 move=>pb V' Vh Ib E HGood Hp Hv; move: (btExtendV V')=>V.
@@ -2334,10 +2445,10 @@ by rewrite/btHasBlock D F //=; (have: Some b == Some b by [])=>->.
 Qed.
 
 Definition valid_chain_block bc (b : block) :=
-  [&& VAF (proof b) bc (txs b) & all [pred t | txValid t bc] (txs b)].
+  [&& VAF b bc (txs b) & all [pred t | txValid t bc] (txs b)].
 
 Lemma valid_chain_last_ind c b prefix:
-  VAF (proof b) prefix (txs b) ->
+  VAF b prefix (txs b) ->
   all [pred t | txValid t prefix] (txs b) ->
   valid_chain' c (rcons prefix b) ->
   valid_chain' (b :: c) prefix.
@@ -2951,3 +3062,4 @@ by move: (btExtend_within V Vh Hib Vl Vhl Hil Hg Hg' T Geq P Ec H1).
 Qed.
 
 End BtChainProperties.
+End Forests.
