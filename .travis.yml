@@ -38,20 +38,14 @@ matrix:
 
   # Test supported versions of Coq via OPAM
   - env:
-    - COQ_IMAGE=coqorg/coq:8.9
+    - COQ_IMAGE=coqorg/coq:8.11
     - CONTRIB_NAME=coq-toychain-node
     - NJOBS=2
     - SWITCH=4.07.1+flambda
     <<: *OPAM
   - env:
-    - COQ_IMAGE=coqorg/coq:8.10
+    - COQ_IMAGE=coqorg/coq:8.11
     - CONTRIB_NAME=coq-toychain
     - NJOBS=2
-    - SWITCH=4.05.0
-    <<: *OPAM
-  - env:
-    - COQ_IMAGE=coqorg/coq:dev
-    - CONTRIB_NAME=coq-toychain
-    - NJOBS=2
-    - SWITCH=4.05.0
+    - SWITCH=4.07.1+flambda
     <<: *OPAM
