@@ -44,13 +44,13 @@ matrix:
     - SWITCH=4.07.1+flambda
     <<: *OPAM
   - env:
-    - COQ_IMAGE=coqorg/coq:8.10
+    - COQ_IMAGE=mathcomp/mathcomp:1.10.0-coq-8.10
     - CONTRIB_NAME=coq-toychain-node
     - NJOBS=2
     - SWITCH=4.07.1+flambda
     <<: *OPAM
   - env:
-    - COQ_IMAGE=coqorg/coq:8.11
+    - COQ_IMAGE=mathcomp/mathcomp:1.10.0-coq-8.11
     - CONTRIB_NAME=coq-toychain
     - NJOBS=2
     - SWITCH=4.07.1+flambda
