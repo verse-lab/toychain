@@ -11,7 +11,7 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 Coq definitions and proofs:
 
 * [Coq 8.9 or later](https://coq.inria.fr)
-* [Mathematical Components](http://math-comp.github.io/math-comp/) (`ssreflect`)
+* [Mathematical Components](http://math-comp.github.io/math-comp/) (`ssreflect`, 1.10)
 * [FCSL PCM library](https://github.com/imdea-software/fcsl-pcm)
 
 Executable node:
@@ -26,7 +26,7 @@ Executable node:
 We recommend installing the Coq requirements via [OPAM](https://opam.ocaml.org/doc/Install.html):
 ```
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam install coq-mathcomp-ssreflect coq-fcsl-pcm
+opam install coq coq-mathcomp-ssreflect.1.10.0 coq-fcsl-pcm
 ```
 
 Then, run `make clean; make` from the root folder. This will build all
@@ -53,4 +53,3 @@ The top-level structure consists of the following folders:
 
 * `Properties` - proved properties of the protocol, e.g., eventual
   consistency for a clique-like network topology;
-
