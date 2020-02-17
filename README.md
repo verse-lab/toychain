@@ -10,7 +10,7 @@ A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
 Coq definitions and proofs:
 
-* [Coq 8.11](https://coq.inria.fr)
+* [Coq 8.9 or later](https://coq.inria.fr)
 * [Mathematical Components](http://math-comp.github.io/math-comp/) (`ssreflect`, 1.10)
 * [FCSL PCM library](https://github.com/imdea-software/fcsl-pcm)
 

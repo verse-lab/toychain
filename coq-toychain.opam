@@ -11,7 +11,7 @@ build: [ make "-j%{jobs}%" ]
 install: [ make "install" ]
 depends: [
   "ocaml"
-  "coq" {(>= "8.11" & < "8.12~") | (= "dev")}
+  "coq" {(>= "8.9" & < "8.12~") | (= "dev")}
   "coq-mathcomp-ssreflect" {(>= "1.10.0") | (= "dev")}
   "coq-fcsl-pcm"
 ]
