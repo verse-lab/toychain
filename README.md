@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/certichain/toychain.svg?branch=master)](https://travis-ci.org/certichain/toychain)
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://raw.githubusercontent.com/certichain/toychain/master/LICENSE)
+[![DOI](https://zenodo.org/badge/97869050.svg)](https://zenodo.org/badge/latestdoi/97869050)
 
 A Coq implementation of a minimalistic blockchain-based consensus protocol.
 
